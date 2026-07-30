@@ -1,0 +1,96 @@
+{
+  "stats": [
+    { "id": "total", "label": "Total Tickets", "value": "248", "change": "+12%", "icon": "ticket" },
+    { "id": "open", "label": "Open Tickets", "value": "42", "change": "+4%", "icon": "warning" },
+    { "id": "progress", "label": "In Progress", "value": "31", "change": "+2%", "icon": "spark" },
+    { "id": "resolved", "label": "Resolved", "value": "175", "change": "+18%", "icon": "check" }
+  ],
+  "tickets": [
+    {
+      "id": "TK-1024",
+      "title": "Login issue on mobile app",
+      "category": "Bug",
+      "priority": "High",
+      "status": "Open",
+      "assignedTo": "Ava Carter",
+      "createdAt": "2026-07-28",
+      "description": "Customers are unable to stay signed in after switching networks.",
+      "comments": [
+        { "author": "Ava Carter", "text": "Investigating the auth refresh token issue.", "time": "09:20" }
+      ],
+      "attachments": ["mobile-flow.png"],
+      "timeline": [
+        { "label": "Created", "time": "08:00" },
+        { "label": "Assigned", "time": "08:40" },
+        { "label": "Pending review", "time": "09:15" }
+      ]
+    },
+    {
+      "id": "TK-1018",
+      "title": "Invoice export not working",
+      "category": "Billing",
+      "priority": "Medium",
+      "status": "In Progress",
+      "assignedTo": "Noah Kim",
+      "createdAt": "2026-07-25",
+      "description": "Exports fail for CSV files larger than 20MB.",
+      "comments": [],
+      "attachments": ["export-log.txt"],
+      "timeline": [
+        { "label": "Created", "time": "10:15" },
+        { "label": "In review", "time": "12:05" }
+      ]
+    },
+    {
+      "id": "TK-1007",
+      "title": "Dashboard widgets not loading",
+      "category": "UI",
+      "priority": "Low",
+      "status": "Resolved",
+      "assignedTo": "Mina Patel",
+      "createdAt": "2026-07-22",
+      "description": "Widgets are blank for some roles after the latest deployment.",
+      "comments": [
+        { "author": "Mina Patel", "text": "Resolved after refreshing the cached layout config.", "time": "14:50" }
+      ],
+      "attachments": [],
+      "timeline": [
+        { "label": "Created", "time": "07:10" },
+        { "label": "Resolved", "time": "14:50" }
+      ]
+    }
+  ],
+  "aiMessages": [
+    { "id": 1, "role": "assistant", "content": "Hello! I can help summarize tickets, suggest replies, or prioritize incidents." },
+    { "id": 2, "role": "user", "content": "Summarize the latest high-priority tickets." },
+    { "id": 3, "role": "assistant", "content": "There are two high-priority items: login errors on mobile and billing exports failing." }
+  ],
+  "reports": {
+    "monthly": [
+      { "name": "Jan", "tickets": 28 },
+      { "name": "Feb", "tickets": 34 },
+      { "name": "Mar", "tickets": 41 },
+      { "name": "Apr", "tickets": 36 },
+      { "name": "May", "tickets": 49 },
+      { "name": "Jun", "tickets": 60 }
+    ],
+    "priority": [
+      { "name": "High", "value": 48 },
+      { "name": "Medium", "value": 72 },
+      { "name": "Low", "value": 32 }
+    ],
+    "resolution": [
+      { "name": "Mon", "hours": 5 },
+      { "name": "Tue", "hours": 4 },
+      { "name": "Wed", "hours": 6 },
+      { "name": "Thu", "hours": 3 },
+      { "name": "Fri", "hours": 4 }
+    ],
+    "departments": [
+      { "name": "Support", "value": 95 },
+      { "name": "Engineering", "value": 62 },
+      { "name": "Finance", "value": 41 },
+      { "name": "Ops", "value": 28 }
+    ]
+  }
+}
