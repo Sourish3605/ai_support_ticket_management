@@ -7,6 +7,7 @@ import Navbar from '../components/Navbar';
 const DashboardLayout = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState('light');
 
@@ -17,20 +18,50 @@ const DashboardLayout = () => {
   }, [isAuthenticated, navigate]);
 
   const toggleTheme = () => {
-    setTheme((current) => (current === 'light' ? 'dark' : 'light'));
+    setTheme((current) =>
+      current === 'light' ? 'dark' : 'light'
+    );
   };
 
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
-      <div className="mx-auto flex max-w-7xl gap-6 p-4 lg:p-6">
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} theme={theme} toggleTheme={toggleTheme} />
-        <div className="flex-1">
-          <Navbar title="Support Operations" onMenuClick={() => setSidebarOpen(true)} user={user} />
-          <main className="mt-6">
-            <Outlet />
-          </main>
+    <div
+      className={`h-screen overflow-hidden ${
+        theme === 'dark'
+          ? 'bg-slate-950 text-slate-100'
+          : 'bg-slate-50 text-slate-900'
+      }`}
+    >
+
+      {/* Top Profile / Navbar Section */}
+      <header className="fixed top-0 left-0 right-0 z-50">
+        <Navbar
+          title="Support Operations"
+          onMenuClick={() => setSidebarOpen(true)}
+          user={user}
+        />
+      </header>
+
+
+      {/* Fixed Sidebar */}
+      <aside className="fixed left-0 top-0 z-40 h-screen">
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+      </aside>
+
+
+      {/* Dashboard Pages - Only This Area Scrolls */}
+      <section
+        className="pt-20 h-screen overflow-y-auto lg:ml-72"
+      >
+        <div className="p-4 lg:p-6">
+          <Outlet />
         </div>
-      </div>
+      </section>
+
     </div>
   );
 };
