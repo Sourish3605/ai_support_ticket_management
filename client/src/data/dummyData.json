@@ -1,30 +1,90 @@
 {
   "stats": [
-    { "id": "total", "label": "Total Tickets", "value": "248", "change": "+12%", "icon": "ticket" },
-    { "id": "open", "label": "Open Tickets", "value": "42", "change": "+4%", "icon": "warning" },
-    { "id": "progress", "label": "In Progress", "value": "31", "change": "+2%", "icon": "spark" },
-    { "id": "resolved", "label": "Resolved", "value": "175", "change": "+18%", "icon": "check" }
+    {
+      "id": "total",
+      "label": "Total Tickets",
+      "value": "248",
+      "change": "+12%",
+      "icon": "ticket"
+    },
+    {
+      "id": "open",
+      "label": "High Priority",
+      "value": "48",
+      "change": "AI predicted",
+      "icon": "warning"
+    },
+    {
+      "id": "progress",
+      "label": "In Progress",
+      "value": "31",
+      "change": "+2%",
+      "icon": "spark"
+    },
+    {
+      "id": "resolved",
+      "label": "Resolved",
+      "value": "175",
+      "change": "+18%",
+      "icon": "check"
+    }
   ],
+
   "tickets": [
     {
       "id": "TK-1024",
       "title": "Login issue on mobile app",
-      "category": "Bug",
+      "category": "Technical",
       "priority": "High",
       "status": "Open",
       "assignedTo": "Ava Carter",
       "createdAt": "2026-07-28",
+
+      "sla": "00:45:20",
+      "slaStatus": "Active",
+
+      "aiPrediction": {
+        "categoryConfidence": "94%",
+        "priorityConfidence": "91%"
+      },
+
+      "aiSuggestedReply": {
+        "used": true,
+        "similarityScore": "92%",
+        "response": "We identified the authentication issue and our team is working on a fix."
+      },
+
       "description": "Customers are unable to stay signed in after switching networks.",
+
       "comments": [
-        { "author": "Ava Carter", "text": "Investigating the auth refresh token issue.", "time": "09:20" }
+        {
+          "author": "Ava Carter",
+          "text": "Investigating the auth refresh token issue.",
+          "time": "09:20"
+        }
       ],
-      "attachments": ["mobile-flow.png"],
+
+      "attachments": [
+        "mobile-flow.png"
+      ],
+
       "timeline": [
-        { "label": "Created", "time": "08:00" },
-        { "label": "Assigned", "time": "08:40" },
-        { "label": "Pending review", "time": "09:15" }
+        {
+          "label": "Created",
+          "time": "08:00"
+        },
+        {
+          "label": "Assigned",
+          "time": "08:40"
+        },
+        {
+          "label": "Pending review",
+          "time": "09:15"
+        }
       ]
     },
+
+
     {
       "id": "TK-1018",
       "title": "Invoice export not working",
@@ -33,64 +93,205 @@
       "status": "In Progress",
       "assignedTo": "Noah Kim",
       "createdAt": "2026-07-25",
+
+      "sla": "01:30:10",
+      "slaStatus": "Active",
+
+      "aiPrediction": {
+        "categoryConfidence": "88%",
+        "priorityConfidence": "85%"
+      },
+
+      "aiSuggestedReply": {
+        "used": true,
+        "similarityScore": "87%",
+        "response": "Please try exporting again after clearing temporary files."
+      },
+
       "description": "Exports fail for CSV files larger than 20MB.",
+
       "comments": [],
-      "attachments": ["export-log.txt"],
+
+      "attachments": [
+        "export-log.txt"
+      ],
+
       "timeline": [
-        { "label": "Created", "time": "10:15" },
-        { "label": "In review", "time": "12:05" }
+        {
+          "label": "Created",
+          "time": "10:15"
+        },
+        {
+          "label": "In review",
+          "time": "12:05"
+        }
       ]
     },
+
+
     {
       "id": "TK-1007",
       "title": "Dashboard widgets not loading",
-      "category": "UI",
+      "category": "General",
       "priority": "Low",
       "status": "Resolved",
       "assignedTo": "Mina Patel",
       "createdAt": "2026-07-22",
+
+      "sla": "03:10:00",
+      "slaStatus": "Resolved",
+
+      "aiPrediction": {
+        "categoryConfidence": "96%",
+        "priorityConfidence": "90%"
+      },
+
+      "aiSuggestedReply": {
+        "used": false,
+        "similarityScore": "78%",
+        "response": "Issue resolved after updating dashboard configuration."
+      },
+
       "description": "Widgets are blank for some roles after the latest deployment.",
+
       "comments": [
-        { "author": "Mina Patel", "text": "Resolved after refreshing the cached layout config.", "time": "14:50" }
+        {
+          "author": "Mina Patel",
+          "text": "Resolved after refreshing the cached layout config.",
+          "time": "14:50"
+        }
       ],
+
       "attachments": [],
+
       "timeline": [
-        { "label": "Created", "time": "07:10" },
-        { "label": "Resolved", "time": "14:50" }
+        {
+          "label": "Created",
+          "time": "07:10"
+        },
+        {
+          "label": "Resolved",
+          "time": "14:50"
+        }
       ]
     }
   ],
+
+
   "aiMessages": [
-    { "id": 1, "role": "assistant", "content": "Hello! I can help summarize tickets, suggest replies, or prioritize incidents." },
-    { "id": 2, "role": "user", "content": "Summarize the latest high-priority tickets." },
-    { "id": 3, "role": "assistant", "content": "There are two high-priority items: login errors on mobile and billing exports failing." }
+    {
+      "id": 1,
+      "role": "assistant",
+      "content": "Hello! I can help summarize tickets, suggest replies, or prioritize incidents."
+    },
+    {
+      "id": 2,
+      "role": "user",
+      "content": "Summarize the latest high-priority tickets."
+    },
+    {
+      "id": 3,
+      "role": "assistant",
+      "content": "There are two high-priority items: login errors on mobile and billing exports failing."
+    }
   ],
+
+
   "reports": {
+
     "monthly": [
-      { "name": "Jan", "tickets": 28 },
-      { "name": "Feb", "tickets": 34 },
-      { "name": "Mar", "tickets": 41 },
-      { "name": "Apr", "tickets": 36 },
-      { "name": "May", "tickets": 49 },
-      { "name": "Jun", "tickets": 60 }
+      {
+        "name": "Jan",
+        "tickets": 28
+      },
+      {
+        "name": "Feb",
+        "tickets": 34
+      },
+      {
+        "name": "Mar",
+        "tickets": 41
+      },
+      {
+        "name": "Apr",
+        "tickets": 36
+      },
+      {
+        "name": "May",
+        "tickets": 49
+      },
+      {
+        "name": "Jun",
+        "tickets": 60
+      }
     ],
+
+
     "priority": [
-      { "name": "High", "value": 48 },
-      { "name": "Medium", "value": 72 },
-      { "name": "Low", "value": 32 }
+      {
+        "name": "High",
+        "value": 48
+      },
+      {
+        "name": "Medium",
+        "value": 72
+      },
+      {
+        "name": "Low",
+        "value": 32
+      }
     ],
-    "resolution": [
-      { "name": "Mon", "hours": 5 },
-      { "name": "Tue", "hours": 4 },
-      { "name": "Wed", "hours": 6 },
-      { "name": "Thu", "hours": 3 },
-      { "name": "Fri", "hours": 4 }
-    ],
+
+
     "departments": [
-      { "name": "Support", "value": 95 },
-      { "name": "Engineering", "value": 62 },
-      { "name": "Finance", "value": 41 },
-      { "name": "Ops", "value": 28 }
+      {
+        "name": "Billing",
+        "value": 35
+      },
+      {
+        "name": "Technical",
+        "value": 45
+      },
+      {
+        "name": "Account",
+        "value": 20
+      },
+      {
+        "name": "General",
+        "value": 15
+      }
+    ],
+
+
+    "aiPerformance": {
+      "similarityScore": "92%",
+      "suggestionsUsed": "86%",
+      "aiResolvedTickets": 120
+    },
+
+
+    "resolution": [
+      {
+        "name": "Mon",
+        "hours": 5
+      },
+      {
+        "name": "Tue",
+        "hours": 4
+      },
+      {
+        "name": "Wed",
+        "hours": 6
+      },
+      {
+        "name": "Thu",
+        "hours": 3
+      },
+      {
+        "name": "Fri",
+        "hours": 4
+      }
     ]
+
   }
 }
