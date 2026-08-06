@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+
 class Ticket(models.Model):
     STATUS_CHOICES = [
         ("Open", "Open"),
@@ -31,6 +32,15 @@ class Ticket(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def can_transition(self, new_status):
+        allowed = {
+            "Open": ["In Progress"],
+            "In Progress": ["Resolved"],
+            "Resolved": ["Closed"],
+            "Closed": [],
+        }
+        return new_status in allowed.get(self.status, [])
 
     def __str__(self):
         return self.title
