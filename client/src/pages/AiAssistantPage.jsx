@@ -1,63 +1,150 @@
-import { useEffect, useState } from 'react';
-import { FiSend } from 'react-icons/fi';
-import Loader from '../components/Loader';
-import { getAiResponses } from '../services/ticketService';
+import { useState } from "react";
 
 const AiAssistantPage = () => {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [question, setQuestion] =
+    useState("");
 
-  useEffect(() => {
-    const loadMessages = async () => {
-      setLoading(true);
-      const data = await getAiResponses();
-      setMessages(data);
-      setLoading(false);
-    };
+  const [messages, setMessages] =
+    useState([
+      {
+        from: "ai",
+        text: "Hello! I'm SupportPilot AI. Ask me about ticket troubleshooting, categorization or suggested responses.",
+      },
+    ]);
 
-    loadMessages();
-  }, []);
+  const askQuestion = () => {
+    if (!question.trim()) {
+      return;
+    }
 
-  const handleSend = (event) => {
-    event.preventDefault();
-    if (!input.trim()) return;
-    setMessages((current) => [...current, { id: Date.now(), role: 'user', content: input }]);
-    setInput('');
-    setTimeout(() => {
-      setMessages((current) => [...current, { id: Date.now() + 1, role: 'assistant', content: 'I can help draft a response or prioritize this request based on your current queue.' }]);
-    }, 600);
+    const userMessage = question;
+
+    setMessages((current) => [
+      ...current,
+      {
+        from: "user",
+        text: userMessage,
+      },
+      {
+        from: "ai",
+        text: getAnswer(userMessage),
+      },
+    ]);
+
+    setQuestion("");
   };
 
-  if (loading) {
-    return <Loader label="Preparing your AI assistant" />;
-  }
-
   return (
-    <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <div className="mb-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-500">AI copilot</p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-900">Support Assistant</h2>
+    <div className="mx-auto max-w-4xl">
+
+      <div className="rounded-3xl bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-950 p-7 text-white shadow-xl">
+
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">
+          AI Assistant
+        </p>
+
+        <h1 className="mt-2 text-3xl font-bold">
+          SupportPilot AI
+        </h1>
+
+        <p className="mt-2 text-sm text-slate-300">
+          Get intelligent suggestions for support tickets.
+        </p>
+
       </div>
-      <div className="flex h-[520px] flex-col rounded-[28px] border border-slate-200 bg-slate-50 p-4">
-        <div className="flex-1 space-y-3 overflow-y-auto p-2">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${message.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 shadow-sm'}`}>
-                {message.content}
+
+      <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+
+        <div className="max-h-[500px] space-y-4 overflow-y-auto p-2">
+
+          {messages.map(
+            (message, index) => (
+              <div
+                key={index}
+                className={`flex ${
+                  message.from ===
+                  "user"
+                    ? "justify-end"
+                    : "justify-start"
+                }`}
+              >
+
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+                    message.from ===
+                    "user"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {message.text}
+                </div>
+
               </div>
-            </div>
-          ))}
+            )
+          )}
+
         </div>
-        <form onSubmit={handleSend} className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3">
-          <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask the AI assistant..." className="flex-1 border-none outline-none" />
-          <button type="submit" className="rounded-2xl bg-indigo-600 p-3 text-white">
-            <FiSend size={18} />
+
+        <div className="mt-5 flex gap-2">
+
+          <input
+            value={question}
+            onChange={(event) =>
+              setQuestion(
+                event.target.value
+              )
+            }
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter"
+              ) {
+                askQuestion();
+              }
+            }}
+            placeholder="Ask SupportPilot AI..."
+            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-emerald-500"
+          />
+
+          <button
+            onClick={askQuestion}
+            className="rounded-xl bg-emerald-600 px-6 font-bold text-white hover:bg-emerald-700"
+          >
+            Ask
           </button>
-        </form>
+
+        </div>
+
       </div>
+
     </div>
   );
+};
+
+const getAnswer = (question) => {
+  const value =
+    question.toLowerCase();
+
+  if (
+    value.includes("vpn")
+  ) {
+    return "For VPN issues, check your network connection, restart the VPN client, verify credentials and confirm whether other users are experiencing the same issue.";
+  }
+
+  if (
+    value.includes("password") ||
+    value.includes("login")
+  ) {
+    return "For login problems, verify the account credentials, check whether the account is locked and try the password recovery process.";
+  }
+
+  if (
+    value.includes("printer")
+  ) {
+    return "For printer issues, check connectivity, printer status, paper and driver availability. If the issue affects multiple users, classify it as a higher-impact incident.";
+  }
+
+  return "Based on the information provided, I recommend checking the affected system, identifying the error message and documenting what the user has already tried.";
 };
 
 export default AiAssistantPage;

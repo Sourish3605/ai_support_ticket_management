@@ -1,20 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 export const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(() => {
     try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      const item = window.sessionStorage.getItem(key);
+
+      if (item === null) {
+        return initialValue;
+      }
+
+      return JSON.parse(item);
     } catch (error) {
+      console.error("Session storage read error:", error);
       return initialValue;
     }
   });
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(key, JSON.stringify(storedValue));
+      if (storedValue === null || storedValue === undefined) {
+        window.sessionStorage.removeItem(key);
+      } else {
+        window.sessionStorage.setItem(
+          key,
+          JSON.stringify(storedValue)
+        );
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Session storage write error:", error);
     }
   }, [key, storedValue]);
 

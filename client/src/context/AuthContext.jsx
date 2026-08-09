@@ -1,53 +1,189 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import {
+  createContext,
+  useContext,
+  useMemo,
+} from "react";
 
-const AuthContext = createContext();
+import { useLocalStorage } from "../hooks/useLocalStorage";
+
+const AuthContext = createContext(null);
+
+const DEMO_USERS = {
+  admin: {
+    name: "Admin User",
+    employeeId: "ADM-1001",
+    department: "Administration",
+    role: "admin",
+    email: "admin@support.ai",
+    status: "Active",
+  },
+
+  agent: {
+    name: "Mina Patel",
+    employeeId: "AGT-1024",
+    department: "IT Support",
+    role: "agent",
+    email: "agent@support.ai",
+    status: "Active",
+    team: "L1 Support",
+  },
+
+  customer: {
+    name: "Customer User",
+    employeeId: "CUS-1001",
+    department: "Finance",
+    role: "customer",
+    email: "customer@support.ai",
+    status: "Active",
+  },
+};
+
+const identifyRole = (email) => {
+  const value = email.toLowerCase().trim();
+
+  if (value.includes("admin")) {
+    return "admin";
+  }
+
+  if (value.includes("agent")) {
+    return "agent";
+  }
+
+  return "customer";
+};
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useLocalStorage('support-ai-user', null);
-  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(user));
+  const [user, setUser] = useLocalStorage(
+    "supportpilot-user",
+    null
+  );
 
-  useEffect(() => {
-    setIsAuthenticated(Boolean(user));
-  }, [user]);
+  const isAuthenticated = Boolean(user);
 
-  const login = (credential, password) => {
-    const storedUser = {
-      name: 'Mina Patel',
-      email: credential.includes('@') ? credential : 'mina@support.ai',
-      employeeId: 'EMP-1024',
-      department: 'Engineering',
-      role: 'Support Lead',
+  const createUserFromEmail = (
+    email,
+    roleOverride = null
+  ) => {
+    const role =
+      roleOverride || identifyRole(email);
+
+    const demoUser =
+      DEMO_USERS[role] || DEMO_USERS.customer;
+
+    return {
+      ...demoUser,
+      email: email.trim(),
+      role,
     };
+  };
 
-    if (!password || password.length < 4) {
-      throw new Error('Password is required');
+  const login = (email, password) => {
+    if (!email || !email.trim()) {
+      throw new Error("Email is required.");
     }
 
-    setUser(storedUser);
-    setIsAuthenticated(true);
-    return storedUser;
+    if (!password || password.length < 4) {
+      throw new Error(
+        "Password must contain at least 4 characters."
+      );
+    }
+
+    const loggedInUser =
+      createUserFromEmail(email);
+
+    setUser(loggedInUser);
+
+    return loggedInUser;
+  };
+
+  const loginWithGoogle = (email) => {
+    if (!email || !email.trim()) {
+      throw new Error(
+        "Google account email is required."
+      );
+    }
+
+    const loggedInUser =
+      createUserFromEmail(email);
+
+    setUser(loggedInUser);
+
+    return loggedInUser;
   };
 
   const register = (profile) => {
-    const nextUser = {
-      ...profile,
-      role: 'Employee',
+    if (!profile.email) {
+      throw new Error("Email is required.");
+    }
+
+    const newUser = {
+      name:
+        profile.name || "Customer User",
+
+      email: profile.email,
+
+      employeeId:
+        profile.employeeId ||
+        `CUS-${Math.floor(
+          1000 + Math.random() * 9000
+        )}`,
+
+      department:
+        profile.department || "General",
+
+      role: "customer",
+
+      status: "Active",
     };
 
-    setUser(nextUser);
-    setIsAuthenticated(true);
-    return nextUser;
+    setUser(newUser);
+
+    return newUser;
   };
 
   const logout = () => {
     setUser(null);
-    setIsAuthenticated(false);
+
+    try {
+      localStorage.removeItem(
+        "supportpilot-user"
+      );
+
+      sessionStorage.removeItem(
+        "supportpilot-user"
+      );
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const value = useMemo(() => ({ user, isAuthenticated, login, register, logout }), [user, isAuthenticated]);
+  const value = useMemo(
+    () => ({
+      user,
+      isAuthenticated,
+      login,
+      loginWithGoogle,
+      register,
+      logout,
+    }),
+    [user, isAuthenticated]
+  );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error(
+      "useAuth must be used inside AuthProvider."
+    );
+  }
+
+  return context;
+};
