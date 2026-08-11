@@ -27,8 +27,16 @@ const generateTicketId = (tickets) => {
   return `TK-${nextNumber}`;
 };
 
-const classifyTicket = (subject, description) => {
+export const classifyTicket = (subject, description) => {
   const text = `${subject} ${description}`.toLowerCase();
+
+  if (text.includes("vpn")) {
+    return { category: "VPN", confidence: 0.96 };
+  }
+
+  if (text.includes("network") || text.includes("wifi") || text.includes("internet")) {
+    return { category: "Network", confidence: 0.93 };
+  }
 
   if (
     text.includes("password") ||
@@ -37,7 +45,7 @@ const classifyTicket = (subject, description) => {
     text.includes("access")
   ) {
     return {
-      category: "Account",
+      category: "Access",
       confidence: 0.94,
     };
   }
@@ -51,6 +59,10 @@ const classifyTicket = (subject, description) => {
       category: "Billing",
       confidence: 0.91,
     };
+  }
+
+  if (text.includes("software") || text.includes("application") || text.includes("licence") || text.includes("license")) {
+    return { category: "Software", confidence: 0.89 };
   }
 
   if (

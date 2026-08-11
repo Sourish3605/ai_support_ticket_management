@@ -4,12 +4,15 @@ import {
   Route,
   Routes,
   Link,
+  NavLink,
+  useLocation,
 } from "react-router-dom";
 
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 
 import NewTicketPage from "./pages/customer/NewTicketPage";
 import MyTicketsPage from "./pages/customer/MyTicketsPage";
@@ -18,6 +21,7 @@ import CustomerTicketDetails from "./pages/customer/CustomerTicketDetails";
 import AgentDashboard from "./pages/agent/AgentDashboard";
 import WorkQueuePage from "./pages/agent/WorkQueuePage";
 import AgentTicketDetails from "./pages/agent/AgentTicketDetails";
+import AgentAllTicketsPage from "./pages/agent/AgentAllTicketsPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -28,41 +32,19 @@ import UsersPage from "./pages/admin/UsersPage";
 
 function CustomerLayout({ children }) {
   return (
-    <div className="min-h-screen bg-[#eef4ef]">
-
-      <header className="flex items-center justify-between bg-[#0f2b1d] px-8 py-5 text-white">
-
-        <Link
-          to="/portal/tickets"
-          className="text-xl font-bold"
-        >
-          SupportPilot
-        </Link>
-
-        <nav className="flex gap-6 text-sm">
-
-          <Link
-            to="/portal/tickets"
-            className="hover:text-emerald-300"
-          >
-            My Tickets
-          </Link>
-
-          <Link
-            to="/portal/tickets/new"
-            className="hover:text-emerald-300"
-          >
-            New Ticket
-          </Link>
-
-        </nav>
-
+    <div className="sp-shell">
+      <header className="sp-portal-nav">
+        <div className="sp-portal-links">
+          <Link to="/portal/tickets" className="sp-logo"><span className="sp-logo-mark">SP</span><span className="sp-logo-name">SupportPilot</span></Link>
+          <Link to="/portal/tickets">My tickets</Link>
+          <Link to="/portal/tickets/new">Raise a ticket</Link>
+          <Link to="/portal/self-help">Self-help</Link>
+        </div>
+        <div className="sp-avatar">PS</div>
       </header>
-
-      <main className="p-8">
+      <main className="sp-portal-main">
         {children}
       </main>
-
     </div>
   );
 }
@@ -72,42 +54,41 @@ function CustomerLayout({ children }) {
 ===================================================== */
 
 function AgentLayout({ children }) {
+  const location = useLocation();
+  const pageMeta = location.pathname === "/dashboard"
+    ? ["Overview", "Dashboard"]
+    : location.pathname === "/tickets/queue"
+      ? ["Tickets / Queue", "My queue"]
+      : location.pathname.startsWith("/tickets/")
+        ? [`Tickets / ${location.pathname.split("/").pop()}`, "Ticket detail"]
+        : ["Tickets", "All tickets"];
+
+  const navigation = [
+    ["/dashboard", "▦", "Dashboard"],
+    ["/tickets", "▤", "All tickets"],
+    ["/tickets/queue", "◉", "My queue"],
+  ];
+
   return (
-    <div className="min-h-screen bg-[#eef4ef]">
-
-      <header className="flex items-center justify-between bg-[#0f2b1d] px-8 py-5 text-white">
-
-        <Link
-          to="/dashboard"
-          className="text-xl font-bold"
-        >
-          SupportPilot Agent
-        </Link>
-
-        <nav className="flex gap-6 text-sm">
-
-          <Link
-            to="/dashboard"
-            className="hover:text-emerald-300"
-          >
-            Dashboard
-          </Link>
-
-          <Link
-            to="/tickets/queue"
-            className="hover:text-emerald-300"
-          >
-            Work Queue
-          </Link>
-
+    <div className="sp-agent-shell">
+      <aside className="sp-sidebar">
+        <Link to="/dashboard" className="sp-sidebar-logo"><span className="sp-logo-mark">SP</span><span><span className="sp-logo-name">SupportPilot</span><span className="sp-sidebar-sub">TICKET RESOLUTION</span></span></Link>
+        <nav className="sp-sidebar-nav">
+          <div className="sp-nav-heading">Work</div>
+          {navigation.map(([to, icon, label]) => <NavLink end key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}><span>{icon}</span><span>{label}</span>{label !== "Dashboard" && <span className="sp-sidebar-count">{label === "All tickets" ? "127" : "14"}</span>}</NavLink>)}
+          <div className="sp-nav-heading">Configuration</div>
+          <Link to="/tickets"><span>☰</span><span>Taxonomy</span></Link>
+          <Link to="/tickets/queue"><span>⏱</span><span>SLA policies</span></Link>
+          <Link to="/dashboard"><span>☷</span><span>Audit log</span></Link>
         </nav>
-
-      </header>
-
-      <main className="p-8">
+        <div className="sp-sidebar-footer"><div className="flex items-center gap-2"><div className="sp-avatar">AK</div><div><div className="text-xs font-semibold text-white">Arun K.</div><div className="text-[10px] text-white/50">Support Agent</div></div></div></div>
+      </aside>
+      <main className="sp-agent-main">
+        <header className="sp-topbar"><div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div><div className="sp-avatar">AK</div></header>
+        <div className="sp-content">
         {children}
+        </div>
       </main>
-
     </div>
   );
 }
@@ -214,6 +195,11 @@ export default function App() {
             element={<LoginPage />}
           />
 
+          <Route
+            path="/register"
+            element={<RegisterPage />}
+          />
+
           {/* =================================================
               CUSTOMER
           ================================================= */}
@@ -270,6 +256,15 @@ export default function App() {
                 <AgentLayout>
                   <AgentDashboard />
                 </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/tickets"
+            element={
+              <ProtectedRoute allowedRoles={["agent"]}>
+                <AgentLayout><AgentAllTicketsPage /></AgentLayout>
               </ProtectedRoute>
             }
           />

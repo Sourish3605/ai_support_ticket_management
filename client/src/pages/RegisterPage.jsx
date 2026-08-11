@@ -14,11 +14,11 @@ const RegisterPage = () => {
   const [form, setForm] = useState({
     name: "",
     email: "",
-    department: "",
     password: "",
   });
 
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
     setForm((current) => ({
@@ -30,7 +30,7 @@ const RegisterPage = () => {
     setError("");
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!form.name.trim()) {
@@ -50,14 +50,15 @@ const RegisterPage = () => {
       return;
     }
 
-    const user = register(form);
-
-    navigate("/customer/dashboard", {
-      replace: true,
-      state: {
-        message: `Welcome to SupportPilot, ${user.name}!`,
-      },
-    });
+    try {
+      setLoading(true);
+      await register(form);
+      navigate("/portal/tickets", { replace: true });
+    } catch (err) {
+      setError(err.message || "Unable to create the customer account.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -133,28 +134,6 @@ const RegisterPage = () => {
 
           <div>
             <label className="mb-2 block text-sm font-semibold text-slate-700">
-              Department
-            </label>
-
-            <select
-              name="department"
-              value={form.department}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-emerald-500"
-            >
-              <option value="">
-                Select department
-              </option>
-              <option>Finance</option>
-              <option>IT</option>
-              <option>Operations</option>
-              <option>HR</option>
-              <option>Sales</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
               Password
             </label>
 
@@ -172,7 +151,7 @@ const RegisterPage = () => {
             type="submit"
             className="w-full rounded-xl bg-emerald-600 py-3.5 font-semibold text-white hover:bg-emerald-700"
           >
-            Create account
+            {loading ? "Creating account..." : "Create account"}
           </button>
 
         </form>
