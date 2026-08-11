@@ -33,6 +33,14 @@ export default function CustomerTicketDetails() {
     setTicket(updated);
   };
 
+  const closeTicket = () => {
+    const updated = updateTicket(ticket.id, {
+      status: "Closed",
+    });
+
+    setTicket(updated);
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
 
@@ -208,6 +216,7 @@ export default function CustomerTicketDetails() {
               <div className="flex gap-3 mt-4">
 
                 <button
+                  onClick={closeTicket}
                   className="px-4 py-2 bg-[#14532d] text-white rounded-lg"
                 >
                   Yes

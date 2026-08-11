@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
-  background-color: #f8fafc;
+  color: #1c2430;
+  background-color: #e6eae7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -17,7 +17,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
+  background: #e6eae7;
 }
 
 #root {
@@ -26,4 +26,99 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sp-shell {
+  min-height: 100vh;
+  background: #f4f6f5;
+}
+
+.sp-portal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 58px;
+  padding: 13px clamp(18px, 4vw, 30px);
+  background: #0f2b1d;
+  color: #fff;
+}
+
+.sp-portal-links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.sp-portal-links a {
+  color: rgba(255, 255, 255, .66);
+  font-size: 12.5px;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.sp-portal-links a:hover, .sp-portal-links a.active { color: #fff; }
+
+.sp-logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+.sp-logo-mark, .sp-avatar { display: grid; place-items: center; background: #1f7a45; color: #fff; font-weight: 800; }
+.sp-logo-mark { width: 28px; height: 28px; border-radius: 6px; font-size: 11px; }
+.sp-logo-name { color: #fff; font-size: 14px; font-weight: 700; }
+.sp-avatar { width: 29px; height: 29px; border-radius: 50%; font-size: 11px; flex: 0 0 auto; }
+
+.sp-portal-main { padding: 26px clamp(18px, 4vw, 30px); }
+
+.sp-agent-shell { display: grid; grid-template-columns: 206px minmax(0, 1fr); min-height: 100vh; background: #f4f6f5; }
+.sp-sidebar { display: flex; flex-direction: column; background: #0f2b1d; padding: 18px 0; }
+.sp-sidebar-logo { display: flex; align-items: center; gap: 9px; padding: 0 18px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.sp-sidebar-logo > span:last-child { display: flex; flex-direction: column; }
+.sp-sidebar-sub { color: rgba(255,255,255,.45); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 7.5px; letter-spacing: 1.5px; }
+.sp-nav-heading { padding: 12px 18px 6px; color: rgba(255,255,255,.32); font-size: 9.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; }
+.sp-sidebar-nav a { display: flex; align-items: center; gap: 9px; padding: 8px 18px; border-left: 3px solid transparent; color: rgba(255,255,255,.66); font-size: 12.5px; text-decoration: none; }
+.sp-sidebar-nav a:hover, .sp-sidebar-nav a.active { background: rgba(31,122,69,.22); color: #fff; }
+.sp-sidebar-nav a.active { border-left-color: #1f7a45; font-weight: 650; }
+.sp-sidebar-count { margin-left: auto; padding: 1px 6px; border-radius: 9px; background: rgba(255,255,255,.12); font-size: 10px; font-weight: 700; }
+.sp-sidebar-footer { margin-top: auto; padding: 14px 18px 0; border-top: 1px solid rgba(255,255,255,.08); }
+.sp-agent-main { min-width: 0; display: flex; flex-direction: column; }
+.sp-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 22px; border-bottom: 1px solid #dfe5e1; background: #fff; }
+.sp-breadcrumb { margin-bottom: 2px; color: #8b95a1; font-size: 11px; }
+.sp-topbar h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
+.sp-content { flex: 1; overflow: auto; padding: 20px 22px; }
+
+.sp-card { border: 1px solid #dfe5e1; border-radius: 11px; background: #fff; }
+.sp-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #dfe5e1; }
+.sp-card-header h2, .sp-card-header h3 { margin: 0; font-size: 13.5px; font-weight: 700; }
+.sp-card-body { padding: 16px; }
+.sp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 9px; padding: 8px 15px; cursor: pointer; font-size: 12.5px; font-weight: 650; }
+.sp-btn-primary { background: #14532d; color: #fff; }
+.sp-btn-primary:hover { background: #0f2b1d; }
+.sp-btn-secondary { border: 1.5px solid #dfe5e1; background: #fff; color: #1c2430; }
+.sp-btn-secondary:hover { border-color: #1f7a45; }
+.sp-tag { display: inline-flex; align-items: center; border-radius: 20px; padding: 3px 8px; font-size: 10.5px; font-weight: 700; }
+.sp-tag-info { color: #1d4ed8; background: #eff6ff; }
+.sp-tag-success { color: #15803d; background: #f0fdf4; }
+.sp-tag-warning { color: #b45309; background: #fffbeb; }
+.sp-tag-neutral { color: #475569; background: #f1f5f9; }
+.sp-tag-brand { color: #14532d; background: #eef4ef; }
+.sp-priority { display: inline-flex; border-radius: 5px; padding: 3px 7px; color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; font-weight: 800; }
+.sp-p1 { background: #b91c1c; } .sp-p2 { background: #c2410c; } .sp-p3 { background: #b45309; } .sp-p4 { background: #475569; }
+
+@media (max-width: 640px) {
+  .sp-agent-shell { display: block; }
+  .sp-sidebar { display: none; }
+  .sp-topbar { align-items: flex-start; flex-direction: column; }
+  .sp-portal-links { gap: 14px; }
+}
+
+@media (max-width: 520px) {
+  .sp-portal-nav { align-items: flex-start; flex-wrap: wrap; }
+  .sp-portal-links { order: 3; width: 100%; justify-content: space-between; }
+  .sp-content { padding: 16px; }
 }

@@ -5,9 +5,9 @@ import {
   FiEyeOff,
   FiMail,
   FiLock,
-  FiChrome,
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
+import { GoogleLogin } from "@react-oauth/google";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -22,6 +22,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("customer");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,7 +62,7 @@ const LoginPage = () => {
     setError("Invalid user role.");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     setError("");
@@ -86,9 +87,10 @@ const LoginPage = () => {
     try {
       setLoading(true);
 
-      const user = login(
+      const user = await login(
         form.email,
-        form.password
+        form.password,
+        selectedRole
       );
 
       redirectUser(user);
@@ -103,54 +105,18 @@ const LoginPage = () => {
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleSuccess = async (response) => {
     setError("");
-
-    const email = window.prompt(
-      "Enter your Google account email:"
-    );
-
-    if (!email) {
+    if (selectedRole !== "customer") {
+      setError("Google sign-in is available for customer accounts only.");
       return;
     }
-
     try {
       setLoading(true);
-
-      const user = loginWithGoogle(email);
-
+      const user = await loginWithGoogle(response.credential);
       redirectUser(user);
     } catch (err) {
-      console.error(err);
-
-      setError(
-        err?.message ||
-          "Google login failed."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const quickLogin = (email) => {
-    setError("");
-
-    try {
-      setLoading(true);
-
-      const user = login(
-        email,
-        "123456"
-      );
-
-      redirectUser(user);
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err?.message ||
-          "Unable to login."
-      );
+      setError(err.message || "Google sign-in failed.");
     } finally {
       setLoading(false);
     }
@@ -283,6 +249,19 @@ const LoginPage = () => {
                   Access your SupportPilot workspace.
                 </p>
 
+                <div className="mt-6 grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">
+                  {["admin", "agent", "customer"].map((role) => (
+                    <button
+                      type="button"
+                      key={role}
+                      onClick={() => setSelectedRole(role)}
+                      className={`rounded-lg px-2 py-2 text-xs font-semibold capitalize ${selectedRole === role ? "bg-white text-[#14532d] shadow-sm" : "text-slate-500"}`}
+                    >
+                      {role}
+                    </button>
+                  ))}
+                </div>
+
               </div>
 
               {/* ERROR */}
@@ -308,7 +287,7 @@ const LoginPage = () => {
                     htmlFor="email"
                     className="mb-2 block text-sm font-semibold text-slate-700"
                   >
-                    Email address
+                    Email or username
                   </label>
 
                   <div className="relative">
@@ -318,7 +297,7 @@ const LoginPage = () => {
                     <input
                       id="email"
                       name="email"
-                      type="email"
+                      type="text"
                       value={form.email}
                       onChange={handleChange}
                       placeholder="you@company.com"
@@ -390,34 +369,15 @@ const LoginPage = () => {
                     : "Sign in"}
                 </button>
 
+                <div className="flex justify-center">
+                  {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+                    <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google sign-in was cancelled or failed.")} />
+                  ) : (
+                    <button type="button" onClick={() => setError("Google sign-in is not configured yet. Add VITE_GOOGLE_CLIENT_ID to the frontend deployment.")} className="w-full rounded-xl border border-slate-200 bg-white py-3.5 font-semibold text-slate-700">Continue with Google</button>
+                  )}
+                </div>
+
               </form>
-
-              {/* OR */}
-
-              <div className="my-6 flex items-center gap-3">
-
-                <div className="h-px flex-1 bg-slate-200" />
-
-                <span className="text-xs font-medium text-slate-400">
-                  OR
-                </span>
-
-                <div className="h-px flex-1 bg-slate-200" />
-
-              </div>
-
-              {/* GOOGLE */}
-
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleGoogleLogin}
-                className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3.5 font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <FiChrome className="text-lg text-blue-500" />
-
-                Continue with Google
-              </button>
 
               {/* REGISTER */}
 
@@ -433,69 +393,6 @@ const LoginPage = () => {
                 </Link>
 
               </p>
-
-              {/* DEMO ACCOUNTS */}
-
-              <div className="mt-7 rounded-2xl bg-slate-50 p-4">
-
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Frontend demo accounts
-                </p>
-
-                <div className="mt-3 grid grid-cols-3 gap-2">
-
-                  {/* ADMIN */}
-
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() =>
-                      quickLogin(
-                        "admin@support.ai"
-                      )
-                    }
-                    className="rounded-lg bg-red-50 px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
-                  >
-                    Admin
-                  </button>
-
-                  {/* AGENT */}
-
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() =>
-                      quickLogin(
-                        "agent@support.ai"
-                      )
-                    }
-                    className="rounded-lg bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                  >
-                    Agent
-                  </button>
-
-                  {/* CUSTOMER */}
-
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() =>
-                      quickLogin(
-                        "customer@support.ai"
-                      )
-                    }
-                    className="rounded-lg bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                  >
-                    Customer
-                  </button>
-
-                </div>
-
-                <p className="mt-3 text-center text-xs text-slate-400">
-                  Password: any 4+ characters
-                </p>
-
-              </div>
 
             </div>
 
