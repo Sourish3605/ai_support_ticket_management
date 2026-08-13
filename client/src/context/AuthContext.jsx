@@ -23,34 +23,7 @@ export const AuthProvider = ({ children }) => {
   const [tokens, setTokens] = useLocalStorage("supportpilot-tokens", null);
   const isAuthenticated = Boolean(user && tokens?.access);
 
-  const DEMO_USERS = {
-    "admin@demo.com": { password: "admin123", role: "admin", name: "Admin Demo" },
-    "agent@demo.com": { password: "agent123", role: "agent", name: "Agent Demo" },
-    "customer@demo.com": { password: "customer123", role: "customer", name: "Customer Demo" },
-  };
-
   const login = async (email, password, expectedRole = null) => {
-    const normalizedEmail = (email || "").trim().toLowerCase();
-    const demoUser = DEMO_USERS[normalizedEmail];
-
-    if (demoUser && demoUser.password === password) {
-      if (expectedRole && demoUser.role !== expectedRole) {
-        throw new Error(`This account is not authorized for ${expectedRole} login.`);
-      }
-
-      const account = {
-        id: 1,
-        username: normalizedEmail,
-        email: normalizedEmail,
-        name: demoUser.name,
-        role: demoUser.role,
-      };
-
-      setTokens({ access: "demo-access-token", refresh: "demo-refresh-token" });
-      setUser(account);
-      return account;
-    }
-
     try {
       const response = await api.post("/auth/login/", { username: email.trim(), password });
       const account = response.data.user;
