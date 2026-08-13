@@ -25,6 +25,7 @@ import AgentAllTicketsPage from "./pages/agent/AgentAllTicketsPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
+import AdminConfigPage from "./pages/admin/AdminConfigPage";
 
 /* =====================================================
    CUSTOMER LAYOUT
