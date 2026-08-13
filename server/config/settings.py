@@ -32,6 +32,7 @@ ALLOWED_HOSTS = [host.strip() for host in config('ALLOWED_HOSTS', default='*').s
 CSRF_TRUSTED_ORIGINS = [
     'https://ai-support-ticket-management.onrender.com',
     'https://ai-support-ticket-management.vercel.app',
+    'https://*.vercel.app',
 ]
 
 if DEBUG:
@@ -87,6 +88,14 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5176',
     'https://ai-support-ticket-management.vercel.app',
     'https://ai-support-ticket-management.onrender.com',
+]
+
+extra_cors_origins = [origin.strip() for origin in config('CORS_ALLOWED_ORIGINS', default='').split(',') if origin.strip()]
+if extra_cors_origins:
+    CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS + extra_cors_origins))
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.vercel\.app$',
 ]
 
 REST_FRAMEWORK = {
