@@ -23,12 +23,11 @@ export const AuthProvider = ({ children }) => {
   const [tokens, setTokens] = useLocalStorage("supportpilot-tokens", null);
   const isAuthenticated = Boolean(user && tokens?.access);
 
-  const login = async (email, password, expectedRole = null) => {
+  const login = async (email, password) => {
     try {
       const response = await api.post("/auth/login/", { username: email.trim(), password });
       const account = response.data.user;
       if (!account?.role || !["admin", "agent", "customer"].includes(account.role)) throw new Error("Your account has no valid SupportPilot role.");
-      if (expectedRole && account.role !== expectedRole) throw new Error(`This account is not authorized for ${expectedRole} login.`);
       setTokens({ access: response.data.access, refresh: response.data.refresh });
       setUser(account);
       return account;
