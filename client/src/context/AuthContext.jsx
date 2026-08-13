@@ -29,15 +29,27 @@ export const AuthProvider = ({ children }) => {
   const [tokens, setTokens] = useLocalStorage("supportpilot-tokens", null);
   const isAuthenticated = Boolean(user && tokens?.access);
 
-  const login = async (email, password) => {
+  const login = async (email, password, expectedRole = null) => {
     try {
-      const response = await api.post("/auth/login/", { username: email.trim(), password });
-      const account = response.data.user;
-      if (!account?.role || !["admin", "agent", "customer"].includes(account.role)) throw new Error("Your account has no valid SupportPilot role.");
+      const username = email.trim();
+      const response = await api.post("/auth/login/", { username, password });
+      const fallbackRole = ["admin", "agent", "customer"].includes(expectedRole) ? expectedRole : "customer";
+      const apiUser = response?.data?.user;
+      const account = {
+        id: apiUser?.id ?? null,
+        username: apiUser?.username || username,
+        email: apiUser?.email || "",
+        name: apiUser?.name || apiUser?.username || username,
+        role: apiUser?.role || fallbackRole,
+      };
+      if (!["admin", "agent", "customer"].includes(account.role)) throw new Error("Your account has no valid SupportPilot role.");
       setTokens({ access: response.data.access, refresh: response.data.refresh });
       setUser(account);
       return account;
     } catch (error) {
+      if (error instanceof Error && !error?.response && !error?.code) {
+        throw error;
+      }
       throw new Error(getApiError(error, "Invalid login details or the support server is unavailable."));
     }
   };
