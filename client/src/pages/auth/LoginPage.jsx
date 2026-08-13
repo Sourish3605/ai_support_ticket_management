@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FiEye,
   FiEyeOff,
@@ -128,6 +128,7 @@ const roleDetails = {
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { login, loginWithGoogle, user, isAuthenticated } = useAuth();
 
@@ -156,38 +157,44 @@ const LoginPage = () => {
     setError("");
   };
 
+  const getRoleTargetPath = (role) => {
+    if (role === "admin") {
+      return "/admin";
+    }
+    if (role === "agent") {
+      return "/dashboard";
+    }
+    return "/portal/tickets";
+  };
+
   const redirectUser = (user) => {
     if (!user) {
       setError("Login failed. Please try again.");
       return;
     }
 
-    console.log("Logged in user:", user);
-    console.log("User role:", user.role);
+    const normalizedRole =
+      typeof user.role === "string"
+        ? user.role.toLowerCase()
+        : "customer";
 
-    if (user.role === "admin") {
-      navigate("/admin", { replace: true });
-      return;
-    }
+    const fromPath = location.state?.from;
+    const isSafeFromPath =
+      typeof fromPath === "string" &&
+      fromPath.startsWith("/") &&
+      fromPath !== "/login";
 
-    if (user.role === "agent") {
-      navigate("/dashboard", { replace: true });
-      return;
-    }
-
-    if (user.role === "customer") {
-      navigate("/portal/tickets", { replace: true });
-      return;
-    }
-
-    setError("Invalid user role.");
+    navigate(
+      isSafeFromPath ? fromPath : getRoleTargetPath(normalizedRole),
+      { replace: true }
+    );
   };
 
   useEffect(() => {
     if (isAuthenticated && user?.role) {
       redirectUser(user);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -219,8 +226,6 @@ const LoginPage = () => {
         form.password,
         selectedRole
       );
-
-      redirectUser(user);
     } catch (err) {
       console.error(err);
 
@@ -244,8 +249,7 @@ const LoginPage = () => {
     }
     try {
       setLoading(true);
-      const user = await loginWithGoogle(response.credential);
-      redirectUser(user);
+      await loginWithGoogle(response.credential);
     } catch (err) {
       setError(err.message || "Google sign-in failed.");
     } finally {

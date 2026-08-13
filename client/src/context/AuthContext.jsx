@@ -78,7 +78,18 @@ export const AuthProvider = ({ children }) => {
         }
         response = await api.post('/auth/google-login/', { credential });
       }
-      const account = response.data.user;
+      const apiUser = response?.data?.user;
+      const accountRole = typeof apiUser?.role === "string" ? apiUser.role.toLowerCase() : "customer";
+      const account = {
+        id: apiUser?.id ?? null,
+        username: apiUser?.username || apiUser?.email || "customer",
+        email: apiUser?.email || "",
+        name: apiUser?.name || apiUser?.username || apiUser?.email || "Customer",
+        role: ["admin", "agent", "customer"].includes(accountRole) ? accountRole : "customer",
+      };
+      if (!response?.data?.access) {
+        throw new Error("Google sign-in failed.");
+      }
       setTokens({ access: response.data.access, refresh: response.data.refresh });
       setUser(account);
       return account;
