@@ -89,7 +89,8 @@ const LoginPage = () => {
 
       const user = await login(
         form.email,
-        form.password
+        form.password,
+        selectedRole
       );
 
       redirectUser(user);
