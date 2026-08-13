@@ -68,7 +68,7 @@ const LoginPage = () => {
     setError("");
 
     if (!form.email.trim()) {
-      setError("Please enter your email address.");
+      setError("Please enter your username or email.");
       return;
     }
 
@@ -89,8 +89,7 @@ const LoginPage = () => {
 
       const user = await login(
         form.email,
-        form.password,
-        selectedRole
+        form.password
       );
 
       redirectUser(user);
