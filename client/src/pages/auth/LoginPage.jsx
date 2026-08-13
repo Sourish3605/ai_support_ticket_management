@@ -24,6 +24,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState("customer");
   const isCustomerLogin = selectedRole === "customer";
+  const isGoogleConfigured = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -114,6 +115,10 @@ const LoginPage = () => {
 
   const handleGoogleSuccess = async (response) => {
     setError("");
+    if (!isGoogleConfigured) {
+      setError("Google sign-in is not configured yet. Add VITE_GOOGLE_CLIENT_ID to the frontend deployment.");
+      return;
+    }
     if (selectedRole !== "customer") {
       setError("Google sign-in is available for customer accounts only.");
       return;
@@ -378,10 +383,12 @@ const LoginPage = () => {
 
                 {isCustomerLogin && (
                   <div className="flex justify-center">
-                    {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+                    {isGoogleConfigured ? (
                       <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google sign-in was cancelled or failed.")} />
                     ) : (
-                      <button type="button" onClick={() => setError("Google sign-in is not configured yet. Add VITE_GOOGLE_CLIENT_ID to the frontend deployment.")} className="w-full rounded-xl border border-slate-200 bg-white py-3.5 font-semibold text-slate-700">Continue with Google</button>
+                      <button type="button" disabled className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 py-3.5 font-semibold text-slate-400">
+                        Google sign-in unavailable
+                      </button>
                     )}
                   </div>
                 )}
