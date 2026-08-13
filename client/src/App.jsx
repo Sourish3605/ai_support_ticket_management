@@ -6,9 +6,11 @@ import {
   Link,
   NavLink,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import { AuthProvider } from "./context/AuthContext";
+import { useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import LoginPage from "./pages/auth/LoginPage";
@@ -32,6 +34,14 @@ import AdminConfigPage from "./pages/admin/AdminConfigPage";
 ===================================================== */
 
 function CustomerLayout({ children }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
+
   return (
     <div className="sp-shell">
       <header className="sp-portal-nav">
@@ -41,7 +51,10 @@ function CustomerLayout({ children }) {
           <Link to="/portal/tickets/new">Raise a ticket</Link>
           <Link to="/portal/self-help">Self-help</Link>
         </div>
-        <div className="sp-avatar">PS</div>
+        <div className="flex items-center gap-3">
+          <button onClick={handleLogout} className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10">Logout</button>
+          <div className="sp-avatar">PS</div>
+        </div>
       </header>
       <main className="sp-portal-main">
         {children}
@@ -55,7 +68,15 @@ function CustomerLayout({ children }) {
 ===================================================== */
 
 function AgentLayout({ children }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
+
   const pageMeta = location.pathname === "/dashboard"
     ? ["Overview", "Dashboard"]
     : location.pathname === "/tickets/queue"
@@ -85,7 +106,7 @@ function AgentLayout({ children }) {
         <div className="sp-sidebar-footer"><div className="flex items-center gap-2"><div className="sp-avatar">AK</div><div><div className="text-xs font-semibold text-white">Arun K.</div><div className="text-[10px] text-white/50">Support Agent</div></div></div></div>
       </aside>
       <main className="sp-agent-main">
-        <header className="sp-topbar"><div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div><div className="sp-avatar">AK</div></header>
+        <header className="sp-topbar"><div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div><div className="flex items-center gap-3"><button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">Logout</button><div className="sp-avatar">AK</div></div></header>
         <div className="sp-content">
         {children}
         </div>
@@ -99,6 +120,14 @@ function AgentLayout({ children }) {
 ===================================================== */
 
 function AdminLayout({ children }) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-[#eef4ef]">
 
@@ -111,7 +140,7 @@ function AdminLayout({ children }) {
           SupportPilot Admin
         </Link>
 
-        <nav className="flex gap-6 text-sm">
+        <nav className="flex items-center gap-6 text-sm">
 
           <Link
             to="/admin"
@@ -126,6 +155,13 @@ function AdminLayout({ children }) {
           >
             Users
           </Link>
+
+          <button
+            onClick={handleLogout}
+            className="rounded-lg border border-white/30 px-3 py-1.5 font-semibold hover:bg-white/10"
+          >
+            Logout
+          </button>
 
         </nav>
 
