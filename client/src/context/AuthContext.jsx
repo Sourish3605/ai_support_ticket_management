@@ -68,7 +68,16 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithGoogle = async (credential) => {
     try {
-      const response = await api.post('/auth/google/', { credential });
+      let response;
+      try {
+        response = await api.post('/auth/google/', { credential });
+      } catch (error) {
+        const statusCode = error?.response?.status;
+        if (statusCode !== 404) {
+          throw error;
+        }
+        response = await api.post('/auth/google-login/', { credential });
+      }
       const account = response.data.user;
       setTokens({ access: response.data.access, refresh: response.data.refresh });
       setUser(account);
