@@ -37,3 +37,22 @@ class AuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
+
+    def test_login_accepts_email_instead_of_username(self):
+        from django.contrib.auth import get_user_model
+
+        get_user_model().objects.create_user(
+            username='carol',
+            email='carol@example.com',
+            password='StrongPass123',
+        )
+
+        response = self.client.post(
+            '/api/auth/login/',
+            {'username': 'carol@example.com', 'password': 'StrongPass123'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
