@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FiEye,
@@ -12,7 +12,7 @@ import { GoogleLogin } from "@react-oauth/google";
 const LoginPage = () => {
   const navigate = useNavigate();
 
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, user, isAuthenticated } = useAuth();
 
   const [form, setForm] = useState({
     email: "",
@@ -62,6 +62,12 @@ const LoginPage = () => {
 
     setError("Invalid user role.");
   };
+
+  useEffect(() => {
+    if (isAuthenticated && user?.role) {
+      redirectUser(user);
+    }
+  }, [isAuthenticated, user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
