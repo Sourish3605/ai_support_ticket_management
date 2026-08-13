@@ -5,6 +5,12 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 const AuthContext = createContext(null);
 
 const getApiError = (error, fallback) => {
+  if (error?.code === "ECONNABORTED") {
+    return "The support server is waking up. Please wait 20-30 seconds and try again.";
+  }
+  if (!error?.response) {
+    return "Cannot reach the support server. Check your internet or backend URL and try again.";
+  }
   if (error?.response?.status >= 500) {
     return "The support server database is not ready. Run migrations on Render and try again.";
   }
