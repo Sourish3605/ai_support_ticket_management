@@ -5,9 +5,11 @@ import {
 } from "react-icons/fi";
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function ProfileMenu() {
+  const navigate = useNavigate();
   const {
     user,
     logout,
@@ -93,7 +95,11 @@ export default function ProfileMenu() {
             </div>
 
             <button
-              onClick={logout}
+              onClick={() => {
+                logout();
+                setOpen(false);
+                navigate("/", { replace: true });
+              }}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
             >
               <FiLogOut />
