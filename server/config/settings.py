@@ -26,7 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-0yn3ty-hxfo@u612n6ii3618p-w_)l5)!7du&pk$=-bc96(3%l')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', cast=bool, default=True)
+DEBUG = config('DEBUG', cast=bool, default=False)
+
+ backend-premalatha
+ALLOWED_HOSTS = ["*"]
 
 ALLOWED_HOSTS = [host.strip() for host in config('ALLOWED_HOSTS', default='*').split(',') if host.strip()]
 CSRF_TRUSTED_ORIGINS = [
@@ -34,6 +37,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://ai-support-ticket-management.vercel.app',
     'https://*.vercel.app',
 ]
+ main
 
 if DEBUG:
     CSRF_TRUSTED_ORIGINS.extend([
