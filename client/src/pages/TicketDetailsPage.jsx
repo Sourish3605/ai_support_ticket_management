@@ -1,120 +1,178 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { FiPaperclip, FiMessageCircle, FiClock } from 'react-icons/fi';
-import Loader from '../components/Loader';
-import Button from '../components/Button';
-import { getTicketById, updateTicket } from '../services/ticketService';
+import { useEffect, useState } from "react";
+
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+
+import {
+  getTicketById,
+  updateTicket,
+} from "../services/ticketService";
+
+import { useAuth } from "../context/AuthContext";
 
 const TicketDetailsPage = () => {
-  const { ticketId } = useParams();
+  const { ticketId } =
+    useParams();
+
+  const { user } = useAuth();
+
   const navigate = useNavigate();
-  const [ticket, setTicket] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [reply, setReply] = useState('');
+
+  const [ticket, setTicket] =
+    useState(null);
 
   useEffect(() => {
-    const loadTicket = async () => {
-      setLoading(true);
-      const data = await getTicketById(ticketId);
-      setTicket(data);
-      setLoading(false);
-    };
-
-    loadTicket();
+    getTicketById(ticketId).then(
+      setTicket
+    );
   }, [ticketId]);
 
-  const handleClose = async () => {
-    await updateTicket(ticketId, { status: 'Resolved' });
-    setTicket((current) => ({ ...current, status: 'Resolved' }));
-    navigate('/my-tickets');
+  const updateStatus = async (
+    status
+  ) => {
+    const updated =
+      await updateTicket(
+        ticketId,
+        { status }
+      );
+
+    setTicket(updated);
   };
 
-  if (loading) {
-    return <Loader label="Loading ticket details" />;
-  }
-
   if (!ticket) {
-    return <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-slate-600">Ticket not found.</div>;
+    return (
+      <div className="rounded-2xl bg-white p-10 text-center">
+        <p className="text-slate-500">
+          Ticket not found.
+        </p>
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-4xl">
+
+      <button
+        onClick={() =>
+          navigate(-1)
+        }
+        className="mb-5 text-sm font-semibold text-emerald-600"
+      >
+        ← Back
+      </button>
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+
+        <div className="flex flex-wrap items-start justify-between gap-4">
+
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-500">Ticket details</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">{ticket.title}</h2>
-          </div>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700">{ticket.priority}</span>
-        </div>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Ticket ID</p>
-            <p className="mt-1 font-semibold text-slate-900">{ticket.id}</p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Status</p>
-            <p className="mt-1 font-semibold text-slate-900">{ticket.status}</p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Assigned To</p>
-            <p className="mt-1 font-semibold text-slate-900">{ticket.assignedTo}</p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-500">Category</p>
-            <p className="mt-1 font-semibold text-slate-900">{ticket.category}</p>
-          </div>
-        </div>
-        <div className="mt-6">
-          <h3 className="text-lg font-semibold text-slate-900">Description</h3>
-          <p className="mt-2 text-sm leading-7 text-slate-600">{ticket.description}</p>
-        </div>
-        <div className="mt-6">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><FiPaperclip /> Attachments</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {ticket.attachments?.length ? ticket.attachments.map((attachment) => (
-              <span key={attachment} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-600">{attachment}</span>
-            )) : <p className="text-sm text-slate-500">No attachments included.</p>}
-          </div>
-        </div>
-      </div>
 
-      <div className="space-y-6">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900">Status Timeline</h3>
-          <div className="mt-4 space-y-3">
-            {ticket.timeline?.map((step) => (
-              <div key={step.label} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-3">
-                <div className="mt-1 rounded-full bg-indigo-100 p-2 text-indigo-600"><FiClock size={14} /></div>
-                <div>
-                  <p className="font-semibold text-slate-900">{step.label}</p>
-                  <p className="text-sm text-slate-500">{step.time}</p>
-                </div>
-              </div>
-            ))}
+            <p className="font-mono text-xs text-slate-400">
+              {ticket.id}
+            </p>
+
+            <h1 className="mt-2 text-3xl font-bold text-slate-900">
+              {ticket.title}
+            </h1>
+
           </div>
+
+          <span className="rounded-xl bg-orange-100 px-4 py-2 text-sm font-bold text-orange-700">
+            {ticket.priority}
+          </span>
+
         </div>
 
-        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900"><FiMessageCircle /> Comments</h3>
-          <div className="mt-4 space-y-3">
-            {ticket.comments?.length ? ticket.comments.map((comment, index) => (
-              <div key={`${comment.author}-${index}`} className="rounded-2xl border border-slate-200 p-3">
-                <p className="text-sm font-semibold text-slate-900">{comment.author}</p>
-                <p className="mt-1 text-sm text-slate-600">{comment.text}</p>
-                <p className="mt-2 text-xs text-slate-400">{comment.time}</p>
-              </div>
-            )) : <p className="text-sm text-slate-500">No comments yet.</p>}
-          </div>
-          <textarea value={reply} onChange={(event) => setReply(event.target.value)} className="mt-4 min-h-24 w-full rounded-2xl border border-slate-200 p-3 outline-none" placeholder="Write a reply..." />
-          <div className="mt-4 flex gap-3">
-            <Button>Send reply</Button>
-            <Button variant="secondary" onClick={handleClose}>Close ticket</Button>
-          </div>
+        <div className="mt-7 grid gap-4 sm:grid-cols-3">
+
+          <Info
+            label="Category"
+            value={ticket.category}
+          />
+
+          <Info
+            label="Status"
+            value={ticket.status}
+          />
+
+          <Info
+            label="Assigned To"
+            value={ticket.assignedTo}
+          />
+
         </div>
+
+        <div className="mt-7 rounded-2xl bg-slate-50 p-5">
+
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Description
+          </p>
+
+          <p className="mt-3 whitespace-pre-wrap leading-7 text-slate-700">
+            {ticket.description}
+          </p>
+
+        </div>
+
+        {(user?.role ===
+          "agent" ||
+          user?.role ===
+            "admin") && (
+          <div className="mt-7">
+
+            <p className="mb-3 text-sm font-bold text-slate-700">
+              Update ticket status
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+
+              {[
+                "AI Processing",
+                "In Progress",
+                "Waiting on You",
+                "Resolved",
+              ].map((status) => (
+                <button
+                  key={status}
+                  onClick={() =>
+                    updateStatus(
+                      status
+                    )
+                  }
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold hover:border-emerald-500 hover:bg-emerald-50"
+                >
+                  {status}
+                </button>
+              ))}
+
+            </div>
+
+          </div>
+        )}
+
       </div>
+
     </div>
   );
 };
+
+const Info = ({
+  label,
+  value,
+}) => (
+  <div className="rounded-2xl bg-slate-50 p-4">
+
+    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+      {label}
+    </p>
+
+    <p className="mt-2 font-bold text-slate-800">
+      {value}
+    </p>
+
+  </div>
+);
 
 export default TicketDetailsPage;

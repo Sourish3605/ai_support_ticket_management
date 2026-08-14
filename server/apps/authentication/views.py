@@ -4,8 +4,9 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import AuthTokenObtainPairSerializer, RegisterSerializer
+from .serializers import AuthTokenObtainPairSerializer, GoogleLoginSerializer, RegisterSerializer
 
 
 User = get_user_model()
@@ -32,6 +33,8 @@ class RegisterView(GenericAPIView):
                     'id': user.id,
                     'username': user.username,
                     'email': user.email,
+                    'name': user.get_full_name() or user.username,
+                    'role': 'customer',
                 },
                 'access': token_serializer.validated_data['access'],
                 'refresh': token_serializer.validated_data['refresh'],
@@ -43,3 +46,27 @@ class RegisterView(GenericAPIView):
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = AuthTokenObtainPairSerializer
+
+
+class GoogleLoginView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = GoogleLoginSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        refresh = RefreshToken.for_user(user)
+        refresh['username'] = user.username
+        refresh['role'] = 'customer'
+        return Response({
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'name': user.get_full_name() or user.username,
+                'role': 'customer',
+            },
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        })

@@ -1,43 +1,112 @@
-import { useState } from 'react';
-import Input from '../components/Input';
-import Button from '../components/Button';
+import { useState } from "react";
+
+import { useAuth } from "../context/AuthContext";
 
 const SettingsPage = () => {
-  const [profile, setProfile] = useState({ name: 'Mina Patel', email: 'mina@support.ai', phone: '+1 415 555 0191' });
+  const { user } = useAuth();
+
+  const [name, setName] =
+    useState(user?.name || "");
+
+  const [email, setEmail] =
+    useState(user?.email || "");
+
+  const [saved, setSaved] =
+    useState(false);
+
+  const handleSave = () => {
+    setSaved(true);
+
+    setTimeout(
+      () => setSaved(false),
+      2500
+    );
+  };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-500">Profile</p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-900">Account settings</h2>
-        <div className="mt-6 space-y-4">
-          <Input label="Name" value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} />
-          <Input label="Email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} />
-          <Input label="Phone" value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} />
-          <Button>Save profile</Button>
+    <div className="mx-auto max-w-4xl">
+
+      <p className="text-sm font-semibold uppercase tracking-wider text-emerald-600">
+        Account
+      </p>
+
+      <h1 className="mt-1 text-3xl font-bold text-slate-900">
+        Settings
+      </h1>
+
+      <p className="mt-2 text-slate-500">
+        Manage your SupportPilot profile.
+      </p>
+
+      <div className="mt-7 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+
+        <h2 className="text-xl font-bold text-slate-900">
+          Profile information
+        </h2>
+
+        <div className="mt-6 grid gap-5">
+
+          <div>
+
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Name
+            </label>
+
+            <input
+              value={name}
+              onChange={(event) =>
+                setName(
+                  event.target.value
+                )
+              }
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-emerald-500"
+            />
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Email
+            </label>
+
+            <input
+              value={email}
+              disabled
+              className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500"
+            />
+
+          </div>
+
+          <div>
+
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Role
+            </label>
+
+            <div className="rounded-xl bg-emerald-50 px-4 py-3 font-bold capitalize text-emerald-700">
+              {user?.role}
+            </div>
+
+          </div>
+
+          <button
+            onClick={handleSave}
+            className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white hover:bg-emerald-700"
+          >
+            Save changes
+          </button>
+
+          {saved && (
+            <p className="text-sm font-semibold text-emerald-600">
+              Profile changes saved.
+            </p>
+          )}
+
         </div>
+
       </div>
 
-      <div className="space-y-6">
-        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900">Change password</h3>
-          <div className="mt-4 space-y-4">
-            <Input label="Current password" type="password" />
-            <Input label="New password" type="password" />
-            <Input label="Confirm password" type="password" />
-            <Button variant="secondary">Update password</Button>
-          </div>
-        </div>
-
-        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900">Notification settings</h3>
-          <div className="mt-4 space-y-3 text-sm text-slate-600">
-            <label className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3"><span>Email alerts</span><input type="checkbox" defaultChecked /></label>
-            <label className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3"><span>Push notifications</span><input type="checkbox" defaultChecked /></label>
-            <label className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3"><span>SMS updates</span><input type="checkbox" /></label>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
