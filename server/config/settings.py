@@ -28,8 +28,24 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-0yn3ty-hxfo@u612n6ii3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', cast=bool, default=False)
 
+ backend-premalatha
 ALLOWED_HOSTS = ["*"]
 
+ALLOWED_HOSTS = [host.strip() for host in config('ALLOWED_HOSTS', default='*').split(',') if host.strip()]
+CSRF_TRUSTED_ORIGINS = [
+    'https://ai-support-ticket-management.onrender.com',
+    'https://ai-support-ticket-management.vercel.app',
+    'https://*.vercel.app',
+]
+ main
+
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend([
+        'http://localhost:4173',
+        'http://127.0.0.1:4173',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ])
 
 # Application definition
 
@@ -64,7 +80,26 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
     'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://127.0.0.1:5175',
+    'http://localhost:5176',
+    'http://127.0.0.1:5176',
+    'https://ai-support-ticket-management.vercel.app',
+    'https://ai-support-ticket-management.onrender.com',
+]
+
+extra_cors_origins = [origin.strip() for origin in config('CORS_ALLOWED_ORIGINS', default='').split(',') if origin.strip()]
+if extra_cors_origins:
+    CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS + extra_cors_origins))
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.vercel\.app$',
 ]
 
 REST_FRAMEWORK = {
@@ -143,4 +178,5 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'

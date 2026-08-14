@@ -1,53 +1,116 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { createContext, useContext, useMemo } from "react";
+import { api } from "../services/api";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
+
+const getApiError = (error, fallback) => {
+  if (error?.code === "ECONNABORTED") {
+    return "The support server is waking up. Please wait 20-30 seconds and try again.";
+  }
+  if (!error?.response) {
+    return "Cannot reach the support server. Check your internet or backend URL and try again.";
+  }
+  if (error?.response?.status >= 500) {
+    return "The support server database is not ready. Run migrations on Render and try again.";
+  }
+  const detail = error?.response?.data?.detail;
+  if (detail) return detail;
+  const values = error?.response?.data;
+  if (values && typeof values === "object") {
+    const message = Object.values(values).flat().find(Boolean);
+    if (message) return String(message);
+  }
+  return fallback;
+};
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useLocalStorage('support-ai-user', null);
-  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(user));
+  const [user, setUser] = useLocalStorage("supportpilot-user", null);
+  const [tokens, setTokens] = useLocalStorage("supportpilot-tokens", null);
+  const isAuthenticated = Boolean(user && tokens?.access);
 
-  useEffect(() => {
-    setIsAuthenticated(Boolean(user));
-  }, [user]);
-
-  const login = (credential, password) => {
-    const storedUser = {
-      name: 'Mina Patel',
-      email: credential.includes('@') ? credential : 'mina@support.ai',
-      employeeId: 'EMP-1024',
-      department: 'Engineering',
-      role: 'Support Lead',
-    };
-
-    if (!password || password.length < 4) {
-      throw new Error('Password is required');
+  const login = async (email, password, expectedRole = null) => {
+    try {
+      const username = email.trim();
+      const response = await api.post("/auth/login/", { username, password });
+      const fallbackRole = ["admin", "agent", "customer"].includes(expectedRole) ? expectedRole : "customer";
+      const apiUser = response?.data?.user;
+      const account = {
+        id: apiUser?.id ?? null,
+        username: apiUser?.username || username,
+        email: apiUser?.email || "",
+        name: apiUser?.name || apiUser?.username || username,
+        role: apiUser?.role || fallbackRole,
+      };
+      if (!["admin", "agent", "customer"].includes(account.role)) throw new Error("Your account has no valid SupportPilot role.");
+      setTokens({ access: response.data.access, refresh: response.data.refresh });
+      setUser(account);
+      return account;
+    } catch (error) {
+      if (error instanceof Error && !error?.response && !error?.code) {
+        throw error;
+      }
+      throw new Error(getApiError(error, "Invalid login details or the support server is unavailable."));
     }
-
-    setUser(storedUser);
-    setIsAuthenticated(true);
-    return storedUser;
   };
 
-  const register = (profile) => {
-    const nextUser = {
-      ...profile,
-      role: 'Employee',
-    };
+  const register = async (profile) => {
+    try {
+      const response = await api.post("/auth/register/", { username: profile.email.trim(), email: profile.email.trim(), password: profile.password });
+      const account = { ...response.data.user, name: profile.name || response.data.user.username, role: "customer" };
+      setTokens({ access: response.data.access, refresh: response.data.refresh });
+      setUser(account);
+      return account;
+    } catch (error) {
+      throw new Error(getApiError(error, "Unable to create the customer account."));
+    }
+  };
 
-    setUser(nextUser);
-    setIsAuthenticated(true);
-    return nextUser;
+  const loginWithGoogle = async (credential) => {
+    try {
+      let response;
+      try {
+        response = await api.post('/auth/google/', { credential });
+      } catch (error) {
+        const statusCode = error?.response?.status;
+        if (statusCode !== 404) {
+          throw error;
+        }
+        response = await api.post('/auth/google-login/', { credential });
+      }
+      const apiUser = response?.data?.user;
+      const accountRole = typeof apiUser?.role === "string" ? apiUser.role.toLowerCase() : "customer";
+      const account = {
+        id: apiUser?.id ?? null,
+        username: apiUser?.username || apiUser?.email || "customer",
+        email: apiUser?.email || "",
+        name: apiUser?.name || apiUser?.username || apiUser?.email || "Customer",
+        role: ["admin", "agent", "customer"].includes(accountRole) ? accountRole : "customer",
+      };
+      if (!response?.data?.access) {
+        throw new Error("Google sign-in failed.");
+      }
+      setTokens({ access: response.data.access, refresh: response.data.refresh });
+      setUser(account);
+      return account;
+    } catch (error) {
+      throw new Error(getApiError(error, 'Google sign-in failed.'));
+    }
   };
 
   const logout = () => {
     setUser(null);
-    setIsAuthenticated(false);
+    setTokens(null);
+    localStorage.removeItem("supportpilot-user");
+    localStorage.removeItem("supportpilot-tokens");
   };
 
-  const value = useMemo(() => ({ user, isAuthenticated, login, register, logout }), [user, isAuthenticated]);
-
+  const value = useMemo(() => ({ user, tokens, isAuthenticated, login, loginWithGoogle, register, logout }), [user, tokens, isAuthenticated]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used inside AuthProvider.");
+  return context;
+};
