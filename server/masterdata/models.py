@@ -1,4 +1,3 @@
-
 from django.db import models
 
 
@@ -35,8 +34,12 @@ class SLARule(models.Model):
         Priority,
         on_delete=models.CASCADE
     )
-    response_hours = models.IntegerField()
+    response_minutes = models.IntegerField()
     resolution_hours = models.IntegerField()
+    coverage = models.CharField(
+        max_length=50,
+        default="24/7"
+    )
 
     def __str__(self):
         return self.priority.code
