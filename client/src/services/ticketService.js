@@ -391,17 +391,18 @@ export const createTicket = (form, user) => {
       {
         id: Date.now() + 1,
         type: "classified",
-        title: "AI Classified (Milestone 1)",
+        title: "AI Classified & Categorized",
         description: `Predicted Category: ${category}, Severity: ${severity}, Priority: ${priority}.`,
         timestamp: new Date(createdAt.getTime() + 1000).toISOString(),
       },
       {
         id: Date.now() + 2,
         type: "rag",
-        title: "AI Resolution Ready (Milestone 2)",
+        title: "AI Automated Resolution Guide Ready",
         description: `Knowledge retrieved from: ${classification.knowledgeSource}.`,
         timestamp: new Date(createdAt.getTime() + 2000).toISOString(),
       },
+
       ...(agent
         ? [
             {

@@ -57,16 +57,17 @@ export default function AgentAllTicketsPage() {
       <div className="mb-5 grid gap-3 sm:grid-cols-4">
         {[
           { label: "Total Ingested", value: tickets.length },
-          { label: "AI Classified (M1)", value: tickets.filter((ticket) => ticket.ai || ticket.category !== "General").length },
+          { label: "AI Classified", value: tickets.filter((ticket) => ticket.ai || ticket.category !== "General").length },
           { label: "Classification Accuracy", value: "94.2%" },
           { label: "High Priority (P1/P2)", value: tickets.filter((ticket) => ["P1", "P2", "High"].includes(ticket.priority)).length },
         ].map((item) => (
           <div className="sp-card p-4" key={item.label}>
             <div className="text-[11px] font-semibold text-[#8b95a1]">{item.label}</div>
             <div className="my-1 text-2xl font-extrabold text-[#1c2430]">{item.value}</div>
-            <div className="text-[11px] text-[#15803d]">Milestone 1 workspace</div>
+            <div className="text-[11px] text-[#15803d]">Enterprise Workspace</div>
           </div>
         ))}
+
       </div>
 
       <div className="sp-card overflow-hidden">
@@ -161,8 +162,9 @@ export default function AgentAllTicketsPage() {
         {!filtered.length && <div className="p-10 text-center text-sm text-[#8b95a1]">No tickets match these filters.</div>}
         <div className="border-t border-[#dfe5e1] px-4 py-3 text-[11px] text-[#8b95a1] flex justify-between">
           <span>Showing {filtered.length} of {tickets.length} tickets</span>
-          <span>Milestone 1 — Evaluation: ≥90% Category Accuracy, ≥85% Severity Accuracy</span>
+          <span>AI Engine Evaluation: ≥90% Category Accuracy, ≥85% Severity Accuracy</span>
         </div>
+
       </div>
     </div>
   );

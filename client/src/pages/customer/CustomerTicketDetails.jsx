@@ -115,8 +115,9 @@ export default function CustomerTicketDetails() {
                 <div className="flex items-center gap-2">
                   <span className="text-lg">✦</span>
                   <h2 className="font-bold text-lg text-emerald-100">
-                    Milestone 2 — Automated AI Resolution
+                    Automated AI Resolution & Knowledge Guide
                   </h2>
+
                 </div>
                 <span className="text-[10px] font-mono rounded bg-emerald-500/20 text-emerald-300 px-2 py-0.5 border border-emerald-500/30">
                   RAG Pipeline Active
@@ -209,8 +210,9 @@ export default function CustomerTicketDetails() {
         <aside className="space-y-5">
           <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm">
             <h2 className="font-bold text-sm mb-4 text-[#1c2430] uppercase tracking-wide">
-              Milestone 1 — AI Classification
+              AI Classification & SLA Metrics
             </h2>
+
 
             <div className="space-y-3 text-xs">
               <div className="flex justify-between py-1.5 border-b border-slate-100">
