@@ -120,48 +120,74 @@ export default function NewTicketPage() {
     setStatusMessage("AI is analyzing your ticket with Groq...");
 
     try {
-      const res = await api.post("/support/classify/", {
-        subject: form.subject.trim(),
-        description: form.description.trim(),
-        scope: form.scope,
-        work_blocked: form.workBlocked,
-      });
+      let result = null;
 
-      if (res.data) {
-        const result = {
-          category: res.data.category,
-          subCategory: res.data.sub_category,
-          severity: res.data.severity,
-          priority: res.data.priority,
-          team: res.data.team,
-          confidence: res.data.confidence,
-          slaHours: res.data.sla_hours,
-          classificationPath: res.data.classification_path || "Groq LLM",
-          knowledgeSource: res.data.knowledge_source,
-          suggestedResolution: res.data.suggested_resolution,
-        };
+      // 1. Try Backend Groq API
+      try {
+        const res = await api.post("/support/classify/", {
+          subject: form.subject.trim(),
+          description: form.description.trim(),
+          scope: form.scope,
+          work_blocked: form.workBlocked,
+        });
 
-        setAiClassification(result);
-
-        // Auto-select Category, Sub-Category, and Priority in the form state
-        setForm((curr) => ({
-          ...curr,
-          category: result.category,
-          subCategory: result.subCategory,
-          priority: result.priority,
-          severity: result.severity,
-        }));
-
-        setStatusMessage(`✓ Groq AI classified as ${result.category} → ${result.subCategory} (${result.priority}). You can review or manually adjust fields below.`);
+        if (res.data && res.data.category) {
+          result = {
+            category: res.data.category,
+            subCategory: res.data.sub_category,
+            severity: res.data.severity,
+            priority: res.data.priority,
+            team: res.data.team,
+            confidence: res.data.confidence,
+            slaHours: res.data.sla_hours,
+            classificationPath: res.data.classification_path || "Groq LLM",
+            knowledgeSource: res.data.knowledge_source,
+            suggestedResolution: res.data.suggested_resolution,
+          };
+        }
+      } catch (backendErr) {
+        console.warn("Backend API notice, activating client AI engine:", backendErr);
       }
+
+      // 2. Resilient fallback if backend is sleeping/offline/deploying
+      if (!result) {
+        const fallback = classifyTicket(form.subject.trim(), form.description.trim(), form.scope, form.workBlocked);
+        const sla = fallback.priority === "P1" ? 4 : fallback.priority === "P2" ? 8 : fallback.priority === "P3" ? 24 : 48;
+        result = {
+          category: fallback.category,
+          subCategory: fallback.subCategory,
+          severity: fallback.severity,
+          priority: fallback.priority,
+          team: fallback.team,
+          confidence: fallback.confidence,
+          slaHours: sla,
+          classificationPath: fallback.classificationPath || "AI Classifier",
+          knowledgeSource: fallback.knowledgeSource,
+          suggestedResolution: fallback.suggestedResolution,
+        };
+      }
+
+      setAiClassification(result);
+
+      // Auto-select Category, Sub-Category, and Priority in the form state
+      setForm((curr) => ({
+        ...curr,
+        category: result.category,
+        subCategory: result.subCategory,
+        priority: result.priority,
+        severity: result.severity,
+      }));
+
+      setStatusMessage(`✓ AI classified as ${result.category} → ${result.subCategory} (${result.priority}, SLA: ${result.slaHours}h). You can review or manually adjust fields below.`);
     } catch (err) {
       console.error(err);
-      setError("AI Classification service unavailable. You may manually select the Category & Priority.");
+      setError("AI Classification failed. You may manually select the Category & Priority.");
       setStatusMessage("");
     } finally {
       setIsClassifying(false);
     }
   };
+
 
   // Final Ticket Submission Handler
   const handleSubmit = async (event) => {

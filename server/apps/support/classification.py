@@ -41,9 +41,10 @@ CATEGORY_RULES = [
     (
         "Security",
         "Malware / Breach",
-        ["ransomware", "malware", "virus", "trojan", "unauthorized access", "data leak", "compromised", "hacked", "security alert", "breach"],
+        ["ransomware", "malware", "virus", "trojan", "unauthorized access", "data leak", "compromised", "hacked", "security alert", "breach", "sql", "injection", "attack", "vulnerability", "exploit", "threat", "ddos", "cyber attack"],
         "Security Team",
     ),
+
     (
         "Authentication",
         "Password Reset",

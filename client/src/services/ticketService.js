@@ -116,12 +116,28 @@ export const classifyTicket = (subject = "", description = "", scope = "Just me"
     subCategory = "Internet / Wi-Fi";
     confidence = 0.93;
     team = "Network Team";
-  } else if (text.includes("phishing") || text.includes("ransomware") || text.includes("malware") || text.includes("breach") || text.includes("unauthorized") || text.includes("hacked")) {
+  } else if (
+    text.includes("phishing") ||
+    text.includes("ransomware") ||
+    text.includes("malware") ||
+    text.includes("breach") ||
+    text.includes("unauthorized") ||
+    text.includes("hacked") ||
+    text.includes("attack") ||
+    text.includes("sql") ||
+    text.includes("injection") ||
+    text.includes("vulnerability") ||
+    text.includes("exploit") ||
+    text.includes("security") ||
+    text.includes("ddos") ||
+    text.includes("threat")
+  ) {
     category = "Security";
-    subCategory = text.includes("phishing") ? "Phishing Alert" : "Malware / Incident";
-    confidence = 0.97;
+    subCategory = text.includes("phishing") ? "Phishing Alert" : text.includes("unauthorized") ? "Unauthorized Access" : "Malware / Incident";
+    confidence = 0.98;
     team = "Security Team";
   } else if (text.includes("password") || text.includes("login") || text.includes("locked") || text.includes("sso") || text.includes("mfa") || text.includes("account")) {
+
     category = "Authentication";
     subCategory = text.includes("password") ? "Password Reset" : "Login Issue";
     confidence = 0.95;
