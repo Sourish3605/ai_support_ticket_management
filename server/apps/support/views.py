@@ -12,18 +12,11 @@ except Exception:
     tickets_collection = None
 
 
-from rest_framework_simplejwt.authentication import JWTAuthentication
-
-
-class SafeJWTAuthentication(JWTAuthentication):
-    def authenticate(self, request):
-        try:
-            return super().authenticate(request)
-        except Exception:
-            return None
+from apps.authentication.authentication import SafeJWTAuthentication
 
 
 class TicketListCreateView(generics.ListCreateAPIView):
+
     serializer_class = TicketSerializer
     authentication_classes = [SafeJWTAuthentication]
     permission_classes = [permissions.AllowAny]

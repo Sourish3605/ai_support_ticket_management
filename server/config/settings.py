@@ -95,12 +95,13 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'apps.support.views.SafeJWTAuthentication',
+        'apps.authentication.authentication.SafeJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     ),
 }
+
 
 
 SIMPLE_JWT = {
