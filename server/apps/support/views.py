@@ -1,9 +1,15 @@
+import json
 from rest_framework import generics, permissions, serializers
 from .models import Ticket
 from .serializers import TicketSerializer
 from .preprocessing import preprocess_ticket
 from .classification import classify_ticket
-from mongodb import tickets_collection
+from .knowledge_service import retrieve_knowledge_and_generate_resolution
+
+try:
+    from mongodb import tickets_collection
+except Exception:
+    tickets_collection = None
 
 
 class TicketListCreateView(generics.ListCreateAPIView):
@@ -14,56 +20,100 @@ class TicketListCreateView(generics.ListCreateAPIView):
         user = self.request.user
 
         # Admin and Agent can see all tickets
-        if hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]:
-            queryset = Ticket.objects.all()
+        if user.is_staff or user.is_superuser or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
+            queryset = Ticket.objects.all().order_by("-id")
         else:
             # Customer can see only their own tickets
-            queryset = Ticket.objects.filter(created_by=user)
+            queryset = Ticket.objects.filter(created_by=user).order_by("-id")
 
         # Filters
         status = self.request.query_params.get("status")
         priority = self.request.query_params.get("priority")
+        category = self.request.query_params.get("category")
+        severity = self.request.query_params.get("severity")
 
         if status:
             queryset = queryset.filter(status=status)
-
         if priority:
             queryset = queryset.filter(priority=priority)
+        if category:
+            queryset = queryset.filter(category=category)
+        if severity:
+            queryset = queryset.filter(severity=severity)
 
         return queryset
 
     def perform_create(self, serializer):
-        # --- Preprocessing ---
-        raw_title = self.request.data.get("title", "")
+        # 1. Preprocessing
+        raw_title = self.request.data.get("title") or self.request.data.get("subject", "")
         raw_description = self.request.data.get("description", "")
+        scope = self.request.data.get("scope", "Just me")
+        work_blocked = bool(self.request.data.get("work_blocked", False))
         cleaned = preprocess_ticket(raw_title, raw_description)
 
-        # --- AI Classification ---
-        ai_category, ai_sub_category, ai_priority = classify_ticket(
-            cleaned["subject"], cleaned["description"]
+        # 2. Milestone 1 — AI Classification
+        ai_result = classify_ticket(
+            cleaned["subject"],
+            cleaned["description"],
+            scope=scope,
+            work_blocked=work_blocked,
         )
 
-        # Use AI priority only if none supplied
-        priority = self.request.data.get("priority") or ai_priority
+        category = self.request.data.get("category") or ai_result["category"]
+        sub_category = self.request.data.get("sub_category") or ai_result["sub_category"]
+        severity = self.request.data.get("severity") or ai_result["severity"]
+        priority = self.request.data.get("priority") or ai_result["priority"]
+        department = self.request.data.get("department") or ai_result["team"]
+
+        # 3. Milestone 2 — Knowledge Retrieval & Resolution
+        rag_result = retrieve_knowledge_and_generate_resolution(
+            category=category,
+            sub_category=sub_category,
+            subject=cleaned["subject"],
+            description=cleaned["description"],
+        )
+
+        resolution_json = json.dumps(rag_result["suggested_steps"])
 
         ticket = serializer.save(
             created_by=self.request.user,
-            category=self.request.data.get("category") or ai_category,
+            title=cleaned["subject"] or raw_title,
+            description=cleaned["description"] or raw_description,
+            category=category,
+            sub_category=sub_category,
+            severity=severity,
             priority=priority,
+            department=department,
+            status="AI_RESOLUTION_READY",
+            ai_confidence=ai_result["confidence"],
+            ai_path=ai_result["classification_path"],
+            ai_resolution=resolution_json,
+            knowledge_source=rag_result["article_title"],
+            knowledge_retrieved=True,
         )
 
-        tickets_collection.insert_one({
-            "ticket_id": ticket.id,
-            "title": ticket.title,
-            "description": ticket.description,
-            "category": ticket.category,
-            "ai_sub_category": ai_sub_category,
-            "priority": ticket.priority,
-            "status": ticket.status,
-            "created_by": ticket.created_by.username,
-            "created_at": str(ticket.created_at),
-            "preprocessing": cleaned,
-        })
+        # MongoDB audit ingestion
+        if tickets_collection is not None:
+            try:
+                tickets_collection.insert_one({
+                    "ticket_id": ticket.id,
+                    "ticket_code": ticket.ticket_code,
+                    "title": ticket.title,
+                    "description": ticket.description,
+                    "category": ticket.category,
+                    "sub_category": ticket.sub_category,
+                    "severity": ticket.severity,
+                    "priority": ticket.priority,
+                    "status": ticket.status,
+                    "ai_confidence": ticket.ai_confidence,
+                    "ai_path": ticket.ai_path,
+                    "knowledge_source": ticket.knowledge_source,
+                    "created_by": ticket.created_by.username,
+                    "created_at": str(ticket.created_at),
+                    "preprocessing": cleaned,
+                })
+            except Exception:
+                pass
 
 
 class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -73,11 +123,9 @@ class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         user = self.request.user
 
-        # Admin and Agent can access all tickets
-        if hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]:
+        if user.is_staff or user.is_superuser or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
             return Ticket.objects.all()
 
-        # Customer can access only their own tickets
         return Ticket.objects.filter(created_by=user)
 
     def perform_update(self, serializer):
