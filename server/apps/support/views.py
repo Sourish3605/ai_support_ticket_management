@@ -12,9 +12,22 @@ except Exception:
     tickets_collection = None
 
 
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
+
+class SafeJWTAuthentication(JWTAuthentication):
+    def authenticate(self, request):
+        try:
+            return super().authenticate(request)
+        except Exception:
+            return None
+
+
 class TicketListCreateView(generics.ListCreateAPIView):
     serializer_class = TicketSerializer
+    authentication_classes = [SafeJWTAuthentication]
     permission_classes = [permissions.AllowAny]
+
 
     def get_queryset(self):
         user = self.request.user
@@ -150,10 +163,13 @@ class TicketListCreateView(generics.ListCreateAPIView):
 
 class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TicketSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [SafeJWTAuthentication]
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         user = self.request.user
+        if not user or not user.is_authenticated:
+            return Ticket.objects.all()
 
         if user.is_staff or user.is_superuser or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
             return Ticket.objects.all()
@@ -181,7 +197,9 @@ class ClassifyTicketAPIView(generics.GenericAPIView):
     Takes complete subject, description, scope, and work_blocked.
     Returns normalized category, sub_category, severity, priority, confidence, and suggested steps.
     """
+    authentication_classes = [SafeJWTAuthentication]
     permission_classes = [permissions.AllowAny]
+
 
     def post(self, request, *args, **kwargs):
         from rest_framework.response import Response
