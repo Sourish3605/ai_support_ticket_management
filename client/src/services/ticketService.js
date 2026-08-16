@@ -1,5 +1,6 @@
-import { seedTickets, seedUsers } from "../data/seedData";
-import { storage, STORAGE_KEYS } from "./storageService";
+import { seedTickets, seedUsers } from "../data/seedData.js";
+import { storage, STORAGE_KEYS } from "./storageService.js";
+
 
 const getTickets = () => {
   return storage.get(
