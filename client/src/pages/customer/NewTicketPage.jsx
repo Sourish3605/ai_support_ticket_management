@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { createTicket, getCustomerTickets } from "../../services/ticketService";
+import { classifyTicket, createTicket, getCustomerTickets } from "../../services/ticketService";
 import { api } from "../../services/api";
+
+
+
 
 const initialForm = {
   subject: "",
