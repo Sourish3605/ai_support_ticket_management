@@ -141,3 +141,50 @@ class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
                 )
 
         serializer.save()
+
+
+class ClassifyTicketAPIView(generics.GenericAPIView):
+    """
+    Dedicated AI ticket classification endpoint.
+    Takes complete subject, description, scope, and work_blocked.
+    Returns normalized category, sub_category, severity, priority, confidence, and suggested steps.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        from rest_framework.response import Response
+
+        raw_subject = request.data.get("subject", "")
+        raw_description = request.data.get("description", "")
+        scope = request.data.get("scope", "Just me")
+        work_blocked = bool(request.data.get("work_blocked", False))
+
+        cleaned = preprocess_ticket(raw_subject, raw_description)
+        ai_result = classify_ticket(
+            cleaned["subject"] or raw_subject,
+            cleaned["description"] or raw_description,
+            scope=scope,
+            work_blocked=work_blocked,
+        )
+
+        rag_result = retrieve_knowledge_and_generate_resolution(
+            category=ai_result["category"],
+            sub_category=ai_result["sub_category"],
+            subject=cleaned["subject"] or raw_subject,
+            description=cleaned["description"] or raw_description,
+        )
+
+        sla_hours = 4 if ai_result["priority"] == "P1" else 8 if ai_result["priority"] == "P2" else 24 if ai_result["priority"] == "P3" else 48
+
+        return Response({
+            "category": ai_result["category"],
+            "sub_category": ai_result["sub_category"],
+            "severity": ai_result["severity"],
+            "priority": ai_result["priority"],
+            "team": ai_result["team"],
+            "confidence": ai_result["confidence"],
+            "classification_path": ai_result["classification_path"],
+            "sla_hours": sla_hours,
+            "knowledge_source": rag_result["article_title"],
+            "suggested_resolution": rag_result["suggested_steps"],
+        })
