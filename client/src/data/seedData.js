@@ -95,6 +95,13 @@ export const seedTickets = [
       priorityConfidence: 0.91,
       classificationPath: "Fast-Path",
       severity: "High",
+      suggestedResolution: [
+        "Verify the VPN client version is up to date.",
+        "Check that your corporate firewall is not blocking VPN ports.",
+        "Try disconnecting and reconnecting to the VPN.",
+        "Clear VPN credentials and re-authenticate.",
+        "Contact IT support if the issue persists after the above steps.",
+      ],
     },
   },
 ];
