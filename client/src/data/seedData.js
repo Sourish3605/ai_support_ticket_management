@@ -82,17 +82,18 @@ export const seedTickets = [
       {
         id: 2,
         type: "classified",
-        title: "AI Classified (Milestone 1)",
+        title: "AI Classified & Categorized",
         description: "Classified as Category: VPN, Severity: High, Priority: P1.",
         timestamp: new Date(Date.now() - 3600000 * 2 + 1000).toISOString(),
       },
       {
         id: 3,
         type: "rag",
-        title: "AI Resolution Ready (Milestone 2)",
+        title: "AI Automated Resolution Ready",
         description: "Retrieved knowledge from Corporate VPN Troubleshooting Guide.",
         timestamp: new Date(Date.now() - 3600000 * 2 + 2000).toISOString(),
       },
+
       {
         id: 4,
         type: "assigned",
@@ -151,7 +152,7 @@ export const seedTickets = [
       {
         id: 2,
         type: "classified",
-        title: "AI Classified (Milestone 1)",
+        title: "AI Classified & Categorized",
         description: "Classified as Category: Hardware, Severity: Medium, Priority: P2.",
         timestamp: new Date(Date.now() - 3600000 * 5 + 1000).toISOString(),
       },
@@ -205,10 +206,11 @@ export const seedTickets = [
       {
         id: 2,
         type: "classified",
-        title: "AI Classified (Milestone 1)",
+        title: "AI Classified & Categorized",
         description: "Classified as Category: Authentication, Severity: Low, Priority: P4.",
         timestamp: new Date(Date.now() - 3600000 * 12 + 1000).toISOString(),
       },
+
     ],
     comments: [],
     ai: {

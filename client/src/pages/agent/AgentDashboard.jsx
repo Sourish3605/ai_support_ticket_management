@@ -66,10 +66,10 @@ export default function AgentDashboard() {
 
   return (
     <div className="space-y-5">
-      {/* Milestone 1 Header Banner */}
+      {/* Header Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#0f2b1d] via-[#14532d] to-[#1e3a29] p-5 text-white shadow-md">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Milestone 1 & 2 Workspace</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Intelligent Agent Workspace</span>
           <h1 className="text-xl sm:text-2xl font-bold mt-0.5">Support & AI Operations Dashboard</h1>
           <p className="text-xs text-white/70 mt-1">Real-time classification, severity scoring, priority queues, and RAG troubleshooting.</p>
         </div>
@@ -83,32 +83,32 @@ export default function AgentDashboard() {
         </div>
       </div>
 
-      {/* Milestone 1 Primary KPI Grid */}
+      {/* Primary KPI Grid — Ticket Ingestion & Classification */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#4b5563]">Milestone 1 — Ticket Ingestion & Classification</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-[#4b5563]">Ticket Ingestion & AI Classification</span>
           <span className="text-[11px] font-semibold text-[#15803d]">Target: 90%+ Accuracy</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <Kpi label="Total Tickets" value={tickets.length || 250} detail="Workspace volume" badge="M1" />
-          <Kpi label="New Tickets" value={newTickets.length || 35} detail="Awaiting review" tone="amber" badge="M1" />
-          <Kpi label="AI Classified" value={classified.length || 180} detail="94.2% coverage" badge="M1" />
-          <Kpi label="High Priority (P1/P2)" value={highPriority.length || 20} detail="Immediate action" tone={highPriority.length ? "red" : "green"} badge="M1" />
-          <Kpi label="Critical (P1)" value={criticalTickets.length || 5} detail="SLA: 1 hour" tone={criticalTickets.length ? "red" : "green"} badge="M1" />
-          <Kpi label="Resolved" value={resolvedTickets.length || 90} detail="Closed / fixed" tone="green" badge="M1" />
+          <Kpi label="Total Tickets" value={tickets.length || 250} detail="Workspace volume" badge="Queue" />
+          <Kpi label="New Tickets" value={newTickets.length || 35} detail="Awaiting review" tone="amber" badge="New" />
+          <Kpi label="AI Classified" value={classified.length || 180} detail="94.2% coverage" badge="AI" />
+          <Kpi label="High Priority (P1/P2)" value={highPriority.length || 20} detail="Immediate action" tone={highPriority.length ? "red" : "green"} badge="Urgent" />
+          <Kpi label="Critical (P1)" value={criticalTickets.length || 5} detail="SLA: 1 hour" tone={criticalTickets.length ? "red" : "green"} badge="P1" />
+          <Kpi label="Resolved" value={resolvedTickets.length || 90} detail="Closed / fixed" tone="green" badge="Done" />
         </div>
       </div>
 
-      {/* Milestone 2 Secondary KPI Grid */}
+      {/* Secondary KPI Grid — Knowledge Retrieval & Auto-Resolution */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#4b5563]">Milestone 2 — Knowledge Retrieval & Resolution</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-[#4b5563]">Knowledge Retrieval & Auto-Resolution Engine</span>
           <span className="text-[11px] font-semibold text-emerald-700">RAG Pipeline Active</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Kpi label="Knowledge Retrieved" value={knowledgeRetrieved.length || 210} detail="Articles matched to tickets" badge="M2" />
-          <Kpi label="AI Resolutions Generated" value={aiResponses.length || 190} detail="Step-by-step guidance" badge="M2" />
-          <Kpi label="Auto-Resolution Rate" value="76%" detail="Self-serve / instant solve" tone="green" badge="M2" />
+          <Kpi label="Knowledge Retrieved" value={knowledgeRetrieved.length || 210} detail="Articles matched to tickets" badge="RAG" />
+          <Kpi label="AI Resolutions Generated" value={aiResponses.length || 190} detail="Step-by-step guidance" badge="AI" />
+          <Kpi label="Auto-Resolution Rate" value="76%" detail="Self-serve / instant solve" tone="green" badge="RAG" />
         </div>
       </div>
 
@@ -163,7 +163,8 @@ export default function AgentDashboard() {
       {/* Health & Volume Grid */}
       <div className="grid gap-4 lg:grid-cols-2">
         <section className={panelClass}>
-          <PanelHeader title="AI Classification Health (Milestone 1)" action={<span className="sp-tag sp-tag-success">Evaluation Passed</span>} />
+          <PanelHeader title="AI Classification Engine Health" action={<span className="sp-tag sp-tag-success">Evaluation Passed</span>} />
+
           <div className="sp-card-body">
             {[
               ["Category Accuracy (Target ≥ 90%)", "94.2% (Meeting Target)"],

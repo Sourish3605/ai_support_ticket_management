@@ -90,7 +90,7 @@ export default function KnowledgeBasePage() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-[#15803d]">Milestone 2 — Knowledge Base & Vector Index</span>
+          <span className="text-[11px] font-bold uppercase tracking-widest text-[#15803d]">Knowledge Base & Vector Store</span>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#1c2430] mt-0.5">Enterprise Knowledge Store</h1>
           <p className="text-xs text-gray-500 mt-1">Manage troubleshooting articles retrieved by RAG to generate automated AI resolutions.</p>
         </div>
@@ -106,10 +106,11 @@ export default function KnowledgeBasePage() {
       <div className="mb-5 grid gap-3 sm:grid-cols-4">
         {[
           { label: "Total Articles", value: articles.length, sub: "Enterprise knowledge" },
-          { label: "Indexed in Vector DB", value: articles.filter((a) => a.status === "INDEXED").length, sub: "Milestone 2 ready" },
+          { label: "Indexed in Vector DB", value: articles.filter((a) => a.status === "INDEXED").length, sub: "RAG search ready" },
           { label: "Total Chunks", value: articles.reduce((acc, a) => acc + a.chunks, 0), sub: "Embedding vectors" },
           { label: "Embedding Model", value: "text-embedding-3-small", sub: "1536 dimensions" },
         ].map((item) => (
+
           <div className="sp-card p-4" key={item.label}>
             <div className="text-[11px] font-semibold text-[#8b95a1]">{item.label}</div>
             <div className="my-1 text-xl font-extrabold text-[#1c2430] truncate">{item.value}</div>
@@ -172,8 +173,9 @@ export default function KnowledgeBasePage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-bold text-[#1c2430] mb-1">Add Knowledge Article (Milestone 2)</h2>
+            <h2 className="text-lg font-bold text-[#1c2430] mb-1">Add Knowledge Article</h2>
             <p className="text-xs text-gray-500 mb-4">New articles are automatically chunked and embedded for RAG resolution retrieval.</p>
+
 
             <form onSubmit={handleSave} className="space-y-3 text-xs">
               <div>
