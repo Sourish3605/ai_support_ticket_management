@@ -433,6 +433,8 @@ export const createTicket = (form, user) => {
       department: ticket.department || "Finance",
       scope: ticket.scope || "Just me",
       work_blocked: Boolean(ticket.workBlocked),
+      customer_email: ticket.customerEmail || "arun@company.com",
+      customer_name: ticket.customerName || "Arun Kumar",
     }).then((res) => {
       if (res?.data?.id) {
         console.log(`[DB Sync] Ticket #${res.data.id} persisted to PostgreSQL database.`);
@@ -443,6 +445,7 @@ export const createTicket = (form, user) => {
   } catch (e) {
     console.warn("[DB Sync Error]:", e);
   }
+
 
   return ticket;
 };
