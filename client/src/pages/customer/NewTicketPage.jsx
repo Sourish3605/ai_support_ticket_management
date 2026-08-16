@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { classifyTicket, createTicket, getCustomerTickets } from "../../services/ticketService";
+import { createTicket, getCustomerTickets } from "../../services/ticketService";
 import { api } from "../../services/api";
 
 const initialForm = {
@@ -74,139 +74,24 @@ export default function NewTicketPage() {
     }
   });
 
-  const [manualOverrides, setManualOverrides] = useState({
-    category: false,
-    subCategory: false,
-    priority: false,
-  });
-
-  const [aiState, setAiState] = useState({
-    analyzing: false,
-    confidence: 0.94,
-    category: "General",
-    subCategory: "Other",
-    severity: "Medium",
-    priority: "P3",
-    team: "IT Support",
-    classificationPath: "Fast-Path",
-    knowledgeSource: "General Corporate Support Guide",
-    suggestedResolution: [],
-  });
-
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
   const [draftSaved, setDraftSaved] = useState(false);
-  const debounceTimerRef = useRef(null);
-  const requestIdRef = useRef(0);
+
+  // Real Groq AI Classification State - starts empty (NO dummy data)
+  const [aiClassification, setAiClassification] = useState(null);
 
   useEffect(() => {
     localStorage.setItem("supportpilot_ticket_draft", JSON.stringify(form));
   }, [form]);
 
-  // Full-Sentence AI Classification with 400ms Debounce
-  useEffect(() => {
-    if (!form.subject.trim() && !form.description.trim()) {
-      return;
-    }
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    setAiState((prev) => ({ ...prev, analyzing: true }));
-    const currentRequestId = ++requestIdRef.current;
-
-    debounceTimerRef.current = setTimeout(async () => {
-      try {
-        // First try backend AI classification endpoint
-        let aiResult = null;
-        try {
-          const res = await api.post("/support/classify/", {
-            subject: form.subject,
-            description: form.description,
-            scope: form.scope,
-            work_blocked: form.workBlocked,
-          });
-          if (res.data) {
-            aiResult = {
-              category: res.data.category,
-              subCategory: res.data.sub_category,
-              severity: res.data.severity,
-              priority: res.data.priority,
-              confidence: res.data.confidence,
-              team: res.data.team,
-              classificationPath: res.data.classification_path,
-              knowledgeSource: res.data.knowledge_source,
-              suggestedResolution: res.data.suggested_resolution,
-            };
-          }
-        } catch {
-          // Fallback to local client classifier
-          aiResult = classifyTicket(form.subject, form.description, form.scope, form.workBlocked);
-        }
-
-        if (currentRequestId !== requestIdRef.current) return;
-
-        if (aiResult) {
-          setAiState({
-            analyzing: false,
-            confidence: aiResult.confidence || 0.94,
-            category: aiResult.category || "General",
-            subCategory: aiResult.subCategory || "Other",
-            severity: aiResult.severity || "Medium",
-            priority: aiResult.priority || "P3",
-            team: aiResult.team || "IT Support",
-            classificationPath: aiResult.classificationPath || "Fast-Path",
-            knowledgeSource: aiResult.knowledgeSource || "Corporate IT Guide",
-            suggestedResolution: aiResult.suggestedResolution || [],
-          });
-
-          // Auto-select dropdown fields unless manually modified
-          setForm((curr) => ({
-            ...curr,
-            category: manualOverrides.category ? curr.category : (aiResult.category || curr.category),
-            subCategory: manualOverrides.subCategory ? curr.subCategory : (aiResult.subCategory || curr.subCategory),
-            priority: manualOverrides.priority ? curr.priority : (aiResult.priority || curr.priority),
-            severity: aiResult.severity || curr.severity,
-          }));
-        }
-      } catch (err) {
-        console.warn("AI Classification error:", err);
-      } finally {
-        if (currentRequestId === requestIdRef.current) {
-          setAiState((prev) => ({ ...prev, analyzing: false }));
-        }
-      }
-    }, 400);
-
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, [form.subject, form.description, form.scope, form.workBlocked]);
-
   const update = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleManualCategoryChange = (e) => {
-    const value = e.target.value;
-    setManualOverrides((prev) => ({ ...prev, category: true, subCategory: false }));
-    const defaultSub = CATEGORIES_MAP[value]?.[0] || "General";
-    setForm((curr) => ({ ...curr, category: value, subCategory: defaultSub }));
-  };
-
-  const handleManualSubCategoryChange = (e) => {
-    const value = e.target.value;
-    setManualOverrides((prev) => ({ ...prev, subCategory: true }));
-    update("subCategory", value);
-  };
-
-  const handleManualPriorityChange = (e) => {
-    const value = e.target.value;
-    setManualOverrides((prev) => ({ ...prev, priority: true }));
-    update("priority", value);
-  };
-
-  // Safe duplicate ticket search on full trimmed query
+  // Safe duplicate ticket search
   const duplicate = useMemo(() => {
     if (!form.subject.trim() || form.subject.trim().length < 6) return null;
     const searchTerms = form.subject.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 3);
@@ -219,22 +104,135 @@ export default function NewTicketPage() {
     });
   }, [form.subject, user?.id]);
 
-  const submit = (event) => {
-    event.preventDefault();
+  // AI Classification Trigger: Called when user clicks "Classify Issue with AI" button after entering Subject/Description
+  const handleRunAiClassification = async () => {
     setError("");
-    if (!form.subject.trim()) return setError("Please enter a clear subject for your ticket.");
-    if (form.description.trim().length < 10) return setError("Description must contain at least 10 characters.");
+    if (!form.subject.trim()) {
+      setError("Please enter a subject before classifying.");
+      return;
+    }
+    if (form.description.trim().length < 10) {
+      setError("Please provide at least 10 characters in description for accurate AI classification.");
+      return;
+    }
+
+    setIsClassifying(true);
+    setStatusMessage("AI is analyzing your ticket with Groq...");
 
     try {
-      const ticket = createTicket(form, user);
-      localStorage.removeItem("supportpilot_ticket_draft");
-      navigate(`/portal/tickets/${ticket.id}`);
+      const res = await api.post("/support/classify/", {
+        subject: form.subject.trim(),
+        description: form.description.trim(),
+        scope: form.scope,
+        work_blocked: form.workBlocked,
+      });
+
+      if (res.data) {
+        const result = {
+          category: res.data.category,
+          subCategory: res.data.sub_category,
+          severity: res.data.severity,
+          priority: res.data.priority,
+          team: res.data.team,
+          confidence: res.data.confidence,
+          slaHours: res.data.sla_hours,
+          classificationPath: res.data.classification_path || "Groq LLM",
+          knowledgeSource: res.data.knowledge_source,
+          suggestedResolution: res.data.suggested_resolution,
+        };
+
+        setAiClassification(result);
+
+        // Auto-select Category, Sub-Category, and Priority in the form state
+        setForm((curr) => ({
+          ...curr,
+          category: result.category,
+          subCategory: result.subCategory,
+          priority: result.priority,
+          severity: result.severity,
+        }));
+
+        setStatusMessage(`✓ Groq AI classified as ${result.category} → ${result.subCategory} (${result.priority}). You can review or manually adjust fields below.`);
+      }
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("AI Classification service unavailable. You may manually select the Category & Priority.");
+      setStatusMessage("");
+    } finally {
+      setIsClassifying(false);
     }
   };
 
-  const activeCategory = form.category || aiState.category || "General";
+  // Final Ticket Submission Handler
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+
+    if (!form.subject.trim()) {
+      setError("Please enter a clear subject for your ticket.");
+      return;
+    }
+    if (form.description.trim().length < 10) {
+      setError("Description must contain at least 10 characters.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      let finalClassification = aiClassification;
+
+      // If user did not click "Classify with AI" button earlier, run it now before submitting
+      if (!finalClassification) {
+        try {
+          const res = await api.post("/support/classify/", {
+            subject: form.subject.trim(),
+            description: form.description.trim(),
+            scope: form.scope,
+            work_blocked: form.workBlocked,
+          });
+          if (res.data) {
+            finalClassification = {
+              category: res.data.category,
+              subCategory: res.data.sub_category,
+              severity: res.data.severity,
+              priority: res.data.priority,
+              team: res.data.team,
+              confidence: res.data.confidence,
+              slaHours: res.data.sla_hours,
+              classificationPath: res.data.classification_path || "Groq LLM",
+              knowledgeSource: res.data.knowledge_source,
+              suggestedResolution: res.data.suggested_resolution,
+            };
+            setAiClassification(finalClassification);
+          }
+        } catch (apiErr) {
+          console.warn("Backend classification notice:", apiErr);
+        }
+      }
+
+      const finalForm = {
+        ...form,
+        category: form.category || finalClassification?.category || "General",
+        subCategory: form.subCategory || finalClassification?.subCategory || "Other",
+        severity: finalClassification?.severity || form.severity || "Medium",
+        priority: form.priority || finalClassification?.priority || "P3",
+        slaHours: finalClassification?.slaHours || 24,
+        knowledgeSource: finalClassification?.knowledgeSource || "Corporate IT Guide",
+        suggestedResolution: finalClassification?.suggestedResolution || [],
+      };
+
+      const ticket = createTicket(finalForm, user);
+      localStorage.removeItem("supportpilot_ticket_draft");
+      navigate(`/portal/tickets/${ticket.id}`);
+
+    } catch (err) {
+      setError(err?.message || "Failed to submit ticket. Please retry.");
+      setIsSubmitting(false);
+    }
+  };
+
+  const activeCategory = form.category || aiClassification?.category || "General";
   const availableSubCategories = CATEGORIES_MAP[activeCategory] || CATEGORIES_MAP["General"];
 
   const inputClass = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600";
@@ -242,7 +240,7 @@ export default function NewTicketPage() {
 
   return (
     <div className="mx-auto max-w-[1080px]">
-      <form onSubmit={submit}>
+      <form onSubmit={handleSubmit}>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div>
             {duplicate && (
@@ -264,15 +262,22 @@ export default function NewTicketPage() {
             )}
 
             {error && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 font-semibold shadow-sm">
-                {error}
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700 shadow-sm">
+                <strong>Error:</strong> {error}
               </div>
             )}
 
-            {/* Step 1: Issue Details */}
+            {statusMessage && (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs font-semibold text-emerald-800 flex items-center gap-2 animate-fade-in shadow-sm">
+                <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+                {statusMessage}
+              </div>
+            )}
+
+            {/* Step 1: Issue Summary (Subject + Description + AI Classify Button) */}
             <section className="sp-card mb-4">
               <div className="sp-card-body">
-                <Step number="1" title="Issue Summary" subtitle="AI continuously analyzes your full text to categorize and prioritize" done />
+                <Step number="1" title="Issue Details" subtitle="Enter your issue summary and description, then click Classify with AI" done={Boolean(form.subject && form.description)} />
 
                 <Field label="Subject">
                   <input
@@ -280,44 +285,78 @@ export default function NewTicketPage() {
                     onChange={(e) => update("subject", e.target.value)}
                     className={inputClass}
                     placeholder="e.g. Unable to login to my customer account after resetting my password"
+                    disabled={isClassifying || isSubmitting}
                     required
                   />
-                  <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Enter your full issue summary.</span>
-                    {aiState.analyzing && <span className="text-emerald-700 font-bold animate-pulse">✦ AI Analyzing complete subject...</span>}
+                  <div className="mt-1 text-[11px] text-slate-400">
+                    A clear summary of what is happening.
                   </div>
                 </Field>
 
                 <Field label="Detailed Description">
                   <textarea
-                    rows="5"
+                    rows="4"
                     value={form.description}
                     onChange={(e) => update("description", e.target.value)}
                     className={inputClass}
                     placeholder="Describe the exact error message, what system is affected, and any steps already attempted."
+                    disabled={isClassifying || isSubmitting}
                     required
                   />
                 </Field>
+
+                {/* AI Classification Action Button right after Subject & Description */}
+                <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-200">
+                  <div className="text-xs text-slate-600">
+                    <span className="font-bold text-slate-800">Ready to classify?</span> Click to analyze with Groq AI and auto-fill category fields.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRunAiClassification}
+                    disabled={isClassifying || !form.subject.trim() || isSubmitting}
+                    className="rounded-xl bg-[#0f2b1d] px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 transition disabled:opacity-50 flex items-center gap-2 shadow"
+                  >
+                    {isClassifying ? (
+                      <>
+                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <span>Classifying...</span>
+                      </>
+                    ) : (
+                      <span>✨ Classify Issue with Groq AI</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* Step 2: Categorization & Impact (Auto-Filled by AI, Manually Editable) */}
+            <section className="sp-card mb-4">
+              <div className="sp-card-body">
+                <Step number="2" title="Categorization & Impact" subtitle="Auto-populated by AI after classification, or adjust manually" done={Boolean(form.category)} />
 
                 {/* Auto-selected Category & Subcategory Dropdowns with Manual Override */}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Category">
                     <div className="relative">
                       <select
-                        value={form.category || aiState.category}
-                        onChange={handleManualCategoryChange}
+                        value={form.category}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const defaultSub = CATEGORIES_MAP[val]?.[0] || "General";
+                          setForm((curr) => ({ ...curr, category: val, subCategory: defaultSub }));
+                        }}
                         className={selectClass}
+                        disabled={isSubmitting}
                       >
+                        <option value="">Select Category (or click Classify above)</option>
                         {Object.keys(CATEGORIES_MAP).map((cat) => (
                           <option key={cat} value={cat}>
                             {cat}
                           </option>
                         ))}
                       </select>
-                      {manualOverrides.category ? (
-                        <span className="absolute right-8 top-3 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded">Manual</span>
-                      ) : (
-                        <span className="absolute right-8 top-3 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">✦ AI Auto</span>
+                      {form.category && aiClassification?.category === form.category && (
+                        <span className="absolute right-8 top-3 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">✦ AI Selected</span>
                       )}
                     </div>
                   </Field>
@@ -325,54 +364,50 @@ export default function NewTicketPage() {
                   <Field label="Sub-Category">
                     <div className="relative">
                       <select
-                        value={form.subCategory || aiState.subCategory}
-                        onChange={handleManualSubCategoryChange}
+                        value={form.subCategory}
+                        onChange={(e) => update("subCategory", e.target.value)}
                         className={selectClass}
+                        disabled={isSubmitting}
                       >
+                        <option value="">Select Sub-Category</option>
                         {availableSubCategories.map((sub) => (
                           <option key={sub} value={sub}>
                             {sub}
                           </option>
                         ))}
                       </select>
-                      {manualOverrides.subCategory ? (
-                        <span className="absolute right-8 top-3 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded">Manual</span>
-                      ) : (
-                        <span className="absolute right-8 top-3 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">✦ AI Auto</span>
+                      {form.subCategory && aiClassification?.subCategory === form.subCategory && (
+                        <span className="absolute right-8 top-3 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">✦ AI Selected</span>
                       )}
                     </div>
                   </Field>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Priority Level">
+                    <select
+                      value={form.priority}
+                      onChange={(e) => update("priority", e.target.value)}
+                      className={selectClass}
+                      disabled={isSubmitting}
+                    >
+                      <option value="P1">P1 - Critical (SLA: 4 Hours)</option>
+                      <option value="P2">P2 - High (SLA: 8 Hours)</option>
+                      <option value="P3">P3 - Medium (SLA: 24 Hours)</option>
+                      <option value="P4">P4 - Low (SLA: 48 Hours)</option>
+                    </select>
+                  </Field>
+
                   <Field label="Affected System / Software" optional>
                     <input
                       value={form.affectedSystem}
                       onChange={(e) => update("affectedSystem", e.target.value)}
                       className={inputClass}
                       placeholder="e.g. Cisco AnyConnect, SSO Portal"
+                      disabled={isSubmitting}
                     />
                   </Field>
-                  <Field label="When did it start?" optional>
-                    <select
-                      value={form.startedWhen}
-                      onChange={(e) => update("startedWhen", e.target.value)}
-                      className={selectClass}
-                    >
-                      <option>Today</option>
-                      <option>Just now</option>
-                      <option>This week</option>
-                      <option>Recurring issue</option>
-                    </select>
-                  </Field>
                 </div>
-              </div>
-            </section>
-
-            {/* Step 2: Impact & Urgency */}
-            <section className="sp-card mb-4">
-              <div className="sp-card-body">
-                <Step number="2" title="Impact & Priority" subtitle="Used to establish SLA response targets" done />
 
                 <Field label="Who is affected?">
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -380,6 +415,7 @@ export default function NewTicketPage() {
                       <button
                         type="button"
                         key={item}
+                        disabled={isSubmitting}
                         onClick={() => update("scope", item)}
                         className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition ${
                           form.scope === item
@@ -397,6 +433,7 @@ export default function NewTicketPage() {
                   <div className="flex gap-3">
                     <button
                       type="button"
+                      disabled={isSubmitting}
                       onClick={() => update("workBlocked", true)}
                       className={`sp-btn flex-1 py-2.5 text-xs font-bold transition ${
                         form.workBlocked ? "bg-red-700 text-white shadow" : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200"
@@ -406,6 +443,7 @@ export default function NewTicketPage() {
                     </button>
                     <button
                       type="button"
+                      disabled={isSubmitting}
                       onClick={() => update("workBlocked", false)}
                       className={`sp-btn flex-1 py-2.5 text-xs font-bold transition ${
                         !form.workBlocked ? "bg-emerald-700 text-white shadow" : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200"
@@ -415,44 +453,10 @@ export default function NewTicketPage() {
                     </button>
                   </div>
                 </Field>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Priority Level">
-                    <div className="relative">
-                      <select
-                        value={form.priority}
-                        onChange={handleManualPriorityChange}
-                        className={selectClass}
-                      >
-                        <option value="P1">P1 - Critical (SLA: 1 Hour)</option>
-                        <option value="P2">P2 - High (SLA: 4 Hours)</option>
-                        <option value="P3">P3 - Medium (SLA: 24 Hours)</option>
-                        <option value="P4">P4 - Low (SLA: 48 Hours)</option>
-                      </select>
-                      {manualOverrides.priority ? (
-                        <span className="absolute right-8 top-3 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded">Manual</span>
-                      ) : (
-                        <span className="absolute right-8 top-3 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">✦ AI Auto</span>
-                      )}
-                    </div>
-                  </Field>
-
-                  <Field label="Workaround available?" optional>
-                    <select
-                      value={form.workaround}
-                      onChange={(e) => update("workaround", e.target.value)}
-                      className={selectClass}
-                    >
-                      <option>No</option>
-                      <option>Yes</option>
-                      <option>Partially</option>
-                    </select>
-                  </Field>
-                </div>
               </div>
             </section>
 
-            {/* Step 3: Context */}
+            {/* Step 3: Requester Context */}
             <section className="sp-card mb-4">
               <div className="sp-card-body">
                 <Step number="3" title="Requester Information" subtitle="Pre-filled from your profile" />
@@ -462,6 +466,7 @@ export default function NewTicketPage() {
                       value={form.department || user?.department || "Finance"}
                       onChange={(e) => update("department", e.target.value)}
                       className={inputClass}
+                      disabled={isSubmitting}
                     />
                   </Field>
                   <Field label="Location / Office" optional>
@@ -470,6 +475,7 @@ export default function NewTicketPage() {
                       onChange={(e) => update("location", e.target.value)}
                       className={inputClass}
                       placeholder="e.g. DLF IT Park, Chennai"
+                      disabled={isSubmitting}
                     />
                   </Field>
                   <Field label="Asset / Device Tag" optional>
@@ -478,6 +484,7 @@ export default function NewTicketPage() {
                       onChange={(e) => update("assetTag", e.target.value)}
                       className={inputClass}
                       placeholder="e.g. LAP-04821"
+                      disabled={isSubmitting}
                     />
                   </Field>
                   <Field label="Preferred Contact Channel">
@@ -485,6 +492,7 @@ export default function NewTicketPage() {
                       value={form.contactPreference}
                       onChange={(e) => update("contactPreference", e.target.value)}
                       className={selectClass}
+                      disabled={isSubmitting}
                     >
                       <option>Email</option>
                       <option>Phone</option>
@@ -495,15 +503,25 @@ export default function NewTicketPage() {
               </div>
             </section>
 
+            {/* Final Submission Buttons */}
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="submit"
-                className="sp-btn sp-btn-primary flex-1 py-3.5 text-xs font-bold shadow-md hover:shadow-lg transition"
+                disabled={isSubmitting}
+                className="sp-btn sp-btn-primary flex-1 py-3.5 text-xs font-bold shadow-md hover:shadow-lg transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Submit Support Ticket
+                {isSubmitting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Submitting Ticket...</span>
+                  </>
+                ) : (
+                  <span>Submit Support Ticket</span>
+                )}
               </button>
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => {
                   localStorage.setItem("supportpilot_ticket_draft", JSON.stringify(form));
                   setDraftSaved(true);
@@ -514,6 +532,7 @@ export default function NewTicketPage() {
                 Save Draft
               </button>
             </div>
+
             {draftSaved && (
               <div className="mt-2 text-right text-xs font-bold text-emerald-700 animate-fade-in">
                 ✓ Draft saved to local session.
@@ -521,66 +540,88 @@ export default function NewTicketPage() {
             )}
           </div>
 
-          {/* AI Live Inference & RAG Knowledge Preview Aside */}
+          {/* AI Ticket Engine Card — Dynamic Result (No Dummy Hardcoded Data) */}
           <aside className="rounded-2xl bg-[#0f2b1d] p-5 text-white shadow-xl lg:sticky lg:top-4 border border-emerald-500/20">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">AI Ticket Engine</span>
               <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[9px] text-white/80">
-                {aiState.classificationPath}
+                {aiClassification ? aiClassification.classificationPath : "Groq AI (Standby)"}
               </span>
             </div>
 
             <div className="my-3 flex items-center justify-between text-xs">
               <span className="text-white/60">Analysis Mode:</span>
               <span className="font-semibold text-emerald-400">
-                {aiState.analyzing ? "⚡ Analyzing full subject..." : "✓ Full Text Analyzed"}
+                {isClassifying ? (
+                  <span className="animate-pulse">⚡ Processing with Groq...</span>
+                ) : aiClassification ? (
+                  "✓ Full Text Analyzed"
+                ) : (
+                  "Awaiting Classification"
+                )}
               </span>
             </div>
 
             <div className="space-y-2.5 text-xs border-y border-white/10 py-3">
               <div className="flex justify-between">
                 <span className="text-white/60">Category</span>
-                <strong className="text-emerald-200">{form.category || aiState.category}</strong>
+                <strong className={aiClassification ? "text-emerald-200 font-semibold" : "text-white/40"}>
+                  {aiClassification ? aiClassification.category : "—"}
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/60">Sub-Category</span>
-                <strong className="text-emerald-200">{form.subCategory || aiState.subCategory}</strong>
+                <strong className={aiClassification ? "text-emerald-200 font-semibold" : "text-white/40"}>
+                  {aiClassification ? aiClassification.subCategory : "—"}
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/60">Severity</span>
-                <strong>{aiState.severity}</strong>
+                <strong className={aiClassification ? "text-white font-semibold" : "text-white/40"}>
+                  {aiClassification ? aiClassification.severity : "—"}
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/60">Calculated Priority</span>
-                <strong className="font-mono font-bold text-amber-300">{form.priority}</strong>
+                <strong className={aiClassification ? "font-mono font-bold text-amber-300" : "text-white/40 font-mono"}>
+                  {aiClassification ? aiClassification.priority : "—"}
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/60">Assigned Team</span>
-                <strong>{aiState.team}</strong>
+                <strong className={aiClassification ? "text-white font-semibold" : "text-white/40"}>
+                  {aiClassification ? aiClassification.team : "—"}
+                </strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/60">Target SLA</span>
-                <strong className="text-amber-300 font-mono">
-                  {form.priority === "P1" ? "1 Hour" : form.priority === "P2" ? "4 Hours" : form.priority === "P3" ? "24 Hours" : "48 Hours"}
+                <strong className={aiClassification ? "text-amber-300 font-mono" : "text-white/40 font-mono"}>
+                  {aiClassification ? `${aiClassification.slaHours} Hours` : "—"}
                 </strong>
               </div>
             </div>
 
             <div className="mt-3 flex justify-between text-xs">
               <span className="text-white/60">AI Confidence Score</span>
-              <strong className="font-mono text-emerald-300">{Math.round(aiState.confidence * 100)}%</strong>
+              <strong className={aiClassification ? "font-mono text-emerald-300 font-bold" : "font-mono text-white/40"}>
+                {aiClassification ? `${Math.round(aiClassification.confidence * 100)}%` : "0%"}
+              </strong>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/15">
               <div
-                className="h-full rounded-full bg-emerald-400 transition-all duration-300"
-                style={{ width: `${Math.round(aiState.confidence * 100)}%` }}
+                className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                style={{ width: aiClassification ? `${Math.round(aiClassification.confidence * 100)}%` : "0%" }}
               />
             </div>
 
             <div className="mt-4 border-t border-white/10 pt-3">
               <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">RAG Knowledge Retrieved</div>
               <p className="mt-1 text-[11px] text-white/80 leading-relaxed font-semibold">
-                📚 {aiState.knowledgeSource}
+                {aiClassification ? (
+                  `📚 ${aiClassification.knowledgeSource}`
+                ) : (
+                  <span className="text-white/40 font-normal">Will retrieve matching KB article upon classification</span>
+                )}
               </p>
             </div>
           </aside>
