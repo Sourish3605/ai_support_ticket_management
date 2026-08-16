@@ -1,6 +1,8 @@
 from rest_framework import generics, permissions, serializers
 from .models import Ticket
 from .serializers import TicketSerializer
+from .preprocessing import preprocess_ticket
+from .classification import classify_ticket
 from mongodb import tickets_collection
 
 
@@ -30,20 +32,39 @@ class TicketListCreateView(generics.ListCreateAPIView):
 
         return queryset
 
-    
-    def perform_create(self, serializer): 
-       ticket = serializer.save(created_by=self.request.user)
+    def perform_create(self, serializer):
+        # --- Preprocessing ---
+        raw_title = self.request.data.get("title", "")
+        raw_description = self.request.data.get("description", "")
+        cleaned = preprocess_ticket(raw_title, raw_description)
 
-       tickets_collection.insert_one({
-        "ticket_id": ticket.id,
-        "title": ticket.title,
-        "description": ticket.description,
-        "category": ticket.category,
-        "priority": ticket.priority,
-        "status": ticket.status,
-        "created_by": ticket.created_by.username,
-        "created_at": str(ticket.created_at)
-    })
+        # --- AI Classification ---
+        ai_category, ai_sub_category, ai_priority = classify_ticket(
+            cleaned["subject"], cleaned["description"]
+        )
+
+        # Use AI priority only if none supplied
+        priority = self.request.data.get("priority") or ai_priority
+
+        ticket = serializer.save(
+            created_by=self.request.user,
+            category=self.request.data.get("category") or ai_category,
+            priority=priority,
+        )
+
+        tickets_collection.insert_one({
+            "ticket_id": ticket.id,
+            "title": ticket.title,
+            "description": ticket.description,
+            "category": ticket.category,
+            "ai_sub_category": ai_sub_category,
+            "priority": ticket.priority,
+            "status": ticket.status,
+            "created_by": ticket.created_by.username,
+            "created_at": str(ticket.created_at),
+            "preprocessing": cleaned,
+        })
+
 
 class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TicketSerializer
