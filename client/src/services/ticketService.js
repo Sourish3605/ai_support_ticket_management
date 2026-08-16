@@ -1,5 +1,7 @@
 import { seedTickets, seedUsers } from "../data/seedData.js";
 import { storage, STORAGE_KEYS } from "./storageService.js";
+import { api } from "./api.js";
+
 
 
 const getTickets = () => {
@@ -419,8 +421,32 @@ export const createTicket = (form, user) => {
   tickets.unshift(ticket);
   saveTickets(tickets);
 
+  // Asynchronously persist ticket to backend PostgreSQL database
+  try {
+    api.post("/support/tickets/", {
+      title: ticket.subject,
+      description: ticket.description,
+      category: ticket.category,
+      sub_category: ticket.subCategory,
+      severity: ticket.severity,
+      priority: ticket.priority,
+      department: ticket.department || "Finance",
+      scope: ticket.scope || "Just me",
+      work_blocked: Boolean(ticket.workBlocked),
+    }).then((res) => {
+      if (res?.data?.id) {
+        console.log(`[DB Sync] Ticket #${res.data.id} persisted to PostgreSQL database.`);
+      }
+    }).catch((syncErr) => {
+      console.warn("[DB Sync Notice] Backend database sync:", syncErr?.message);
+    });
+  } catch (e) {
+    console.warn("[DB Sync Error]:", e);
+  }
+
   return ticket;
 };
+
 
 export const getAllTickets = () => {
   return getTickets();
