@@ -14,10 +14,15 @@ except Exception:
 
 class TicketListCreateView(generics.ListCreateAPIView):
     serializer_class = TicketSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         user = self.request.user
+        if not user or not user.is_authenticated:
+            email = self.request.query_params.get("email") or self.request.query_params.get("customer_email")
+            if email:
+                return Ticket.objects.filter(created_by__email=email).order_by("-id")
+            return Ticket.objects.all().order_by("-id")
 
         # Admin and Agent can see all tickets
         if user.is_staff or user.is_superuser or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
@@ -44,17 +49,43 @@ class TicketListCreateView(generics.ListCreateAPIView):
         return queryset
 
     def perform_create(self, serializer):
-        # 1. Preprocessing
+        from django.contrib.auth import get_user_model
+        UserModel = get_user_model()
+
+        # 1. Resolve Creator / Customer in Database
+        user = self.request.user if (self.request.user and self.request.user.is_authenticated) else None
+        if not user:
+            customer_email = (
+                self.request.data.get("customer_email")
+                or self.request.data.get("email")
+                or "arun@company.com"
+            )
+            customer_name = (
+                self.request.data.get("customer_name")
+                or self.request.data.get("name")
+                or "Arun Kumar"
+            )
+            name_parts = customer_name.split() if customer_name else ["Customer", "User"]
+            user, _ = UserModel.objects.get_or_create(
+                email=customer_email,
+                defaults={
+                    "username": customer_email,
+                    "first_name": name_parts[0],
+                    "last_name": name_parts[-1] if len(name_parts) > 1 else "",
+                }
+            )
+
+        # 2. Preprocessing
         raw_title = self.request.data.get("title") or self.request.data.get("subject", "")
         raw_description = self.request.data.get("description", "")
         scope = self.request.data.get("scope", "Just me")
         work_blocked = bool(self.request.data.get("work_blocked", False))
         cleaned = preprocess_ticket(raw_title, raw_description)
 
-        # 2. Milestone 1 — AI Classification
+        # 3. Milestone 1 — AI Classification
         ai_result = classify_ticket(
-            cleaned["subject"],
-            cleaned["description"],
+            cleaned["subject"] or raw_title,
+            cleaned["description"] or raw_description,
             scope=scope,
             work_blocked=work_blocked,
         )
@@ -65,18 +96,18 @@ class TicketListCreateView(generics.ListCreateAPIView):
         priority = self.request.data.get("priority") or ai_result["priority"]
         department = self.request.data.get("department") or ai_result["team"]
 
-        # 3. Milestone 2 — Knowledge Retrieval & Resolution
+        # 4. Milestone 2 — Knowledge Retrieval & Resolution
         rag_result = retrieve_knowledge_and_generate_resolution(
             category=category,
             sub_category=sub_category,
-            subject=cleaned["subject"],
-            description=cleaned["description"],
+            subject=cleaned["subject"] or raw_title,
+            description=cleaned["description"] or raw_description,
         )
 
         resolution_json = json.dumps(rag_result["suggested_steps"])
 
         ticket = serializer.save(
-            created_by=self.request.user,
+            created_by=user,
             title=cleaned["subject"] or raw_title,
             description=cleaned["description"] or raw_description,
             category=category,
@@ -91,6 +122,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
             knowledge_source=rag_result["article_title"],
             knowledge_retrieved=True,
         )
+
 
         # MongoDB audit ingestion
         if tickets_collection is not None:
