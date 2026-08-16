@@ -96,21 +96,23 @@ CATEGORY_RULES = [
 ]
 
 CRITICAL_SEVERITY_KEYWORDS = [
-    "ransomware", "breach", "security incident", "system down", "server down",
+    "ransomware", "breach", "data leak", "security incident", "system down", "server down",
     "entire company", "all employees", "outage", "production down", "database down",
-    "completely blocked", "whole org", "cannot work", "p0", "disaster"
+    "ddos", "completely blocked", "whole org", "cannot work", "p0", "disaster", "catastrophic"
 ]
 
 HIGH_SEVERITY_KEYWORDS = [
-    "vpn", "cannot login", "locked out", "team blocked", "department blocked",
-    "urgent", "critical meeting", "high priority", "deadline today", "data loss",
-    "crash loop", "cannot access"
+    "hacked", "attack", "sql", "injection", "exploit", "vulnerability", "unauthorized",
+    "compromised", "blocking", "blocked", "vpn", "cannot login", "locked out", "team blocked",
+    "department blocked", "urgent", "critical meeting", "high priority", "deadline today",
+    "data loss", "crash loop", "cannot access", "security alert"
 ]
 
 MEDIUM_SEVERITY_KEYWORDS = [
     "error", "slow", "freezing", "bug", "failing", "intermittent", "disconnected",
     "workaround", "warning", "unable to"
 ]
+
 
 
 def classify_with_groq(subject, description, scope="Just me", work_blocked=False):

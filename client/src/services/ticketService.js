@@ -164,15 +164,72 @@ export const classifyTicket = (subject = "", description = "", scope = "Just me"
     team = "Finance";
   }
 
-  // Severity Prediction
-  const isCritical = text.includes("ransomware") || text.includes("breach") || text.includes("outage") || text.includes("system down") || (workBlocked && ["Whole org", "My department"].includes(scope));
-  const isHigh = text.includes("vpn") || text.includes("cannot login") || text.includes("locked") || workBlocked || scope === "My team";
-  const isMedium = text.includes("error") || text.includes("slow") || text.includes("freeze") || text.includes("crash");
+  // 1. Critical Severity Prediction (P1)
+  const isCritical =
+    text.includes("ransomware") ||
+    text.includes("breach") ||
+    text.includes("data leak") ||
+    text.includes("outage") ||
+    text.includes("system down") ||
+    text.includes("server down") ||
+    text.includes("production down") ||
+    text.includes("database down") ||
+    text.includes("completely down") ||
+    text.includes("all users") ||
+    text.includes("entire company") ||
+    text.includes("catastrophic") ||
+    text.includes("ddos") ||
+    (workBlocked && ["Whole org", "My department"].includes(scope));
+
+
+  // 2. High Severity Prediction (P2)
+  const isHigh =
+    !isCritical &&
+    (text.includes("hacked") ||
+      text.includes("attack") ||
+      text.includes("sql") ||
+      text.includes("injection") ||
+      text.includes("exploit") ||
+      text.includes("vulnerability") ||
+      text.includes("unauthorized") ||
+      text.includes("compromised") ||
+      text.includes("blocking") ||
+      text.includes("blocked") ||
+      text.includes("cannot work") ||
+      text.includes("cannot login") ||
+      text.includes("locked out") ||
+      text.includes("vpn") ||
+      workBlocked ||
+      scope === "My team" ||
+      scope === "My department");
+
+  // 3. Medium Severity Prediction (P3)
+  const isMedium =
+    !isCritical &&
+    !isHigh &&
+    (text.includes("error") ||
+      text.includes("slow") ||
+      text.includes("freeze") ||
+      text.includes("crash") ||
+      text.includes("bug") ||
+      text.includes("failing") ||
+      text.includes("glitch") ||
+      text.includes("unable to"));
 
   const severity = isCritical ? "Critical" : isHigh ? "High" : isMedium ? "Medium" : "Low";
 
   // Priority Scoring (P1, P2, P3, P4)
-  const priority = severity === "Critical" ? "P1" : severity === "High" ? (scope === "Whole org" ? "P1" : "P2") : severity === "Medium" ? "P3" : "P4";
+  let priority = "P4";
+  if (severity === "Critical" || (severity === "High" && ["Whole org", "My department"].includes(scope))) {
+    priority = "P1";
+  } else if (severity === "High" || (severity === "Medium" && workBlocked)) {
+    priority = "P2";
+  } else if (severity === "Medium" || workBlocked) {
+    priority = "P3";
+  } else {
+    priority = "P4";
+  }
+
 
   // Milestone 2 RAG Knowledge Retrieval
   const kbMatch = KNOWLEDGE_BASE.find((k) => k.category.toLowerCase() === category.toLowerCase()) || KNOWLEDGE_BASE[0];
