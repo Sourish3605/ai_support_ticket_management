@@ -31,6 +31,8 @@ import AgentAllTicketsPage from "./pages/agent/AgentAllTicketsPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
 import AdminConfigPage from "./pages/admin/AdminConfigPage";
+import KnowledgeBasePage from "./pages/admin/KnowledgeBasePage";
+
 
 function initials(name) {
   if (!name) return "?";
@@ -616,27 +618,12 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminLayout>
-                  <AdminConfigPage
-                    title="Knowledge Base"
-                    description="Manage support articles and indexing configuration."
-                    storageKey="supportpilot_knowledge_base"
-                    defaultValues={{
-                      indexingMode: "Daily refresh",
-                      articleLimit: "500",
-                      language: "English",
-                      staleArticlePolicy: "Archive after 30 days",
-                    }}
-                    fields={[
-                      { name: "indexingMode", label: "Indexing mode", type: "text" },
-                      { name: "articleLimit", label: "Article limit", type: "text" },
-                      { name: "language", label: "Knowledge language", type: "text" },
-                      { name: "staleArticlePolicy", label: "Stale article policy", type: "textarea", fullWidth: true },
-                    ]}
-                  />
+                  <KnowledgeBasePage />
                 </AdminLayout>
               </ProtectedRoute>
             }
           />
+
 
           <Route
             path="/integrations"
