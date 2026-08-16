@@ -294,15 +294,16 @@ export const createTicket = (form, user) => {
     slaDueAt: slaDueAt.toISOString(),
 
     knowledgeRetrieved: true,
-    knowledgeSource: classification.knowledgeSource,
+    knowledgeSource: form.knowledgeSource || classification.knowledgeSource,
 
     ai: {
-      categoryConfidence: classification.confidence,
-      severityConfidence: Math.min(0.96, classification.confidence - 0.04),
-      classificationPath: classification.classificationPath,
+      categoryConfidence: form.confidence || classification.confidence,
+      severityConfidence: Math.min(0.96, (form.confidence || classification.confidence) - 0.04),
+      classificationPath: form.classificationPath || classification.classificationPath,
       severity,
-      suggestedResolution: classification.suggestedResolution,
+      suggestedResolution: form.suggestedResolution || classification.suggestedResolution,
     },
+
 
     timeline: [
       {
