@@ -1,14 +1,26 @@
+databases:
+  - name: supportpilot-postgres
+    databaseName: supportpilot
+    user: supportpilot_user
+    plan: free
+
 services:
   - type: web
     name: ai-support-ticket-management
     runtime: python
     rootDir: server
-    buildCommand: pip install -r requirements.txt
-    startCommand: python manage.py migrate && gunicorn config.wsgi:application
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input
+    startCommand: python manage.py migrate && python manage.py seed_masterdata && gunicorn config.wsgi:application
     envVars:
       - key: DEBUG
         value: "False"
       - key: PYTHON_VERSION
         value: "3.13.5"
       - key: ALLOWED_HOSTS
-        value: "ai-support-ticket-management.onrender.com"
+        value: "ai-support-ticket-management.onrender.com,*.onrender.com,localhost,127.0.0.1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: supportpilot-postgres
+          property: connectionString
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://ai-support-ticket-management.vercel.app,https://*.vercel.app,http://localhost:5173,http://localhost:5174"

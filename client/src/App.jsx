@@ -310,36 +310,62 @@ function PlaceholderPage({ title, description }) {
 }
 
 function UnauthorizedPage() {
+  const { user, logout } = useAuth();
+  const targetHome = user?.role === "admin" ? "/admin" : user?.role === "agent" ? "/dashboard" : "/portal/tickets";
+  const portalName = user?.role === "admin" ? "Admin Control Center" : user?.role === "agent" ? "Agent Workspace" : "Customer Portal";
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#eef4ef] px-6">
-
-      <div className="w-full max-w-md rounded-2xl border border-[#dfe5e1] bg-white p-8 text-center shadow-sm">
-
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-2xl">
-          🔒
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 px-6">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white backdrop-blur-xl shadow-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/20 text-3xl text-amber-400 border border-amber-500/30">
+          🛡️
         </div>
 
-        <h1 className="mt-5 text-2xl font-bold text-[#1c2430]">
-          Access Denied
+        <h1 className="mt-5 text-2xl font-bold text-white tracking-tight">
+          Restricted Resource
         </h1>
 
-        <p className="mt-3 text-[#4b5563]">
-          You do not have permission to
-          access this page.
+        <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+          {user ? (
+            <>
+              You are currently logged in as <strong className="text-emerald-400">{user.name || user.username}</strong> ({user.role?.toUpperCase()}). This specific section requires different authorization credentials.
+            </>
+          ) : (
+            "Authentication is required to access this system area."
+          )}
         </p>
 
-        <Link
-          to="/"
-          className="mt-6 inline-block rounded-lg bg-[#14532d] px-6 py-3 font-semibold text-white hover:bg-[#0f2b1d]"
-        >
-          Go to Home
-        </Link>
+        <div className="mt-6 flex flex-col gap-2.5">
+          {user ? (
+            <Link
+              to={targetHome}
+              className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white shadow-lg hover:bg-emerald-500 transition"
+            >
+              Return to Your {portalName}
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white shadow-lg hover:bg-emerald-500 transition"
+            >
+              Sign In to Your Account
+            </Link>
+          )}
 
+          {user && (
+            <button
+              onClick={logout}
+              className="w-full rounded-xl bg-white/10 px-5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/15 transition border border-white/10"
+            >
+              Switch Account / Sign Out
+            </button>
+          )}
+        </div>
       </div>
-
     </div>
   );
 }
+
 
 /* =====================================================
    APP

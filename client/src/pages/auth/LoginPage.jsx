@@ -8,6 +8,8 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import { GoogleLogin } from "@react-oauth/google";
+import { normalizeRole, getDefaultRouteForRole } from "../../utils/roleUtils";
+
 
 const portalThemes = {
   admin: {
@@ -157,37 +159,33 @@ const LoginPage = () => {
     setError("");
   };
 
-  const getRoleTargetPath = (role) => {
-    if (role === "admin") {
-      return "/admin";
-    }
-    if (role === "agent") {
-      return "/dashboard";
-    }
-    return "/portal/tickets";
-  };
-
   const redirectUser = (user) => {
     if (!user) {
       setError("Login failed. Please try again.");
       return;
     }
 
-    const normalizedRole =
-      typeof user.role === "string"
-        ? user.role.toLowerCase()
-        : "customer";
+    const canonicalRole = normalizeRole(user.role);
+    const targetHome = getDefaultRouteForRole(canonicalRole);
 
     const fromPath = location.state?.from;
-    const isSafeFromPath =
+    const isSafePath =
       typeof fromPath === "string" &&
       fromPath.startsWith("/") &&
-      fromPath !== "/login";
+      fromPath !== "/login" &&
+      fromPath !== "/unauthorized" &&
+      fromPath !== "/register" &&
+      fromPath !== "/";
 
-    navigate(
-      isSafeFromPath ? fromPath : getRoleTargetPath(normalizedRole),
-      { replace: true }
-    );
+    // Verify if user's role is permitted to enter the fromPath
+    let isPermittedForFrom = false;
+    if (isSafePath) {
+      if (fromPath.startsWith("/admin") && canonicalRole === "admin") isPermittedForFrom = true;
+      else if ((fromPath.startsWith("/dashboard") || fromPath.startsWith("/tickets")) && canonicalRole === "agent") isPermittedForFrom = true;
+      else if (fromPath.startsWith("/portal") && canonicalRole === "customer") isPermittedForFrom = true;
+    }
+
+    navigate(isPermittedForFrom ? fromPath : targetHome, { replace: true });
   };
 
   useEffect(() => {
@@ -195,6 +193,7 @@ const LoginPage = () => {
       redirectUser(user);
     }
   }, [isAuthenticated, user, location.state]);
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -499,25 +498,49 @@ const LoginPage = () => {
                     Google sign-in is enabled only for customer portal access.
                   </p>
                 )}
-
               </form>
 
+              {/* Quick Demo Logins */}
+
+              <div className="mt-5 border-t border-slate-200/80 pt-4">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 text-center">Quick Demo Credentials</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedRole("admin"); setForm({ email: "admin@company.com", password: "password123" }); }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                  >
+                    👑 Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedRole("agent"); setForm({ email: "bala@company.com", password: "password123" }); }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                  >
+                    🛡️ Agent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedRole("customer"); setForm({ email: "arun@company.com", password: "password123" }); }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                  >
+                    👤 Customer
+                  </button>
+                </div>
+              </div>
+
               {/* REGISTER */}
-
-              <p className="mt-6 text-center text-sm text-slate-500">
-
+              <p className="mt-4 text-center text-sm text-slate-500">
                 New to SupportPilot?{" "}
-
                 <Link
                   to="/register"
                   className={`font-semibold ${activeTheme.linkClass}`}
                 >
                   Create an account
                 </Link>
-
               </p>
-
             </div>
+
 
           </div>
 

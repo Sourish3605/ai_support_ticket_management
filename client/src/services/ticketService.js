@@ -241,8 +241,9 @@ export const createTicket = (form, user) => {
   );
 
   const category = form.category || classification.category;
-  const severity = classification.severity;
-  const priority = classification.priority;
+  const subCategory = form.subCategory || classification.subCategory;
+  const severity = form.severity || classification.severity;
+  const priority = form.priority || classification.priority;
   const slaHours = getSLAHours(priority);
 
   const createdAt = new Date();
@@ -259,10 +260,11 @@ export const createTicket = (form, user) => {
     subject: form.subject,
     description: form.description,
     category,
-    subCategory: classification.subCategory,
+    subCategory,
     severity,
     priority,
     status: "AI_RESOLUTION_READY",
+
 
     customerId: user?.id || "USR-001",
     customerName: user?.name || user?.username || "Employee",
