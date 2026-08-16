@@ -1,6 +1,24 @@
+import json
+import os
 import re
+import urllib.request
+import urllib.error
 
-# Comprehensive taxonomy rules for Milestone 1 AI classification
+try:
+    from decouple import config
+except ImportError:
+    def config(key, default=None, cast=None):
+        val = os.environ.get(key, default)
+        if cast == bool and isinstance(val, str):
+            return val.lower() in ('true', '1', 'yes')
+        return val
+
+
+# Groq API Configuration
+GROQ_API_KEY = config('GROQ_API_KEY', default=None)
+GROQ_MODEL = config('GROQ_MODEL', default='openai/gpt-oss-20b')
+
+# Comprehensive taxonomy rules for fallback & validation
 CATEGORY_RULES = [
     (
         "Network",
@@ -35,7 +53,7 @@ CATEGORY_RULES = [
     (
         "Authentication",
         "Login Issue",
-        ["cannot login", "login failed", "sign in error", "invalid credentials", "account locked", "locked out", "sso error", "okta", "mfa", "2fa", "authenticator"],
+        ["cannot login", "login failed", "sign in error", "invalid credentials", "account locked", "locked out", "sso error", "okta", "mfa", "2fa", "authenticator", "unable to login"],
         "IT Support",
     ),
     (
@@ -94,18 +112,105 @@ MEDIUM_SEVERITY_KEYWORDS = [
 ]
 
 
+def classify_with_groq(subject, description, scope="Just me", work_blocked=False):
+    """
+    Calls Groq Cloud LLM API with structured JSON output schema.
+    """
+    api_key = config('GROQ_API_KEY', default=None)
+    if not api_key or not api_key.strip():
+        return None
+
+    model_name = config('GROQ_MODEL', default='openai/gpt-oss-20b')
+
+    system_prompt = (
+        "You are the enterprise AI Support Ticket Classification Engine for SupportPilot. "
+        "Analyze the user's complete support ticket and return strict structured JSON.\n\n"
+        "Taxonomies & Routing Rules:\n"
+        "- Categories & Sub-categories:\n"
+        "  * Network (VPN, Internet, Wi-Fi, DNS / Gateway) -> Assigned Team: Network Team\n"
+        "  * Security (Phishing, Malware / Breach, Unauthorized Access) -> Assigned Team: Security Team\n"
+        "  * Authentication (Password Reset, Login Issue, MFA / SSO Error, Account Locked) -> Assigned Team: IT Support\n"
+        "  * Hardware (Computer/Peripheral, Printer, Monitor / Display, Battery / Charger) -> Assigned Team: Hardware Team\n"
+        "  * Software (Application Error, Crash Loop, License / Install) -> Assigned Team: Software Team\n"
+        "  * Email (Outlook / Sync, Mailbox Full, Delivery Failure) -> Assigned Team: IT Support\n"
+        "  * Billing (Invoice / Payment, Subscription Renewal) -> Assigned Team: Finance\n"
+        "  * General (Other, Inquiry) -> Assigned Team: IT Support\n\n"
+        "- Deterministic Severity & Priority:\n"
+        "  * Critical -> P1 (SLA: 4 Hours). Triggered by: security breach, ransomware, outage, production down.\n"
+        "  * High -> P2 (SLA: 8 Hours). Triggered by: work blocked, VPN failure, cannot login.\n"
+        "  * Medium -> P3 (SLA: 24 Hours). Triggered by: non-blocking bugs, performance issues.\n"
+        "  * Low -> P4 (SLA: 48 Hours). Triggered by: minor queries, how-to, general requests.\n\n"
+        "Respond STRICTLY as JSON with schema:\n"
+        "{\n"
+        '  "category": "Authentication",\n'
+        '  "sub_category": "Login Issue",\n'
+        '  "severity": "Low",\n'
+        '  "priority": "P4",\n'
+        '  "assigned_team": "IT Support",\n'
+        '  "sla_hours": 48,\n'
+        '  "confidence": 0.95,\n'
+        '  "reasoning": "Explanation"\n'
+        "}"
+    )
+
+    user_content = (
+        f"Subject: {subject}\n"
+        f"Description: {description}\n"
+        f"Affected Scope: {scope}\n"
+        f"Work Blocked: {'Yes' if work_blocked else 'No'}"
+    )
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.1,
+    }
+
+    try:
+        req = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key.strip()}",
+                "Content-Type": "application/json",
+                "User-Agent": "SupportPilot-Groq-Client/1.0",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=4.5) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            content_str = res_data["choices"][0]["message"]["content"]
+            parsed = json.loads(content_str)
+            return {
+                "category": parsed.get("category", "General"),
+                "sub_category": parsed.get("sub_category", "Other"),
+                "severity": parsed.get("severity", "Medium"),
+                "priority": parsed.get("priority", "P3"),
+                "team": parsed.get("assigned_team") or parsed.get("team", "IT Support"),
+                "confidence": float(parsed.get("confidence", 0.95)),
+                "classification_path": f"Groq ({model_name})",
+                "reasoning": parsed.get("reasoning", ""),
+            }
+    except Exception as err:
+        print(f"[Groq LLM Notice] Fallback to deterministic rules engine: {err}")
+        return None
+
+
 def classify_ticket(subject, description, scope="Just me", work_blocked=False):
     """
     Milestone 1 Core AI Classification Engine.
-    Returns:
-      category (str)
-      sub_category (str)
-      severity (str): 'Critical' | 'High' | 'Medium' | 'Low'
-      priority (str): 'P1' | 'P2' | 'P3' | 'P4'
-      suggested_team (str)
-      confidence (float): 0.0 - 1.0
-      classification_path (str): 'Fast-Path' | 'LLM'
+    Attempts Groq LLM first if GROQ_API_KEY is configured; otherwise uses deterministic fast-path rules.
     """
+    # 1. Try Groq Cloud LLM
+    groq_result = classify_with_groq(subject, description, scope, work_blocked)
+    if groq_result:
+        return groq_result
+
+    # 2. Deterministic Rule-Based Classification (Instant Fallback)
     text = f"{subject or ''} {description or ''}".lower()
 
     matched_category = "General"
@@ -113,7 +218,6 @@ def classify_ticket(subject, description, scope="Just me", work_blocked=False):
     matched_team = "IT Support"
     match_score = 0.0
 
-    # 1. Category and Sub-category rule matching
     for cat, sub_cat, keywords, team in CATEGORY_RULES:
         hits = sum(1 for kw in keywords if re.search(r'\b' + re.escape(kw) + r'\b', text))
         if hits > 0:
@@ -125,7 +229,6 @@ def classify_ticket(subject, description, scope="Just me", work_blocked=False):
                 matched_team = team
 
     if match_score == 0.0:
-        # Fallback keyword match without word boundary
         for cat, sub_cat, keywords, team in CATEGORY_RULES:
             if any(kw in text for kw in keywords):
                 matched_category = cat
@@ -135,9 +238,9 @@ def classify_ticket(subject, description, scope="Just me", work_blocked=False):
                 break
 
     confidence = round(match_score if match_score > 0 else 0.75, 2)
-    classification_path = "Fast-Path" if confidence >= 0.90 else "LLM"
+    classification_path = "Fast-Path (Deterministic)"
 
-    # 2. Severity Prediction
+    # Severity Prediction
     if any(kw in text for kw in CRITICAL_SEVERITY_KEYWORDS) or (work_blocked and scope in ["Whole org", "My department"]):
         severity = "Critical"
     elif any(kw in text for kw in HIGH_SEVERITY_KEYWORDS) or work_blocked:
@@ -147,7 +250,7 @@ def classify_ticket(subject, description, scope="Just me", work_blocked=False):
     else:
         severity = "Low"
 
-    # 3. Priority Calculation (P1, P2, P3, P4)
+    # Priority Calculation (P1, P2, P3, P4)
     if severity == "Critical" or (severity == "High" and scope in ["Whole org", "My department"]):
         priority = "P1"
     elif severity == "High" or (severity == "Medium" and work_blocked):

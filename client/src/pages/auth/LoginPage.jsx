@@ -364,7 +364,10 @@ const LoginPage = () => {
                     <button
                       type="button"
                       key={role}
-                      onClick={() => setSelectedRole(role)}
+                      onClick={() => {
+                        setSelectedRole(role);
+                        setError("");
+                      }}
                       className={`rounded-lg px-2 py-2 text-xs font-semibold capitalize transition ${
                         selectedRole === role ? activeTheme.tabActive : activeTheme.tabIdle
                       }`}
@@ -373,6 +376,7 @@ const LoginPage = () => {
                     </button>
                   ))}
                 </div>
+
 
               </div>
 
@@ -484,7 +488,10 @@ const LoginPage = () => {
                 {isCustomerLogin && (
                   <div className="flex justify-center">
                     {isGoogleConfigured ? (
-                      <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Google sign-in was cancelled or failed.")} />
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() => console.warn("Google OAuth dismissed or unavailable.")}
+                      />
                     ) : (
                       <button type="button" disabled className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 py-3.5 font-semibold text-slate-400">
                         Google sign-in unavailable
@@ -492,6 +499,7 @@ const LoginPage = () => {
                     )}
                   </div>
                 )}
+
 
                 {!isCustomerLogin && (
                   <p className={`text-center text-xs ${activeTheme.copyText}`}>
