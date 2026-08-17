@@ -19,11 +19,27 @@ export default function UsersPage() {
 
   useEffect(() => {
     const stored = storage.get(STORAGE_KEYS.users, seedUsers);
-    setUsers(stored);
+    const hasOldUsers = Array.isArray(stored) && stored.some(
+      (u) =>
+        u.email === "arun@company.com" ||
+        u.email === "bala@company.com" ||
+        u.email === "admin@company.com" ||
+        u.email === "employee@supportpilot.com"
+    );
+    const hasNewUsers = Array.isArray(stored) && stored.some((u) => u.email === "admin@gmail.com");
+
+    if (hasOldUsers || !hasNewUsers || !stored || stored.length === 0) {
+      storage.set(STORAGE_KEYS.users, seedUsers);
+      setUsers(seedUsers);
+    } else {
+      setUsers(stored);
+    }
   }, []);
 
   useEffect(() => {
-    storage.set(STORAGE_KEYS.users, users);
+    if (users && users.length > 0) {
+      storage.set(STORAGE_KEYS.users, users);
+    }
   }, [users]);
 
   const handleChange = (event) => {
@@ -85,8 +101,8 @@ export default function UsersPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Users</h1>
-          <p className="text-gray-500">Manage users and RBAC roles.</p>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Users</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage users and RBAC roles.</p>
         </div>
 
         <button
@@ -95,11 +111,12 @@ export default function UsersPage() {
             if (showForm) resetForm();
             else setShowForm(true);
           }}
-          className="rounded-lg bg-[#14532d] px-5 py-3 font-medium text-white"
+          className="sp-btn sp-btn-primary px-5 py-2.5 font-bold shadow text-xs"
         >
           {showForm ? "Close" : "+ Add User"}
         </button>
       </div>
+
 
       {showForm && (
         <form onSubmit={handleSaveUser} className="mb-8 rounded-2xl border border-[#dfe5e1] bg-white p-6 shadow-sm">

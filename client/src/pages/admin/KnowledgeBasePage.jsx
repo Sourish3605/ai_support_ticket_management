@@ -90,14 +90,14 @@ export default function KnowledgeBasePage() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-[#15803d]">Knowledge Base & Vector Store</span>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1c2430] mt-0.5">Enterprise Knowledge Store</h1>
-          <p className="text-xs text-gray-500 mt-1">Manage troubleshooting articles retrieved by RAG to generate automated AI resolutions.</p>
+          <span className="text-[11px] font-bold uppercase tracking-widest text-cyan-700">Knowledge Base & Vector Store</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-0.5 tracking-tight">Enterprise Knowledge Store</h1>
+          <p className="text-xs text-slate-500 mt-1">Manage troubleshooting articles retrieved by RAG to generate automated AI resolutions.</p>
         </div>
 
         <button
           onClick={() => setShowModal(true)}
-          className="sp-btn sp-btn-primary px-4 py-2.5 text-xs shadow"
+          className="sp-btn sp-btn-primary px-4 py-2.5 text-xs shadow font-bold"
         >
           + Add Knowledge Article
         </button>
@@ -110,57 +110,56 @@ export default function KnowledgeBasePage() {
           { label: "Total Chunks", value: articles.reduce((acc, a) => acc + a.chunks, 0), sub: "Embedding vectors" },
           { label: "Embedding Model", value: "text-embedding-3-small", sub: "1536 dimensions" },
         ].map((item) => (
-
-          <div className="sp-card p-4" key={item.label}>
-            <div className="text-[11px] font-semibold text-[#8b95a1]">{item.label}</div>
-            <div className="my-1 text-xl font-extrabold text-[#1c2430] truncate">{item.value}</div>
-            <div className="text-[10px] text-[#15803d] font-semibold">{item.sub}</div>
+          <div className="sp-card p-4 hover:border-cyan-400 transition" key={item.label}>
+            <div className="text-[11px] font-semibold text-slate-500">{item.label}</div>
+            <div className="my-1 text-2xl font-extrabold text-slate-900 truncate">{item.value}</div>
+            <div className="text-[10px] text-cyan-700 font-semibold">{item.sub}</div>
           </div>
         ))}
       </div>
 
       <div className="sp-card overflow-hidden">
-        <div className="p-4 bg-[#fafbfa] border-b border-[#dfe5e1]">
+        <div className="p-4 bg-slate-50 border-b border-slate-200">
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search knowledge articles by title, category, or troubleshooting content..."
-            className="w-full rounded-lg border border-[#dfe5e1] bg-white px-3 py-2 text-xs outline-none focus:border-[#1f7a45]"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-cyan-500"
           />
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] border-collapse text-xs">
-            <thead className="bg-[#f4f7f5] text-left text-[10px] uppercase tracking-wider text-[#4b5563]">
+            <thead className="bg-slate-100/75 text-left text-[10px] uppercase tracking-wider text-slate-600">
               <tr>
                 {["Article ID", "Title & Category", "Sub-Category", "Status", "Chunks", "Vector Model", "Last Indexed"].map((h) => (
-                  <th key={h} className="border-b border-[#dfe5e1] px-4 py-3 font-bold">{h}</th>
+                  <th key={h} className="border-b border-slate-200 px-4 py-3 font-bold">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((article) => (
-                <tr key={article.id} className="hover:bg-[#f8faf9] transition">
-                  <td className="border-b border-[#eef2f0] px-4 py-3.5 font-mono font-bold text-[#14532d]">
+                <tr key={article.id} className="hover:bg-slate-50/80 transition">
+                  <td className="border-b border-slate-100 px-4 py-3.5 font-mono font-bold text-cyan-700">
                     {article.id}
                   </td>
-                  <td className="border-b border-[#eef2f0] px-4 py-3.5">
-                    <div className="font-semibold text-[#1c2430]">{article.title}</div>
-                    <span className="sp-tag sp-tag-brand text-[9px] mt-1 inline-block">{article.category}</span>
+                  <td className="border-b border-slate-100 px-4 py-3.5">
+                    <div className="font-semibold text-slate-900">{article.title}</div>
+                    <span className="inline-block mt-1 rounded bg-cyan-50 px-2 py-0.5 text-[9px] font-bold text-cyan-800 border border-cyan-200">{article.category}</span>
                   </td>
-                  <td className="border-b border-[#eef2f0] px-4 py-3.5 text-gray-600">
+                  <td className="border-b border-slate-100 px-4 py-3.5 text-slate-600">
                     {article.subCategory}
                   </td>
-                  <td className="border-b border-[#eef2f0] px-4 py-3.5">
-                    <span className="sp-tag sp-tag-success font-bold">✓ {article.status}</span>
+                  <td className="border-b border-slate-100 px-4 py-3.5">
+                    <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">✓ {article.status}</span>
                   </td>
-                  <td className="border-b border-[#eef2f0] px-4 py-3.5 font-mono">
+                  <td className="border-b border-slate-100 px-4 py-3.5 font-mono text-slate-700">
                     {article.chunks} chunks
                   </td>
-                  <td className="border-b border-[#eef2f0] px-4 py-3.5 text-gray-500 font-mono text-[10px]">
+                  <td className="border-b border-slate-100 px-4 py-3.5 text-slate-500 font-mono text-[10px]">
                     {article.embeddingModel}
                   </td>
-                  <td className="border-b border-[#eef2f0] px-4 py-3.5 text-gray-500">
+                  <td className="border-b border-slate-100 px-4 py-3.5 text-slate-500">
                     {article.lastIndexed}
                   </td>
                 </tr>
@@ -169,6 +168,7 @@ export default function KnowledgeBasePage() {
           </table>
         </div>
       </div>
+
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

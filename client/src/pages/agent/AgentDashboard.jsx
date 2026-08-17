@@ -67,14 +67,14 @@ export default function AgentDashboard() {
   return (
     <div className="space-y-5">
       {/* Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#0f2b1d] via-[#14532d] to-[#1e3a29] p-5 text-white shadow-md">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#0c1a2e] via-[#163354] to-[#1d4ed8] p-5 text-white shadow-md">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Intelligent Agent Workspace</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-300">Intelligent Agent Workspace</span>
           <h1 className="text-xl sm:text-2xl font-bold mt-0.5">Support & AI Operations Dashboard</h1>
           <p className="text-xs text-white/70 mt-1">Real-time classification, severity scoring, priority queues, and RAG troubleshooting.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/tickets" className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-[#14532d] shadow hover:bg-emerald-50 transition">
+          <Link to="/tickets" className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-[#1d4ed8] shadow hover:bg-blue-50 transition">
             View All Tickets ({tickets.length})
           </Link>
           <Link to="/tickets/queue" className="rounded-xl bg-white/15 px-4 py-2 text-xs font-bold text-white hover:bg-white/25 transition">
@@ -87,7 +87,7 @@ export default function AgentDashboard() {
       <div>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-[#4b5563]">Ticket Ingestion & AI Classification</span>
-          <span className="text-[11px] font-semibold text-[#15803d]">Target: 90%+ Accuracy</span>
+          <span className="text-[11px] font-semibold text-[#2563eb]">Target: 90%+ Accuracy</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Kpi label="Total Tickets" value={tickets.length || 250} detail="Workspace volume" badge="Queue" />
@@ -103,7 +103,7 @@ export default function AgentDashboard() {
       <div>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-[#4b5563]">Knowledge Retrieval & Auto-Resolution Engine</span>
-          <span className="text-[11px] font-semibold text-emerald-700">RAG Pipeline Active</span>
+          <span className="text-[11px] font-semibold text-blue-600">RAG Pipeline Active</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Kpi label="Knowledge Retrieved" value={knowledgeRetrieved.length || 210} detail="Articles matched to tickets" badge="RAG" />
@@ -121,22 +121,23 @@ export default function AgentDashboard() {
               <AreaChart data={trend} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
                 <defs>
                   <linearGradient id="ticketVolume" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1f7a45" stopOpacity={0.32} />
-                    <stop offset="100%" stopColor="#1f7a45" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity={0.32} />
+                    <stop offset="100%" stopColor="#2563eb" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#eef2f0" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#8b95a1" }} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#8b95a1" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="count" name="Tickets" stroke="#14532d" strokeWidth={2.5} fill="url(#ticketVolume)" />
+                <Area type="monotone" dataKey="count" name="Tickets" stroke="#2563eb" strokeWidth={2.5} fill="url(#ticketVolume)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </section>
 
         <section className={panelClass}>
-          <PanelHeader title="Status Distribution" action={<Link className="text-xs font-semibold text-[#14532d]" to="/tickets">View all</Link>} />
+          <PanelHeader title="Status Distribution" action={<Link className="text-xs font-semibold text-[#2563eb]" to="/tickets">View all</Link>} />
+
           <div className="h-64 p-3">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>

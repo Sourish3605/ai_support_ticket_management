@@ -87,11 +87,12 @@ export default function AdminConfigPage({
           </div>
 
           <div className="flex gap-3">
-            <button type="button" onClick={handleReset} className="rounded-lg border border-slate-200 px-4 py-2 font-medium text-slate-600">Reset</button>
-            <button type="submit" className="rounded-lg bg-[#14532d] px-4 py-2 font-medium text-white">Save changes</button>
+            <button type="button" onClick={handleReset} className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition">Reset</button>
+            <button type="submit" className="sp-btn sp-btn-primary px-5 py-2 text-xs font-bold shadow">Save changes</button>
           </div>
         </div>
       </form>
     </div>
+
   );
 }

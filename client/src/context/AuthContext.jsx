@@ -109,18 +109,19 @@ export const AuthProvider = ({ children }) => {
         return account;
       }
 
-      // If generic credentials like admin / password or arun / password
+      // If generic credentials like sourish / password, yogitha / password, devipriya / password
       if (password.length >= 4) {
-        const inferredRole = username.toLowerCase().includes("admin")
+        const lowerUser = username.toLowerCase();
+        const inferredRole = lowerUser.includes("admin") || lowerUser.includes("sourish")
           ? ROLES.ADMIN
-          : username.toLowerCase().includes("agent") || username.toLowerCase().includes("bala")
+          : lowerUser.includes("agent") || lowerUser.includes("yogitha") || lowerUser.includes("premalatha")
           ? ROLES.AGENT
           : fallbackRole;
 
         const account = {
           id: `USR-${Date.now().toString().slice(-4)}`,
           username: username.includes("@") ? username.split("@")[0] : username,
-          email: username.includes("@") ? username : `${username}@company.com`,
+          email: username.includes("@") ? username : `${username}@gmail.com`,
           name: (username.includes("@") ? username.split("@")[0] : username)
             .replace(/[._]/g, " ")
             .replace(/\b\w/g, (c) => c.toUpperCase()),

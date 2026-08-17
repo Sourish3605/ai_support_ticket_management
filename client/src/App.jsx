@@ -117,10 +117,16 @@ function AgentLayout({ children }) {
 
   return (
     <div className="sp-agent-shell">
-      <aside className="sp-sidebar">
-        <Link to="/dashboard" className="sp-sidebar-logo"><span className="sp-logo-mark">SP</span><span><span className="sp-logo-name">SupportPilot</span><span className="sp-sidebar-sub">AGENT WORKSPACE</span></span></Link>
+      <aside className="sp-agent-sidebar">
+        <Link to="/dashboard" className="sp-sidebar-logo">
+          <span className="sp-logo-mark">SP</span>
+          <span>
+            <span className="sp-logo-name">SupportPilot</span>
+            <span className="sp-sidebar-sub">AGENT WORKSPACE</span>
+          </span>
+        </Link>
         <nav className="sp-sidebar-nav">
-          <div className="sp-nav-heading">Work</div>
+          <div className="sp-nav-heading">Work Queue</div>
           {navigation.map(([to, icon, label, count]) => (
             <NavLink end key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}>
               <span>{icon}</span>
@@ -131,20 +137,20 @@ function AgentLayout({ children }) {
         </nav>
         <div className="sp-sidebar-footer">
           <div className="flex items-center gap-2">
-            <div className="sp-avatar" title={displayName}>{userInitials}</div>
+            <div className="sp-avatar sp-agent-avatar" title={displayName}>{userInitials}</div>
             <div>
               <div className="text-xs font-semibold text-white">{displayName}</div>
-              <div className="text-[10px] text-white/50">Support Agent</div>
+              <div className="text-[10px] text-blue-300">Support Agent</div>
             </div>
           </div>
         </div>
       </aside>
       <main className="sp-agent-main">
-        <header className="sp-topbar">
+        <header className="sp-agent-topbar">
           <div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div>
           <div className="flex items-center gap-3">
-            <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">Logout</button>
-            <div className="sp-avatar" title={displayName}>{userInitials}</div>
+            <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">Logout</button>
+            <div className="sp-avatar sp-agent-avatar" title={displayName}>{userInitials}</div>
           </div>
         </header>
         <div className="sp-content">
@@ -185,17 +191,17 @@ function AdminLayout({ children }) {
   const displayName = user?.name || user?.username || "Admin";
 
   return (
-    <div className="sp-agent-shell">
-      <aside className="sp-sidebar">
+    <div className="sp-admin-shell">
+      <aside className="sp-admin-sidebar">
         <Link to="/admin" className="sp-sidebar-logo">
           <span className="sp-logo-mark">SP</span>
           <span>
             <span className="sp-logo-name">SupportPilot</span>
-            <span className="sp-sidebar-sub">ADMIN CONSOLE</span>
+            <span className="sp-sidebar-sub">ADMIN MISSION CONTROL</span>
           </span>
         </Link>
         <nav className="sp-sidebar-nav">
-          <div className="sp-nav-heading">Administration</div>
+          <div className="sp-nav-heading">Mission Control</div>
           {adminNav.map(({ to, icon, label }) => (
             <NavLink
               end
@@ -210,23 +216,23 @@ function AdminLayout({ children }) {
         </nav>
         <div className="sp-sidebar-footer">
           <div className="flex items-center gap-2">
-            <div className="sp-avatar" title={displayName}>{userInitials}</div>
+            <div className="sp-avatar sp-admin-avatar" title={displayName}>{userInitials}</div>
             <div>
               <div className="text-xs font-semibold text-white">{displayName}</div>
-              <div className="text-[10px] text-white/50">Administrator</div>
+              <div className="text-[10px] text-cyan-300">Administrator</div>
             </div>
           </div>
         </div>
       </aside>
       <main className="sp-agent-main">
-        <header className="sp-topbar">
+        <header className="sp-admin-topbar">
           <div>
-            <div className="sp-breadcrumb">Admin</div>
+            <div className="sp-breadcrumb">Admin Console</div>
             <h1>{adminNav.find((n) => n.to === location.pathname)?.label || "Admin"}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">Logout</button>
-            <div className="sp-avatar" title={displayName}>{userInitials}</div>
+            <button onClick={handleLogout} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-slate-700 transition">Logout</button>
+            <div className="sp-avatar sp-admin-avatar" title={displayName}>{userInitials}</div>
           </div>
         </header>
         <div className="sp-content">
@@ -236,6 +242,7 @@ function AdminLayout({ children }) {
     </div>
   );
 }
+
 
 /* =====================================================
    UNAUTHORIZED PAGE

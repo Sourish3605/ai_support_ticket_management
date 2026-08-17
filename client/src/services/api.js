@@ -4,8 +4,13 @@ const resolveBaseUrl = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')) {
-    return '/api';
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:8000/api';
+    }
+    if (window.location.hostname.endsWith('vercel.app')) {
+      return '/api';
+    }
   }
   return 'https://ai-support-ticket-management.onrender.com/api';
 };
