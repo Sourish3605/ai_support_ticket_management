@@ -64,12 +64,12 @@ class TicketListCreateView(generics.ListCreateAPIView):
             customer_email = (
                 self.request.data.get("customer_email")
                 or self.request.data.get("email")
-                or "arun@company.com"
+                or "devipriya@gmail.com"
             )
             customer_name = (
                 self.request.data.get("customer_name")
                 or self.request.data.get("name")
-                or "Arun Kumar"
+                or "devipriya"
             )
             name_parts = customer_name.split() if customer_name else ["Customer", "User"]
             user, _ = UserModel.objects.get_or_create(

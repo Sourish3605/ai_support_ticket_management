@@ -1,11 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FiEye,
   FiEyeOff,
   FiMail,
   FiLock,
+  FiShield,
+  FiHeadphones,
+  FiUser,
+  FiCheck,
+  FiChevronDown,
 } from "react-icons/fi";
+
+
 import { useAuth } from "../../context/AuthContext";
 import { GoogleLogin } from "@react-oauth/google";
 import { normalizeRole, getDefaultRouteForRole } from "../../utils/roleUtils";
@@ -143,10 +150,29 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState("customer");
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const roleDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        roleDropdownRef.current &&
+        !roleDropdownRef.current.contains(event.target)
+      ) {
+        setRoleDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const isCustomerLogin = selectedRole === "customer";
   const isGoogleConfigured = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
   const activeTheme = portalThemes[selectedRole];
   const selectedRoleMeta = roleDetails[selectedRole];
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -359,23 +385,156 @@ const LoginPage = () => {
                   Access your SupportPilot workspace.
                 </p>
 
-                <div className={`mt-6 grid grid-cols-3 gap-2 rounded-xl p-1 ${activeTheme.tabWrap}`}>
-                  {["admin", "agent", "customer"].map((role) => (
-                    <button
-                      type="button"
-                      key={role}
-                      onClick={() => {
-                        setSelectedRole(role);
-                        setError("");
-                      }}
-                      className={`rounded-lg px-2 py-2 text-xs font-semibold capitalize transition ${
-                        selectedRole === role ? activeTheme.tabActive : activeTheme.tabIdle
-                      }`}
-                    >
-                      {role}
-                    </button>
-                  ))}
+                {/* ENTERPRISE WORKSPACE SELECTOR (NOT SIDE-BY-SIDE) */}
+                <div className="mt-6 relative" ref={roleDropdownRef}>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Workspace & Role
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
+                    className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xs hover:border-slate-300 hover:bg-slate-50/50 transition cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${
+                          selectedRole === "admin"
+                            ? "bg-slate-900 text-cyan-300"
+                            : selectedRole === "agent"
+                            ? "bg-blue-700 text-white"
+                            : "bg-emerald-700 text-white"
+                        }`}
+                      >
+                        {selectedRole === "admin" ? (
+                          <FiShield />
+                        ) : selectedRole === "agent" ? (
+                          <FiHeadphones />
+                        ) : (
+                          <FiUser />
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="font-bold text-xs text-slate-900 leading-none">
+                          {selectedRole === "admin"
+                            ? "System Administrator"
+                            : selectedRole === "agent"
+                            ? "Support Agent"
+                            : "Customer Portal"}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate mt-1">
+                          {selectedRole === "admin"
+                            ? "Executive governance, policies & system health"
+                            : selectedRole === "agent"
+                            ? "Incident triage, Groq AI routing & SLAs"
+                            : "Raise tickets, track status & AI self-service"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-slate-400 flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                        Change
+                      </span>
+                      <FiChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          roleDropdownOpen ? "rotate-180 text-slate-700" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {/* FLOATING SELECTION POPOVER */}
+                  {roleDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl bg-white border border-slate-200/90 shadow-xl p-1.5 space-y-1 backdrop-blur-sm">
+                      {[
+                        {
+                          id: "admin",
+                          title: "System Administrator",
+                          subtitle: "Governance, RBAC policies & system health",
+                          tag: "Executive",
+                          Icon: FiShield,
+                          activeIcon: "bg-slate-900 text-cyan-300",
+                          tagColor: "bg-cyan-50 text-cyan-800 border-cyan-200",
+                        },
+                        {
+                          id: "agent",
+                          title: "Support Agent",
+                          subtitle: "Incident triage, Groq AI routing & SLAs",
+                          tag: "Operations",
+                          Icon: FiHeadphones,
+                          activeIcon: "bg-blue-700 text-white",
+                          tagColor: "bg-blue-50 text-blue-800 border-blue-200",
+                        },
+                        {
+                          id: "customer",
+                          title: "Customer",
+                          subtitle: "Raise tickets, track status & AI self-service",
+                          tag: "End User",
+                          Icon: FiUser,
+                          activeIcon: "bg-emerald-700 text-white",
+                          tagColor: "bg-emerald-50 text-emerald-800 border-emerald-200",
+                        },
+                      ].map((item) => {
+                        const isSelected = selectedRole === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedRole(item.id);
+                              setRoleDropdownOpen(false);
+                              setError("");
+                            }}
+                            className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-slate-50 border border-slate-200 text-slate-900 shadow-2xs"
+                                : "hover:bg-slate-50 text-slate-700 border border-transparent"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${
+                                  isSelected ? item.activeIcon : "bg-slate-100 text-slate-500"
+                                }`}
+                              >
+                                <item.Icon />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-xs text-slate-900">
+                                    {item.title}
+                                  </span>
+                                  <span
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${item.tagColor}`}
+                                  >
+                                    {item.tag}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                  {item.subtitle}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 pr-1">
+                              {isSelected && (
+                                <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-extrabold shadow-xs">
+                                  <FiCheck className="stroke-[3]" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+
+
+
+
 
 
               </div>
@@ -515,22 +674,22 @@ const LoginPage = () => {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => { setSelectedRole("admin"); setForm({ email: "admin@company.com", password: "password123" }); }}
-                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                    onClick={() => { setSelectedRole("admin"); setForm({ email: "admin@gmail.com", password: "password123" }); }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer"
                   >
                     👑 Admin
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setSelectedRole("agent"); setForm({ email: "bala@company.com", password: "password123" }); }}
-                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                    onClick={() => { setSelectedRole("agent"); setForm({ email: "agent@gmail.com", password: "password123" }); }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer"
                   >
                     🛡️ Agent
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setSelectedRole("customer"); setForm({ email: "arun@company.com", password: "password123" }); }}
-                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
+                    onClick={() => { setSelectedRole("customer"); setForm({ email: "customer@gmail.com", password: "password123" }); }}
+                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer"
                   >
                     👤 Customer
                   </button>

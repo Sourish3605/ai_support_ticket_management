@@ -68,26 +68,73 @@ class Command(BaseCommand):
             Product.objects.get_or_create(name=p)
 
         # 6. Default Demo Users
-        # Admin
-        if not User.objects.filter(username="admin").exists():
-            admin_user = User.objects.create_superuser("admin", "admin@company.com", "admin123")
-            admin_user.first_name = "Support"
-            admin_user.last_name = "Admin"
-            admin_user.save()
+        # Remove deprecated users
+        User.objects.filter(email__in=["arun@company.com", "bala@company.com", "admin@company.com"]).delete()
+        User.objects.filter(username__in=["arun", "bala"]).delete()
 
-        # Employee (Arun)
-        if not User.objects.filter(username="arun@company.com").exists():
-            arun = User.objects.create_user("arun@company.com", "arun@company.com", "password123")
-            arun.first_name = "Arun"
-            arun.last_name = "Kumar"
-            arun.save()
+        # Primary Demo Credentials
+        # 1. Admin (admin@gmail.com)
+        admin_u, _ = User.objects.get_or_create(username="admin@gmail.com", defaults={"email": "admin@gmail.com"})
+        admin_u.email = "admin@gmail.com"
+        admin_u.first_name = "Admin"
+        admin_u.is_staff = True
+        admin_u.is_superuser = True
+        admin_u.set_password("password123")
+        admin_u.save()
 
-        # Support Agent (Bala)
-        if not User.objects.filter(username="bala@company.com").exists():
-            bala = User.objects.create_user("bala@company.com", "bala@company.com", "password123")
-            bala.first_name = "Bala"
-            bala.last_name = "Raman"
-            bala.is_staff = True
-            bala.save()
+        # 2. Agent (agent@gmail.com)
+        agent_u, _ = User.objects.get_or_create(username="agent@gmail.com", defaults={"email": "agent@gmail.com"})
+        agent_u.email = "agent@gmail.com"
+        agent_u.first_name = "Agent"
+        agent_u.is_staff = True
+        agent_u.is_superuser = False
+        agent_u.set_password("password123")
+        agent_u.save()
 
-        self.stdout.write(self.style.SUCCESS("Successfully seeded master data and default users."))
+        # 3. Customer (customer@gmail.com)
+        cust_u, _ = User.objects.get_or_create(username="customer@gmail.com", defaults={"email": "customer@gmail.com"})
+        cust_u.email = "customer@gmail.com"
+        cust_u.first_name = "Customer"
+        cust_u.is_staff = False
+        cust_u.is_superuser = False
+        cust_u.set_password("password123")
+        cust_u.save()
+
+        # Additional specific users
+        # Admin (sourish)
+        sourish_user, _ = User.objects.get_or_create(username="sourish@gmail.com", defaults={"email": "sourish@gmail.com"})
+        sourish_user.email = "sourish@gmail.com"
+        sourish_user.first_name = "sourish"
+        sourish_user.is_staff = True
+        sourish_user.is_superuser = True
+        sourish_user.set_password("password123")
+        sourish_user.save()
+
+        # Agent (yogitha)
+        yogitha_user, _ = User.objects.get_or_create(username="yogitha@gmail.com", defaults={"email": "yogitha@gmail.com"})
+        yogitha_user.email = "yogitha@gmail.com"
+        yogitha_user.first_name = "yogitha"
+        yogitha_user.is_staff = True
+        yogitha_user.is_superuser = False
+        yogitha_user.set_password("password123")
+        yogitha_user.save()
+
+        # Agent (premalatha)
+        prema_user, _ = User.objects.get_or_create(username="premalatha@gmail.com", defaults={"email": "premalatha@gmail.com"})
+        prema_user.email = "premalatha@gmail.com"
+        prema_user.first_name = "premalatha"
+        prema_user.is_staff = True
+        prema_user.is_superuser = False
+        prema_user.set_password("password123")
+        prema_user.save()
+
+        # Customer / Employee (devipriya)
+        devi_user, _ = User.objects.get_or_create(username="devipriya@gmail.com", defaults={"email": "devipriya@gmail.com"})
+        devi_user.email = "devipriya@gmail.com"
+        devi_user.first_name = "devipriya"
+        devi_user.is_staff = False
+        devi_user.is_superuser = False
+        devi_user.set_password("password123")
+        devi_user.save()
+
+        self.stdout.write(self.style.SUCCESS("Successfully seeded master data and default users (admin@gmail.com, agent@gmail.com, customer@gmail.com)."))

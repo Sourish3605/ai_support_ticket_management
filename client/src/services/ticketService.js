@@ -342,11 +342,11 @@ export const createTicket = (form, user) => {
     status: "AI_RESOLUTION_READY",
 
 
-    customerId: user?.id || "USR-001",
-    customerName: user?.name || user?.username || "Employee",
-    customerEmail: user?.email || "employee@company.com",
+    customerId: user?.id || "USR-004",
+    customerName: user?.name || user?.username || "devipriya",
+    customerEmail: user?.email || "devipriya@gmail.com",
 
-    department: form.department || user?.department || "Finance",
+    department: form.department || user?.department || "IT support",
     location: form.location || "",
     assetTag: form.assetTag || "",
     affectedSystem: form.affectedSystem || "",
@@ -431,11 +431,11 @@ export const createTicket = (form, user) => {
       sub_category: ticket.subCategory,
       severity: ticket.severity,
       priority: ticket.priority,
-      department: ticket.department || "Finance",
+      department: ticket.department || "IT support",
       scope: ticket.scope || "Just me",
       work_blocked: Boolean(ticket.workBlocked),
-      customer_email: ticket.customerEmail || "arun@company.com",
-      customer_name: ticket.customerName || "Arun Kumar",
+      customer_email: ticket.customerEmail || "devipriya@gmail.com",
+      customer_name: ticket.customerName || "devipriya",
     }).then((res) => {
       if (res?.data?.id) {
         console.log(`[DB Sync] Ticket #${res.data.id} persisted to PostgreSQL database.`);
@@ -494,27 +494,35 @@ export const updateTicket = (
 
   const ticket = tickets[index];
 
-  const updatedTicket = {
-    ...ticket,
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
+  const newTimeline = [...(ticket.timeline || [])];
 
-  if (
+  if (updates.timelineEvent) {
+    newTimeline.push({
+      id: Date.now(),
+      ...updates.timelineEvent,
+      timestamp: new Date().toISOString(),
+    });
+  } else if (
     updates.status &&
     updates.status !== ticket.status
   ) {
-    updatedTicket.timeline = [
-      ...ticket.timeline,
-      {
-        id: Date.now(),
-        type: "status",
-        title: `Ticket moved to ${updates.status}`,
-        description: getStatusDescription(updates.status),
-        timestamp: new Date().toISOString(),
-      },
-    ];
+    newTimeline.push({
+      id: Date.now(),
+      type: "status",
+      title: `Ticket moved to ${updates.status}`,
+      description: getStatusDescription(updates.status),
+      timestamp: new Date().toISOString(),
+    });
   }
+
+  const updatedTicket = {
+    ...ticket,
+    ...updates,
+    timeline: newTimeline,
+    updatedAt: new Date().toISOString(),
+  };
+
+  delete updatedTicket.timelineEvent;
 
   tickets[index] = updatedTicket;
   saveTickets(tickets);
