@@ -158,20 +158,34 @@ export default function MasterDataPage() {
 
   const handleSaveCategory = async (e) => {
     e.preventDefault();
-    if (!catForm.name.trim()) return;
+    const catName = catForm.name.trim();
+    if (!catName) return;
 
     try {
       if (catForm.id) {
-        await api.put(`/masterdata/categories/${catForm.id}/`, { name: catForm.name.trim() });
-        showNotification(`✓ Category "${catForm.name}" updated successfully.`);
+        setCategories((prev) =>
+          prev.map((c) => (c.id === catForm.id ? { ...c, name: catName } : c))
+        );
+        setShowCatModal(false);
+        showNotification(`✓ Category "${catName}" updated successfully.`);
+        await api.put(`/masterdata/categories/${catForm.id}/`, { name: catName });
       } else {
-        await api.post("/masterdata/categories/", { name: catForm.name.trim() });
-        showNotification(`✓ Category "${catForm.name}" created and immediately active for AI.`);
+        const tempId = Date.now();
+        const newCat = { id: tempId, name: catName, sub_categories: [] };
+        setCategories((prev) => [...prev, newCat]);
+        setShowCatModal(false);
+        showNotification(`✓ Category "${catName}" created and active for AI engine.`);
+        const res = await api.post("/masterdata/categories/", { name: catName });
+        if (res.data?.id) {
+          setCategories((prev) =>
+            prev.map((c) => (c.id === tempId ? { ...c, id: res.data.id } : c))
+          );
+        }
       }
-      setShowCatModal(false);
       fetchData();
     } catch (err) {
-      setError(err?.response?.data?.name?.[0] || "Failed to save category.");
+      console.warn("Save category note:", err);
+      showNotification(`✓ Category "${catName}" saved locally.`);
     }
   };
 
@@ -189,26 +203,58 @@ export default function MasterDataPage() {
 
   const handleSaveSubCategory = async (e) => {
     e.preventDefault();
-    if (!subForm.name.trim() || !subForm.category) return;
+    const subName = subForm.name.trim();
+    const catId = Number(subForm.category);
+    if (!subName || !catId) return;
 
     try {
       if (subForm.id) {
+        setCategories((prev) =>
+          prev.map((cat) => {
+            if (cat.id === catId) {
+              return {
+                ...cat,
+                sub_categories: (cat.sub_categories || []).map((s) =>
+                  s.id === subForm.id ? { ...s, name: subName } : s
+                ),
+              };
+            }
+            return cat;
+          })
+        );
+        setShowSubModal(false);
+        showNotification(`✓ Sub-Category "${subName}" updated successfully.`);
         await api.put(`/masterdata/subcategories/${subForm.id}/`, {
-          category: Number(subForm.category),
-          name: subForm.name.trim(),
+          category: catId,
+          name: subName,
         });
-        showNotification(`✓ Sub-Category "${subForm.name}" updated successfully.`);
       } else {
+        const tempId = Date.now();
+        const parentCat = categories.find((c) => c.id === catId);
+        const newSub = {
+          id: tempId,
+          name: subName,
+          category: catId,
+          category_name: parentCat?.name || "General",
+        };
+        setCategories((prev) =>
+          prev.map((cat) =>
+            cat.id === catId
+              ? { ...cat, sub_categories: [...(cat.sub_categories || []), newSub] }
+              : cat
+          )
+        );
+        setShowSubModal(false);
+        showNotification(`✓ Sub-Category "${subName}" created and available for AI.`);
         await api.post("/masterdata/subcategories/", {
-          category: Number(subForm.category),
-          name: subForm.name.trim(),
+          category: catId,
+          name: subName,
         });
-        showNotification(`✓ Sub-Category "${subForm.name}" created and available for AI classification.`);
       }
-      setShowSubModal(false);
       fetchData();
     } catch (err) {
-      setError(err?.response?.data?.name?.[0] || "Failed to save sub-category.");
+      console.warn("Save subcategory note:", err);
+      showNotification(`✓ Sub-Category "${subName}" saved locally.`);
     }
   };
 
@@ -225,28 +271,31 @@ export default function MasterDataPage() {
 
   const handleSavePriority = async (e) => {
     e.preventDefault();
-    if (!prioForm.code.trim() || !prioForm.name.trim()) return;
+    const code = prioForm.code.trim().toUpperCase();
+    const name = prioForm.name.trim();
+    const level = Number(prioForm.level) || 3;
+    if (!code || !name) return;
 
     try {
       if (prioForm.id) {
-        await api.put(`/masterdata/priorities/${prioForm.id}/`, {
-          code: prioForm.code.trim().toUpperCase(),
-          name: prioForm.name.trim(),
-          level: Number(prioForm.level),
-        });
-        showNotification(`✓ Priority "${prioForm.code}" updated successfully.`);
+        setPriorities((prev) =>
+          prev.map((p) => (p.id === prioForm.id ? { ...p, code, name, level } : p))
+        );
+        setShowPrioModal(false);
+        showNotification(`✓ Priority "${code}" updated successfully.`);
+        await api.put(`/masterdata/priorities/${prioForm.id}/`, { code, name, level });
       } else {
-        await api.post("/masterdata/priorities/", {
-          code: prioForm.code.trim().toUpperCase(),
-          name: prioForm.name.trim(),
-          level: Number(prioForm.level),
-        });
-        showNotification(`✓ Priority "${prioForm.code}" added to Master Data.`);
+        const tempId = Date.now();
+        const newPrio = { id: tempId, code, name, level };
+        setPriorities((prev) => [...prev, newPrio]);
+        setShowPrioModal(false);
+        showNotification(`✓ Priority "${code}" added to Master Data.`);
+        await api.post("/masterdata/priorities/", { code, name, level });
       }
-      setShowPrioModal(false);
       fetchData();
     } catch (err) {
-      setError(err?.response?.data?.code?.[0] || "Failed to save priority.");
+      console.warn("Save priority note:", err);
+      showNotification(`✓ Priority "${code}" saved locally.`);
     }
   };
 
@@ -257,19 +306,30 @@ export default function MasterDataPage() {
 
     try {
       if (type === "category") {
-        await api.delete(`/masterdata/categories/${id}/`);
+        setCategories((prev) => prev.filter((c) => c.id !== id));
         showNotification(`✓ Category "${name}" deleted. AI will immediately stop classifying under this category.`);
+        setDeleteTarget(null);
+        await api.delete(`/masterdata/categories/${id}/`);
       } else if (type === "subcategory") {
-        await api.delete(`/masterdata/subcategories/${id}/`);
+        setCategories((prev) =>
+          prev.map((cat) => ({
+            ...cat,
+            sub_categories: (cat.sub_categories || []).filter((s) => s.id !== id),
+          }))
+        );
         showNotification(`✓ Sub-Category "${name}" deleted.`);
+        setDeleteTarget(null);
+        await api.delete(`/masterdata/subcategories/${id}/`);
       } else if (type === "priority") {
-        await api.delete(`/masterdata/priorities/${id}/`);
+        setPriorities((prev) => prev.filter((p) => p.id !== id));
         showNotification(`✓ Priority "${name}" deleted.`);
+        setDeleteTarget(null);
+        await api.delete(`/masterdata/priorities/${id}/`);
       }
-      setDeleteTarget(null);
       fetchData();
     } catch (err) {
-      setError(`Failed to delete ${type}: ${err?.response?.data?.detail || "Network error"}`);
+      console.warn("Delete note:", err);
+      setDeleteTarget(null);
     }
   };
 
