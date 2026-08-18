@@ -122,19 +122,21 @@ export default function KnowledgeBasePage() {
     try {
       setLoading(true);
       const [artRes, catRes] = await Promise.all([
-        api.get("/masterdata/knowledge-articles/"),
-        api.get("/masterdata/categories/"),
+        api.get(`/masterdata/knowledge-articles/?_t=${Date.now()}`),
+        api.get(`/masterdata/categories/?_t=${Date.now()}`),
       ]);
-      const arts = Array.isArray(artRes?.data) && artRes.data.length > 0 ? artRes.data : FALLBACK_ARTICLES;
-      setArticles(arts);
-      setCategories(catRes.data || []);
+      if (Array.isArray(artRes?.data)) {
+        setArticles(artRes.data);
+      }
+      if (Array.isArray(catRes?.data)) {
+        setCategories(catRes.data);
+      }
       setError("");
       if (isRetry) {
         showNotification("✓ Successfully synchronized Knowledge Base with live database.");
       }
     } catch (err) {
       console.warn("[KnowledgeBase Notice]: Using fallback articles due to network:", err);
-      setArticles((prev) => (prev.length > 0 ? prev : FALLBACK_ARTICLES));
       if (!isRetry) {
         setTimeout(() => fetchData(true), 3500);
       }

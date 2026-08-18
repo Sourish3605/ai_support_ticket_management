@@ -107,23 +107,22 @@ export default function MasterDataPage() {
     try {
       setLoading(true);
       const [catRes, prioRes] = await Promise.all([
-        api.get("/masterdata/categories/"),
-        api.get("/masterdata/priorities/"),
+        api.get(`/masterdata/categories/?_t=${Date.now()}`),
+        api.get(`/masterdata/priorities/?_t=${Date.now()}`),
       ]);
-      const cats = Array.isArray(catRes?.data) && catRes.data.length > 0 ? catRes.data : FALLBACK_CATEGORIES;
-      const prios = Array.isArray(prioRes?.data) && prioRes.data.length > 0 ? prioRes.data : FALLBACK_PRIORITIES;
-      setCategories(cats);
-      setPriorities(prios);
+      if (Array.isArray(catRes?.data)) {
+        setCategories(catRes.data);
+      }
+      if (Array.isArray(prioRes?.data)) {
+        setPriorities(prioRes.data);
+      }
       setError("");
       if (isRetry) {
         showNotification("✓ Successfully synchronized Master Data with live database.");
       }
     } catch (err) {
       console.warn("Failed to load master data from API:", err);
-      setCategories((prev) => (prev.length > 0 ? prev : FALLBACK_CATEGORIES));
-      setPriorities((prev) => (prev.length > 0 ? prev : FALLBACK_PRIORITIES));
       if (!isRetry) {
-        // Automatically attempt a background sync in 3.5 seconds
         setTimeout(() => fetchData(true), 3500);
       }
       if (err?.code === "ECONNABORTED" || !err?.response) {
