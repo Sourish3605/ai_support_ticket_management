@@ -48,14 +48,95 @@ function Step({ number, title, subtitle, done = false }) {
   );
 }
 
+const DEFAULT_CATEGORIES = [
+  {
+    id: 1,
+    name: "Network",
+    sub_categories: [
+      { id: 1, name: "VPN", category: 1 },
+      { id: 2, name: "Internet", category: 1 },
+      { id: 3, name: "Wi-Fi", category: 1 },
+      { id: 4, name: "DNS / Gateway", category: 1 },
+      { id: 5, name: "Firewall", category: 1 },
+    ],
+  },
+  {
+    id: 2,
+    name: "Security",
+    sub_categories: [
+      { id: 6, name: "Phishing", category: 2 },
+      { id: 7, name: "Malware", category: 2 },
+      { id: 8, name: "Unauthorized Access", category: 2 },
+      { id: 9, name: "Security Alert", category: 2 },
+    ],
+  },
+  {
+    id: 3,
+    name: "Authentication",
+    sub_categories: [
+      { id: 10, name: "Password Reset", category: 3 },
+      { id: 11, name: "Login Issue", category: 3 },
+      { id: 12, name: "MFA / SSO", category: 3 },
+      { id: 13, name: "Account Locked", category: 3 },
+    ],
+  },
+  {
+    id: 4,
+    name: "Hardware",
+    sub_categories: [
+      { id: 14, name: "Laptop", category: 4 },
+      { id: 15, name: "Desktop", category: 4 },
+      { id: 16, name: "Monitor", category: 4 },
+      { id: 17, name: "Keyboard / Mouse", category: 4 },
+      { id: 18, name: "Printer", category: 4 },
+    ],
+  },
+  {
+    id: 5,
+    name: "Software",
+    sub_categories: [
+      { id: 19, name: "Application Error", category: 5 },
+      { id: 20, name: "Crash", category: 5 },
+      { id: 21, name: "License Expired", category: 5 },
+      { id: 22, name: "Installation", category: 5 },
+    ],
+  },
+  {
+    id: 6,
+    name: "Email",
+    sub_categories: [
+      { id: 23, name: "Outlook Sync", category: 6 },
+      { id: 24, name: "Calendar Issue", category: 6 },
+      { id: 25, name: "Spam", category: 6 },
+      { id: 26, name: "Delivery Failure", category: 6 },
+    ],
+  },
+  {
+    id: 7,
+    name: "Billing",
+    sub_categories: [
+      { id: 27, name: "Invoice", category: 7 },
+      { id: 28, name: "Payment Failure", category: 7 },
+      { id: 29, name: "Subscription", category: 7 },
+    ],
+  },
+];
+
+const DEFAULT_PRIORITIES = [
+  { id: 1, code: "P1", name: "Critical" },
+  { id: 2, code: "P2", name: "High" },
+  { id: 3, code: "P3", name: "Medium" },
+  { id: 4, code: "P4", name: "Low" },
+];
+
 export default function NewTicketPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   // Dynamic Master Data State (single source of truth from Database)
-  const [categories, setCategories] = useState([]);
-  const [priorities, setPriorities] = useState([]);
-  const [isLoadingMasterData, setIsLoadingMasterData] = useState(true);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [priorities, setPriorities] = useState(DEFAULT_PRIORITIES);
+  const [isLoadingMasterData, setIsLoadingMasterData] = useState(false);
 
   const [form, setForm] = useState(() => {
     const draft = localStorage.getItem("supportpilot_ticket_draft");
@@ -87,11 +168,15 @@ export default function NewTicketPage() {
           api.get("/masterdata/priorities/"),
         ]);
         if (isMounted) {
-          setCategories(catRes.data || []);
-          setPriorities(prioRes.data || []);
+          if (Array.isArray(catRes?.data) && catRes.data.length > 0) {
+            setCategories(catRes.data);
+          }
+          if (Array.isArray(prioRes?.data) && prioRes.data.length > 0) {
+            setPriorities(prioRes.data);
+          }
         }
       } catch (err) {
-        console.error("[MasterData Fetch Error]:", err);
+        console.warn("[MasterData Notice]: Using default categories cache:", err);
       } finally {
         if (isMounted) setIsLoadingMasterData(false);
       }

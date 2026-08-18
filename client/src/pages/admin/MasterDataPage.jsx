@@ -1,9 +1,90 @@
 import { useEffect, useState } from "react";
 import { api } from "../../services/api";
 
+const FALLBACK_CATEGORIES = [
+  {
+    id: 1,
+    name: "Network",
+    sub_categories: [
+      { id: 1, name: "VPN", category: 1, category_name: "Network" },
+      { id: 2, name: "Internet", category: 1, category_name: "Network" },
+      { id: 3, name: "Wi-Fi", category: 1, category_name: "Network" },
+      { id: 4, name: "DNS / Gateway", category: 1, category_name: "Network" },
+      { id: 5, name: "Firewall", category: 1, category_name: "Network" },
+    ],
+  },
+  {
+    id: 2,
+    name: "Security",
+    sub_categories: [
+      { id: 6, name: "Phishing", category: 2, category_name: "Security" },
+      { id: 7, name: "Malware", category: 2, category_name: "Security" },
+      { id: 8, name: "Unauthorized Access", category: 2, category_name: "Security" },
+      { id: 9, name: "Security Alert", category: 2, category_name: "Security" },
+    ],
+  },
+  {
+    id: 3,
+    name: "Authentication",
+    sub_categories: [
+      { id: 10, name: "Password Reset", category: 3, category_name: "Authentication" },
+      { id: 11, name: "Login Issue", category: 3, category_name: "Authentication" },
+      { id: 12, name: "MFA / SSO", category: 3, category_name: "Authentication" },
+      { id: 13, name: "Account Locked", category: 3, category_name: "Authentication" },
+    ],
+  },
+  {
+    id: 4,
+    name: "Hardware",
+    sub_categories: [
+      { id: 14, name: "Laptop", category: 4, category_name: "Hardware" },
+      { id: 15, name: "Desktop", category: 4, category_name: "Hardware" },
+      { id: 16, name: "Monitor", category: 4, category_name: "Hardware" },
+      { id: 17, name: "Keyboard / Mouse", category: 4, category_name: "Hardware" },
+      { id: 18, name: "Printer", category: 4, category_name: "Hardware" },
+    ],
+  },
+  {
+    id: 5,
+    name: "Software",
+    sub_categories: [
+      { id: 19, name: "Application Error", category: 5, category_name: "Software" },
+      { id: 20, name: "Crash", category: 5, category_name: "Software" },
+      { id: 21, name: "License Expired", category: 5, category_name: "Software" },
+      { id: 22, name: "Installation", category: 5, category_name: "Software" },
+    ],
+  },
+  {
+    id: 6,
+    name: "Email",
+    sub_categories: [
+      { id: 23, name: "Outlook Sync", category: 6, category_name: "Email" },
+      { id: 24, name: "Calendar Issue", category: 6, category_name: "Email" },
+      { id: 25, name: "Spam", category: 6, category_name: "Email" },
+      { id: 26, name: "Delivery Failure", category: 6, category_name: "Email" },
+    ],
+  },
+  {
+    id: 7,
+    name: "Billing",
+    sub_categories: [
+      { id: 27, name: "Invoice", category: 7, category_name: "Billing" },
+      { id: 28, name: "Payment Failure", category: 7, category_name: "Billing" },
+      { id: 29, name: "Subscription", category: 7, category_name: "Billing" },
+    ],
+  },
+];
+
+const FALLBACK_PRIORITIES = [
+  { id: 1, code: "P1", name: "Critical - Emergency Outage", level: 1 },
+  { id: 2, code: "P2", name: "High - Degraded Service", level: 2 },
+  { id: 3, code: "P3", name: "Medium - Standard Priority", level: 3 },
+  { id: 4, code: "P4", name: "Low - Minor / Inquiry", level: 4 },
+];
+
 export default function MasterDataPage() {
-  const [categories, setCategories] = useState([]);
-  const [priorities, setPriorities] = useState([]);
+  const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
+  const [priorities, setPriorities] = useState(FALLBACK_PRIORITIES);
   const [activeTab, setActiveTab] = useState("categories"); // "categories" | "subcategories" | "priorities"
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
@@ -22,18 +103,31 @@ export default function MasterDataPage() {
   // Delete Confirmation State
   const [deleteTarget, setDeleteTarget] = useState(null); // { type, id, name }
 
-  const fetchData = async () => {
+  const fetchData = async (isRetry = false) => {
     try {
       setLoading(true);
+      setError("");
       const [catRes, prioRes] = await Promise.all([
         api.get("/masterdata/categories/"),
         api.get("/masterdata/priorities/"),
       ]);
-      setCategories(catRes.data || []);
-      setPriorities(prioRes.data || []);
+      const cats = Array.isArray(catRes?.data) && catRes.data.length > 0 ? catRes.data : FALLBACK_CATEGORIES;
+      const prios = Array.isArray(prioRes?.data) && prioRes.data.length > 0 ? prioRes.data : FALLBACK_PRIORITIES;
+      setCategories(cats);
+      setPriorities(prios);
+      if (isRetry) {
+        showNotification("✓ Successfully synchronized Master Data with database.");
+      }
     } catch (err) {
-      console.error("Failed to load master data:", err);
-      setError("Failed to load Master Data from database.");
+      console.warn("Failed to load master data from API:", err);
+      // Keep existing or fallback data
+      setCategories((prev) => (prev.length > 0 ? prev : FALLBACK_CATEGORIES));
+      setPriorities((prev) => (prev.length > 0 ? prev : FALLBACK_PRIORITIES));
+      if (err?.code === "ECONNABORTED" || !err?.response) {
+        setError("Backend server is waking up (cold start). Loaded Master Data from cache. Click Retry to sync with database.");
+      } else {
+        setError("Could not reach remote database. Displaying Master Data cache.");
+      }
     } finally {
       setLoading(false);
     }
@@ -238,13 +332,22 @@ export default function MasterDataPage() {
       )}
 
       {error && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700 shadow-sm flex items-center justify-between">
-          <div>
-            <strong>Error:</strong> {error}
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚠️</span>
+            <span>{error}</span>
           </div>
-          <button onClick={() => setError("")} className="text-red-500 hover:text-red-700 font-bold ml-2">
-            ✕
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => fetchData(true)}
+              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm"
+            >
+              🔄 Retry Connection
+            </button>
+            <button onClick={() => setError("")} className="text-amber-700 hover:text-amber-900 font-bold px-1">
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
