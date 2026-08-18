@@ -106,7 +106,6 @@ export default function MasterDataPage() {
   const fetchData = async (isRetry = false) => {
     try {
       setLoading(true);
-      setError("");
       const [catRes, prioRes] = await Promise.all([
         api.get("/masterdata/categories/"),
         api.get("/masterdata/priorities/"),
@@ -115,16 +114,20 @@ export default function MasterDataPage() {
       const prios = Array.isArray(prioRes?.data) && prioRes.data.length > 0 ? prioRes.data : FALLBACK_PRIORITIES;
       setCategories(cats);
       setPriorities(prios);
+      setError("");
       if (isRetry) {
-        showNotification("✓ Successfully synchronized Master Data with database.");
+        showNotification("✓ Successfully synchronized Master Data with live database.");
       }
     } catch (err) {
       console.warn("Failed to load master data from API:", err);
-      // Keep existing or fallback data
       setCategories((prev) => (prev.length > 0 ? prev : FALLBACK_CATEGORIES));
       setPriorities((prev) => (prev.length > 0 ? prev : FALLBACK_PRIORITIES));
+      if (!isRetry) {
+        // Automatically attempt a background sync in 3.5 seconds
+        setTimeout(() => fetchData(true), 3500);
+      }
       if (err?.code === "ECONNABORTED" || !err?.response) {
-        setError("Backend server is waking up (cold start). Loaded Master Data from cache. Click Retry to sync with database.");
+        setError("Backend server is waking up (cold start). Displaying Master Data cache.");
       } else {
         setError("Could not reach remote database. Displaying Master Data cache.");
       }

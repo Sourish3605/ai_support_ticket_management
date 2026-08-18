@@ -121,7 +121,6 @@ export default function KnowledgeBasePage() {
   const fetchData = async (isRetry = false) => {
     try {
       setLoading(true);
-      setError("");
       const [artRes, catRes] = await Promise.all([
         api.get("/masterdata/knowledge-articles/"),
         api.get("/masterdata/categories/"),
@@ -129,14 +128,18 @@ export default function KnowledgeBasePage() {
       const arts = Array.isArray(artRes?.data) && artRes.data.length > 0 ? artRes.data : FALLBACK_ARTICLES;
       setArticles(arts);
       setCategories(catRes.data || []);
+      setError("");
       if (isRetry) {
-        showNotification("✓ Successfully synchronized Knowledge Base with database.");
+        showNotification("✓ Successfully synchronized Knowledge Base with live database.");
       }
     } catch (err) {
       console.warn("[KnowledgeBase Notice]: Using fallback articles due to network:", err);
       setArticles((prev) => (prev.length > 0 ? prev : FALLBACK_ARTICLES));
+      if (!isRetry) {
+        setTimeout(() => fetchData(true), 3500);
+      }
       if (err?.code === "ECONNABORTED" || !err?.response) {
-        setError("Backend server is waking up (cold start). Loaded Knowledge Base from cache. Click Retry to sync with database.");
+        setError("Backend server is waking up (cold start). Displaying Knowledge Base cache.");
       } else {
         setError("Could not reach remote database. Displaying local Knowledge Base cache.");
       }
