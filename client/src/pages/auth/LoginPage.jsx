@@ -427,7 +427,7 @@ const LoginPage = () => {
                           {selectedRole === "admin"
                             ? "Executive governance, policies & system health"
                             : selectedRole === "agent"
-                            ? "Incident triage, Groq AI routing & SLAs"
+                            ? "Incident triage, AI routing & SLAs"
                             : "Raise tickets, track status & AI self-service"}
                         </p>
                       </div>
@@ -461,7 +461,7 @@ const LoginPage = () => {
                         {
                           id: "agent",
                           title: "Support Agent",
-                          subtitle: "Incident triage, Groq AI routing & SLAs",
+                          subtitle: "Incident triage, AI routing & SLAs",
                           tag: "Operations",
                           Icon: FiHeadphones,
                           activeIcon: "bg-blue-700 text-white",

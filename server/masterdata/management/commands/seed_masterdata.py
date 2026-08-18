@@ -1,12 +1,13 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from masterdata.models import Category, SubCategory, Priority, SLARule, Department, Team, SeverityRule, Product
+import json
+from masterdata.models import Category, SubCategory, Priority, SLARule, Department, Team, SeverityRule, Product, KnowledgeArticle
 
 User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Seed initial master data and demo users according to Milestone 1 spec."
+    help = "Seed initial master data, knowledge base, and demo users."
 
     def handle(self, *args, **options):
         # 1. Departments & Teams
@@ -67,8 +68,144 @@ class Command(BaseCommand):
         for p in products:
             Product.objects.get_or_create(name=p)
 
-        # 6. Default Demo Users
-        # Remove deprecated users
+        # 6. Knowledge Base Articles
+        kb_articles = [
+            {
+                "article_id": "KB-NET-001",
+                "title": "Corporate VPN Connection & Troubleshooting Guide",
+                "category": "Network",
+                "sub_category": "VPN",
+                "tags": "vpn, anyconnect, remote, connectivity, gateway, tunnel",
+                "content": "Comprehensive guide to resolve VPN connection drops, gateway unreachable errors, and Cisco AnyConnect handshake failures.",
+                "steps": json.dumps([
+                    "Verify your local internet connection is active by loading a public webpage.",
+                    "Confirm the VPN server address matches 'vpn.company.com' in your client profile.",
+                    "Restart the Cisco AnyConnect / GlobalProtect VPN service from task manager.",
+                    "Check that port 443 / UDP 500/4500 is not restricted on your local network.",
+                    "Clear cached VPN credentials and re-authenticate via company SSO.",
+                ]),
+                "source": "Enterprise IT Knowledge Base / Network Operations",
+            },
+            {
+                "article_id": "KB-NET-002",
+                "title": "Office & Broadband Network Connectivity Troubleshooting",
+                "category": "Network",
+                "sub_category": "Internet",
+                "tags": "internet, wifi, wi-fi, broadband, dns, gateway, disconnected, network down",
+                "content": "Troubleshooting steps for office broadband and Wi-Fi connectivity loss, DNS resolution failures, and network adapter resets.",
+                "steps": json.dumps([
+                    "Verify router / modem power indicators and physical ethernet cable connections.",
+                    "Toggle Wi-Fi adapter off and on or flush local DNS cache via 'ipconfig /flushdns'.",
+                    "Verify DHCP default gateway assignment and DNS server responsiveness.",
+                    "Check if the ISP or local broadband provider is experiencing an area-wide outage.",
+                    "Contact the Network Operations Team if corporate gateway remains unreachable.",
+                ]),
+                "source": "Network Operations Service Desk",
+            },
+            {
+                "article_id": "KB-SEC-002",
+                "title": "Security Incident Response — Phishing & Suspicious Emails",
+                "category": "Security",
+                "sub_category": "Phishing",
+                "tags": "phishing, malware, security, suspicious, email, attachment, attack",
+                "content": "Emergency protocol for handling phishing emails, credential harvesting attempts, and suspicious links.",
+                "steps": json.dumps([
+                    "Do NOT click any links or download attachments from the suspicious message.",
+                    "Use the 'Report Phishing' button in Outlook to submit headers to SecOps.",
+                    "If you entered credentials, change your corporate password immediately via SSO portal.",
+                    "Disconnect your machine from Wi-Fi if unauthorized downloads occurred.",
+                    "SecOps will review message telemetry and quarantine threat vectors.",
+                ]),
+                "source": "SecOps Security Guidelines v3.4",
+            },
+            {
+                "article_id": "KB-AUTH-003",
+                "title": "SSO Login & Self-Service Password Reset",
+                "category": "Authentication",
+                "sub_category": "Password Reset",
+                "tags": "password, sso, mfa, login, locked, authentication, credentials",
+                "content": "Self-service password recovery, MFA re-registration, and account unlock procedures.",
+                "steps": json.dumps([
+                    "Navigate to the self-service portal: sso.company.com/recovery.",
+                    "Enter your corporate email address to receive an MFA verification push.",
+                    "Follow the on-screen prompts to set a new 12+ character complex password.",
+                    "Wait 2 minutes for directory synchronization across corporate services.",
+                    "Log in to your workstation with the new password.",
+                ]),
+                "source": "Identity & Access Management Policy",
+            },
+            {
+                "article_id": "KB-HDW-004",
+                "title": "Workstation & Laptop Diagnostics and Performance Optimization",
+                "category": "Hardware",
+                "sub_category": "Laptop",
+                "tags": "laptop, hardware, slow, freeze, monitor, battery, keyboard, screen",
+                "content": "Hardware troubleshooting for slow performance, thermal throttling, peripherals, and display issues.",
+                "steps": json.dumps([
+                    "Perform a full restart to flush system RAM and pending updates.",
+                    "Check Task Manager for runaway background processes consuming > 80% CPU.",
+                    "Verify the device has at least 15 GB free disk space on the primary drive.",
+                    "Inspect physical cable connections for external displays and docks.",
+                    "Run hardware diagnostics utility via Dell Command / Apple Diagnostics.",
+                ]),
+                "source": "Hardware Lifecycle & Asset Support Desk",
+            },
+            {
+                "article_id": "KB-SFT-005",
+                "title": "Application Crash Recovery & License Verification",
+                "category": "Software",
+                "sub_category": "Application Error",
+                "tags": "software, crash, error, application, license, install, bug",
+                "content": "Guide for software crash loops, corrupted caches, and license reactivation.",
+                "steps": json.dumps([
+                    "Force-close all instances of the application using Task Manager.",
+                    "Clear local application cache files located in %LOCALAPPDATA% or ~/Library/Caches.",
+                    "Check Company Portal / Software Center for pending application updates.",
+                    "Run the built-in application repair wizard from Add/Remove Programs.",
+                    "Reboot your computer and relaunch the application as Administrator.",
+                ]),
+                "source": "Software Packaging & Application Support",
+            },
+            {
+                "article_id": "KB-EML-006",
+                "title": "Outlook Sync & Mailbox Recovery Guide",
+                "category": "Email",
+                "sub_category": "Outlook Sync",
+                "tags": "outlook, email, sync, exchange, calendar, mailbox, delivery",
+                "content": "Resolving Outlook synchronization stalls, OST file corruption, and mailbox quota issues.",
+                "steps": json.dumps([
+                    "Verify Outlook status shows 'Connected to Microsoft Exchange' in the status bar.",
+                    "Toggle Outlook into Work Offline mode, wait 10 seconds, then reconnect.",
+                    "Run Outlook in Safe Mode (outlook.exe /safe) to disable conflicting add-ins.",
+                    "Rebuild the local Outlook data file (.OST) via Account Settings.",
+                    "Check Office 365 webmail (outlook.office.com) to verify cloud mailbox health.",
+                ]),
+                "source": "Messaging & Collaboration Services",
+            },
+            {
+                "article_id": "KB-BIL-007",
+                "title": "Invoice Reconciliation & Billing Inquiry Guide",
+                "category": "Billing",
+                "sub_category": "Invoice",
+                "tags": "billing, invoice, payment, subscription, charge, receipt, finance",
+                "content": "Procedures for resolving corporate invoice discrepancies, credit card charge failures, and license renewals.",
+                "steps": json.dumps([
+                    "Verify billing entity details and PO reference numbers on the disputed invoice.",
+                    "Cross-reference billing statement with ERP purchase orders and payment gateways.",
+                    "If payment failed, check credit card expiration date and bank merchant authorization.",
+                    "Submit receipt and transaction reference to the Finance Accounts team.",
+                ]),
+                "source": "Finance & Accounts Operations",
+            },
+        ]
+
+        for article_data in kb_articles:
+            KnowledgeArticle.objects.update_or_create(
+                article_id=article_data["article_id"],
+                defaults=article_data
+            )
+
+        # 7. Default Demo Users
         User.objects.filter(email__in=["arun@company.com", "bala@company.com", "admin@company.com"]).delete()
         User.objects.filter(username__in=["arun", "bala"]).delete()
 
@@ -137,4 +274,5 @@ class Command(BaseCommand):
         devi_user.set_password("password123")
         devi_user.save()
 
-        self.stdout.write(self.style.SUCCESS("Successfully seeded master data and default users (admin@gmail.com, agent@gmail.com, customer@gmail.com)."))
+        self.stdout.write(self.style.SUCCESS("Successfully seeded master data, knowledge base, and default users."))
+

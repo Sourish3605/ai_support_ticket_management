@@ -18,7 +18,7 @@ const AiAssistantPage = () => {
   const [messages, setMessages] = useState([
     {
       from: "ai",
-      text: "Hello! I am SupportPilot AI powered by Groq. Enter any support issue or question to receive real-time ticket categorization, priority prediction, SLA targets, and guided troubleshooting steps.",
+      text: "Hello! I am the SupportPilot AI Assistant. Enter any support issue or question to receive real-time ticket categorization, priority prediction, SLA targets, and guided troubleshooting steps.",
     },
   ]);
 
@@ -32,69 +32,58 @@ const AiAssistantPage = () => {
     setLoading(true);
 
     try {
-      let aiResult = null;
-      try {
-        const response = await api.post("/support/classify/", {
-          subject: query,
-          description: query,
-          scope: "Just me",
-          work_blocked: false,
-        });
-        if (response.data) {
-          aiResult = {
-            category: response.data.category,
-            subCategory: response.data.sub_category,
-            severity: response.data.severity,
-            priority: response.data.priority,
-            team: response.data.team,
-            confidence: response.data.confidence,
-            slaHours: response.data.sla_hours,
-            knowledgeSource: response.data.knowledge_source,
-            suggestedResolution: response.data.suggested_resolution,
-            classificationPath: response.data.classification_path,
-          };
-        }
-      } catch {
-        // Fallback to local rule & RAG engine
-        const fallback = classifyTicket(query, query, "Just me", false);
-        aiResult = {
-          category: fallback.category,
-          subCategory: fallback.subCategory,
-          severity: fallback.severity,
-          priority: fallback.priority,
-          team: fallback.team,
-          confidence: fallback.confidence,
-          slaHours: fallback.priority === "P1" ? 4 : fallback.priority === "P2" ? 8 : fallback.priority === "P3" ? 24 : 48,
-          knowledgeSource: fallback.knowledgeSource || "General Corporate Support Guide",
-          suggestedResolution: fallback.suggestedResolution || [
-            "1. Verify network connection and system credentials.",
-            "2. Restart the affected application or service.",
-            "3. If unresolved, raise an IT support ticket for specialist assignment.",
-          ],
-          classificationPath: fallback.classificationPath || "Fast-Path",
+      const response = await api.post("/support/classify/", {
+        subject: query,
+        description: query,
+        scope: "Just me",
+        work_blocked: false,
+      });
+
+      if (response.data && response.data.category) {
+        const aiResult = {
+          category: response.data.category,
+          subCategory: response.data.sub_category,
+          severity: response.data.severity || "Medium",
+          priority: response.data.priority,
+          team: response.data.team || "IT Support",
+          confidence: response.data.confidence || 0.95,
+          slaHours: response.data.sla_hours || 24,
+          knowledgeSource: response.data.knowledge_source || "Enterprise Knowledge Store",
+          suggestedResolution: response.data.suggested_resolution || [],
+          classificationPath: response.data.classification_path || "AI Engine",
         };
+
+        const aiResponse = {
+          from: "ai",
+          isRich: true,
+          data: aiResult,
+          query: query,
+        };
+
+        setMessages((current) => [...current, aiResponse]);
+      } else if (response.data && response.data.category === null) {
+        setMessages((current) => [
+          ...current,
+          {
+            from: "ai",
+            text: `⚠️ ${response.data.reason || "No matching classification found in the current master data."}`,
+          },
+        ]);
       }
-
-      const aiResponse = {
-        from: "ai",
-        isRich: true,
-        data: aiResult,
-        query: query,
-      };
-
-      setMessages((current) => [...current, aiResponse]);
     } catch (err) {
       console.error(err);
+      const errorMsg = err?.response?.data?.error || "AI classification service is temporarily unavailable.";
       setMessages((current) => [
         ...current,
         {
           from: "ai",
-          text: "I analyzed your request. Please check credentials and verify network status before escalating to IT support.",
+          text: `⚠️ Notice: ${errorMsg}`,
         },
       ]);
     } finally {
       setLoading(false);
     }
+
   };
 
   const handleCreateTicketFromAI = (item) => {
@@ -119,7 +108,7 @@ const AiAssistantPage = () => {
             AI TICKET ENGINE & ASSISTANT
           </p>
           <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-0.5 font-mono text-[10px] text-emerald-300">
-            ⚡ Groq LLM & RAG Active
+            ⚡ AI Engine & RAG Active
           </span>
         </div>
 
@@ -160,9 +149,10 @@ const AiAssistantPage = () => {
                         AI Ticket Engine
                       </span>
                       <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[10px] text-white/80">
-                        {message.data.classificationPath || "Groq LLM"}
+                        {message.data.classificationPath || "AI Engine"}
                       </span>
                     </div>
+
 
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                       <div className="flex justify-between border-b border-white/10 pb-1.5">

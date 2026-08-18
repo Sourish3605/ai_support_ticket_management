@@ -1,11 +1,14 @@
 from rest_framework import serializers
-from .models import Category, SubCategory, Priority, SLARule, Department, Team, SeverityRule, Product
+from .models import Category, SubCategory, Priority, SLARule, Department, Team, SeverityRule, Product, KnowledgeArticle
 
 
 class SubCategorySerializer(serializers.ModelSerializer):
+    category_name = serializers.ReadOnlyField(source="category.name")
+
     class Meta:
         model = SubCategory
         fields = "__all__"
+
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -54,3 +57,10 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = "__all__"
+
+
+class KnowledgeArticleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KnowledgeArticle
+        fields = "__all__"
+

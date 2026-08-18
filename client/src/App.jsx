@@ -32,6 +32,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
 import AdminConfigPage from "./pages/admin/AdminConfigPage";
 import KnowledgeBasePage from "./pages/admin/KnowledgeBasePage";
+import MasterDataPage from "./pages/admin/MasterDataPage";
 
 
 function initials(name) {
@@ -177,6 +178,7 @@ function AdminLayout({ children }) {
 
   const adminNav = [
     { to: "/admin", icon: "▦", label: "Dashboard" },
+    { to: "/admin/master-data", icon: "🗂️", label: "Master Data" },
     { to: "/admin/users", icon: "👥", label: "Users" },
     { to: "/admin/routing", icon: "⇆", label: "Routing Rules" },
     { to: "/admin/sla", icon: "⏱", label: "SLA Policies" },
@@ -520,6 +522,19 @@ export default function App() {
               >
                 <AdminLayout>
                   <AdminDashboard />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/master-data"
+            element={
+              <ProtectedRoute
+                allowedRoles={["admin"]}
+              >
+                <AdminLayout>
+                  <MasterDataPage />
                 </AdminLayout>
               </ProtectedRoute>
             }
