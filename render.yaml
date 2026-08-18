@@ -9,8 +9,8 @@ services:
     name: ai-support-ticket-management
     runtime: python
     rootDir: server
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input
-    startCommand: python manage.py migrate && python manage.py seed_masterdata && gunicorn config.wsgi:application
+    buildCommand: ./build.sh
+    startCommand: python manage.py migrate --no-input && python manage.py seed_masterdata && gunicorn config.wsgi:application
     envVars:
       - key: DEBUG
         value: "False"
