@@ -54,48 +54,41 @@ const modules = [
 export default function AdminDashboard() {
   return (
     <div>
-
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">
+        <h1 className="text-3xl font-extrabold text-[#0f172a] tracking-tight">
           Admin & Operations
         </h1>
-
-        <p className="text-gray-500 mt-2">
-          Configure SupportPilot policies,
-          users and AI operations.
+        <p className="text-slate-500 mt-2 text-sm">
+          Configure SupportPilot policies, users and AI operations.
         </p>
       </div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
-
         {modules.map((module) => (
           <Link
             key={module.path}
             to={module.path}
-            className="bg-white border border-[#dfe5e1] rounded-2xl p-6 hover:shadow-md transition"
+            className="group bg-white border border-slate-200 rounded-2xl p-6 hover:border-cyan-500 hover:shadow-lg transition-all duration-200"
           >
-
-            <div className="w-10 h-10 rounded-lg bg-[#eef4ef] flex items-center justify-center text-[#14532d] font-bold">
+            <div className="w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-700 font-bold text-sm group-hover:bg-cyan-600 group-hover:text-white transition">
               SP
             </div>
 
-            <h2 className="font-bold text-lg mt-5">
+            <h2 className="font-bold text-base mt-5 text-slate-900 group-hover:text-cyan-700 transition">
               {module.title}
             </h2>
 
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
               {module.description}
             </p>
 
-            <p className="text-sm text-[#14532d] font-semibold mt-5">
-              Configure →
-            </p>
-
+            <div className="flex items-center gap-1 text-xs text-cyan-700 font-bold mt-5 group-hover:translate-x-0.5 transition">
+              <span>Configure</span>
+              <span>→</span>
+            </div>
           </Link>
         ))}
-
       </div>
-
     </div>
   );
 }

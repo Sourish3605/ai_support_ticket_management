@@ -1,5 +1,8 @@
-import { seedTickets, seedUsers } from "../data/seedData";
-import { storage, STORAGE_KEYS } from "./storageService";
+import { seedTickets, seedUsers } from "../data/seedData.js";
+import { storage, STORAGE_KEYS } from "./storageService.js";
+import { api } from "./api.js";
+
+
 
 const getTickets = () => {
   return storage.get(
@@ -15,122 +18,256 @@ const saveTickets = (tickets) => {
 const generateTicketId = (tickets) => {
   const numbers = tickets
     .map((ticket) => {
-      const number = Number(
-        ticket.id.replace("TK-", "")
-      );
-
-      return Number.isNaN(number) ? 0 : number;
+      const match = ticket.id.match(/\d+/);
+      return match ? Number(match[0]) : 0;
     });
 
-  const nextNumber = Math.max(1000, ...numbers) + 1;
-
-  return `TK-${nextNumber}`;
+  const nextNumber = Math.max(1, ...numbers) + 1;
+  return `TKT${String(nextNumber).padStart(3, "0")}`;
 };
 
-export const classifyTicket = (subject, description) => {
+const KNOWLEDGE_BASE = [
+  {
+    category: "VPN",
+    title: "Corporate VPN Troubleshooting Guide (KB-NET-001)",
+    steps: [
+      "1. Verify your local internet connection is active.",
+      "2. Confirm the VPN server address matches 'vpn.company.com'.",
+      "3. Restart the Cisco AnyConnect / VPN client service.",
+      "4. Check that your local network/firewall allows UDP ports 500/4500.",
+      "5. Clear cached VPN credentials and re-authenticate via company SSO.",
+    ],
+  },
+  {
+    category: "Network",
+    title: "Office & Remote Network Connectivity Guide (KB-NET-002)",
+    steps: [
+      "1. Disconnect and reconnect to the corporate Wi-Fi (Enterprise SSID).",
+      "2. Flush DNS cache (ipconfig /flushdns or dscacheutil -flushcache).",
+      "3. Verify IP assignment via DHCP gateway.",
+      "4. Restart the network adapter from system network settings.",
+    ],
+  },
+  {
+    category: "Security",
+    title: "Security Threat Isolation & Incident Response (KB-SEC-001)",
+    steps: [
+      "1. Disconnect device from corporate network/Wi-Fi immediately.",
+      "2. Do not open or forward suspicious attachments or links.",
+      "3. Change corporate SSO password from a secondary trusted device.",
+      "4. SecOps is notified to quarantine endpoint and inspect telemetry.",
+    ],
+  },
+  {
+    category: "Authentication",
+    title: "SSO Login & Self-Service Password Reset (KB-AUTH-003)",
+    steps: [
+      "1. Open self-service recovery at sso.company.com/recovery.",
+      "2. Approve the push notification sent to your registered authenticator app.",
+      "3. Set a new password meeting corporate complexity standards (12+ chars).",
+      "4. Wait 2 minutes for directory synchronization across active sessions.",
+    ],
+  },
+  {
+    category: "Hardware",
+    title: "Workstation Performance & Thermal Diagnostics (KB-HDW-004)",
+    steps: [
+      "1. Perform a full system reboot to clear runaway background processes.",
+      "2. Inspect Task Manager / Activity Monitor for CPU consumption > 80%.",
+      "3. Ensure the laptop vents are unobstructed and clean.",
+      "4. Run Apple Diagnostics / Dell Command hardware scan on boot.",
+    ],
+  },
+  {
+    category: "Software",
+    title: "Application Crash Recovery & Cache Clearing (KB-SFT-005)",
+    steps: [
+      "1. Force-close all instances of the application using Task Manager.",
+      "2. Clear local application cache files from user appdata folder.",
+      "3. Check Software Center / Company Portal for pending updates.",
+      "4. Run built-in application repair wizard and restart workstation.",
+    ],
+  },
+  {
+    category: "Email",
+    title: "Outlook Sync & Mailbox Recovery Guide (KB-EML-006)",
+    steps: [
+      "1. Verify Outlook status bar indicates 'Connected to Exchange'.",
+      "2. Toggle 'Work Offline' off and on to force a reconnection handshake.",
+      "3. Run Outlook in Safe Mode (outlook.exe /safe) to isolate add-in issues.",
+      "4. Rebuild the local OST data file via Account Settings.",
+    ],
+  },
+];
+
+export const classifyTicket = (subject = "", description = "", scope = "Just me", workBlocked = false) => {
   const text = `${subject} ${description}`.toLowerCase();
 
-  if (text.includes("vpn")) {
-    return { category: "VPN", confidence: 0.96 };
-  }
+  let category = "General";
+  let subCategory = "Other";
+  let confidence = 0.78;
+  let team = "IT Support";
 
-  if (text.includes("network") || text.includes("wifi") || text.includes("internet")) {
-    return { category: "Network", confidence: 0.93 };
-  }
-
-  if (
-    text.includes("password") ||
-    text.includes("login") ||
-    text.includes("account") ||
-    text.includes("access")
+  if (text.includes("vpn") || text.includes("anyconnect") || text.includes("tunnel") || text.includes("globalprotect")) {
+    category = "VPN";
+    subCategory = "Connection Failure";
+    confidence = 0.96;
+    team = "Network Team";
+  } else if (text.includes("network") || text.includes("wifi") || text.includes("wi-fi") || text.includes("internet") || text.includes("dns") || text.includes("connectivity")) {
+    category = "Network";
+    subCategory = "Internet / Wi-Fi";
+    confidence = 0.93;
+    team = "Network Team";
+  } else if (
+    text.includes("phishing") ||
+    text.includes("ransomware") ||
+    text.includes("malware") ||
+    text.includes("breach") ||
+    text.includes("unauthorized") ||
+    text.includes("hacked") ||
+    text.includes("attack") ||
+    text.includes("sql") ||
+    text.includes("injection") ||
+    text.includes("vulnerability") ||
+    text.includes("exploit") ||
+    text.includes("security") ||
+    text.includes("ddos") ||
+    text.includes("threat")
   ) {
-    return {
-      category: "Access",
-      confidence: 0.94,
-    };
+    category = "Security";
+    subCategory = text.includes("phishing") ? "Phishing Alert" : text.includes("unauthorized") ? "Unauthorized Access" : "Malware / Incident";
+    confidence = 0.98;
+    team = "Security Team";
+  } else if (text.includes("password") || text.includes("login") || text.includes("locked") || text.includes("sso") || text.includes("mfa") || text.includes("account")) {
+
+    category = "Authentication";
+    subCategory = text.includes("password") ? "Password Reset" : "Login Issue";
+    confidence = 0.95;
+    team = "IT Support";
+  } else if (text.includes("laptop") || text.includes("desktop") || text.includes("macbook") || text.includes("monitor") || text.includes("printer") || text.includes("keyboard") || text.includes("hardware") || text.includes("battery") || text.includes("overheating")) {
+    category = "Hardware";
+    subCategory = text.includes("printer") ? "Printer" : "Computer/Peripheral";
+    confidence = 0.92;
+    team = "Hardware Team";
+  } else if (text.includes("outlook") || text.includes("email") || text.includes("mailbox") || text.includes("calendar")) {
+    category = "Email";
+    subCategory = "Outlook / Sync";
+    confidence = 0.91;
+    team = "IT Support";
+  } else if (text.includes("software") || text.includes("application") || text.includes("crash") || text.includes("license") || text.includes("error code") || text.includes("install")) {
+    category = "Software";
+    subCategory = "Application Error";
+    confidence = 0.90;
+    team = "Software Team";
+  } else if (text.includes("payment") || text.includes("billing") || text.includes("invoice") || text.includes("charge")) {
+    category = "Billing";
+    subCategory = "Invoice / Payment";
+    confidence = 0.91;
+    team = "Finance";
   }
 
-  if (
-    text.includes("payment") ||
-    text.includes("billing") ||
-    text.includes("invoice")
-  ) {
-    return {
-      category: "Billing",
-      confidence: 0.91,
-    };
+  // 1. Critical Severity Prediction (P1)
+  const isCritical =
+    text.includes("ransomware") ||
+    text.includes("breach") ||
+    text.includes("data leak") ||
+    text.includes("outage") ||
+    text.includes("system down") ||
+    text.includes("server down") ||
+    text.includes("production down") ||
+    text.includes("database down") ||
+    text.includes("completely down") ||
+    text.includes("all users") ||
+    text.includes("entire company") ||
+    text.includes("catastrophic") ||
+    text.includes("ddos") ||
+    (workBlocked && ["Whole org", "My department"].includes(scope));
+
+
+  // 2. High Severity Prediction (P2)
+  const isHigh =
+    !isCritical &&
+    (text.includes("hacked") ||
+      text.includes("attack") ||
+      text.includes("sql") ||
+      text.includes("injection") ||
+      text.includes("exploit") ||
+      text.includes("vulnerability") ||
+      text.includes("unauthorized") ||
+      text.includes("compromised") ||
+      text.includes("blocking") ||
+      text.includes("blocked") ||
+      text.includes("cannot work") ||
+      text.includes("cannot login") ||
+      text.includes("locked out") ||
+      text.includes("vpn") ||
+      workBlocked ||
+      scope === "My team" ||
+      scope === "My department");
+
+  // 3. Medium Severity Prediction (P3)
+  const isMedium =
+    !isCritical &&
+    !isHigh &&
+    (text.includes("error") ||
+      text.includes("slow") ||
+      text.includes("freeze") ||
+      text.includes("crash") ||
+      text.includes("bug") ||
+      text.includes("failing") ||
+      text.includes("glitch") ||
+      text.includes("unable to"));
+
+  const severity = isCritical ? "Critical" : isHigh ? "High" : isMedium ? "Medium" : "Low";
+
+  // Priority Scoring (P1, P2, P3, P4)
+  let priority = "P4";
+  if (severity === "Critical" || (severity === "High" && ["Whole org", "My department"].includes(scope))) {
+    priority = "P1";
+  } else if (severity === "High" || (severity === "Medium" && workBlocked)) {
+    priority = "P2";
+  } else if (severity === "Medium" || workBlocked) {
+    priority = "P3";
+  } else {
+    priority = "P4";
   }
 
-  if (text.includes("software") || text.includes("application") || text.includes("licence") || text.includes("license")) {
-    return { category: "Software", confidence: 0.89 };
-  }
 
-  if (
-    text.includes("server") ||
-    text.includes("network") ||
-    text.includes("vpn") ||
-    text.includes("software") ||
-    text.includes("error")
-  ) {
-    return {
-      category: "Technical",
-      confidence: 0.93,
-    };
-  }
+  // Milestone 2 RAG Knowledge Retrieval
+  const kbMatch = KNOWLEDGE_BASE.find((k) => k.category.toLowerCase() === category.toLowerCase()) || KNOWLEDGE_BASE[0];
 
   return {
-    category: "General",
-    confidence: 0.78,
+    category,
+    subCategory,
+    severity,
+    priority,
+    confidence,
+    team,
+    classificationPath: confidence >= 0.90 ? "Fast-Path" : "LLM",
+    knowledgeSource: kbMatch.title,
+    suggestedResolution: kbMatch.steps,
   };
-};
-
-const calculatePriority = (form) => {
-  if (
-    form.workBlocked === true &&
-    form.scope === "Whole org"
-  ) {
-    return "High";
-  }
-
-  if (
-    form.workBlocked === true &&
-    ["My team", "My department"].includes(form.scope)
-  ) {
-    return "High";
-  }
-
-  if (form.workBlocked === true) {
-    return "Medium";
-  }
-
-  if (form.urgency === "Critical") {
-    return "High";
-  }
-
-  if (form.urgency === "High") {
-    return "Medium";
-  }
-
-  return "Low";
 };
 
 const getSLAHours = (priority) => {
   switch (priority) {
+    case "P1":
     case "High":
       return 4;
-
-    case "Medium":
+    case "P2":
       return 8;
-
-    case "Low":
+    case "P3":
+    case "Medium":
       return 24;
-
+    case "P4":
+    case "Low":
+      return 48;
     default:
       return 24;
   }
 };
 
-const getAvailableAgent = () => {
+const getAvailableAgent = (team = "IT Support") => {
   const users = storage.get(
     STORAGE_KEYS.users,
     seedUsers
@@ -138,7 +275,7 @@ const getAvailableAgent = () => {
 
   const agents = users.filter(
     (user) =>
-      ["Agent", "Engineer", "Lead"].includes(user.role) &&
+      ["agent", "Agent", "Engineer", "Lead"].includes(user.role) &&
       user.status === "Active"
   );
 
@@ -170,136 +307,110 @@ const getAvailableAgent = () => {
 
 export const createTicket = (form, user) => {
   const tickets = getTickets();
-
   const ticketId = generateTicketId(tickets);
 
   const classification = classifyTicket(
     form.subject,
-    form.description
+    form.description,
+    form.scope || "Just me",
+    Boolean(form.workBlocked)
   );
 
-  const priority = calculatePriority(form);
-
+  const category = form.category || classification.category;
+  const subCategory = form.subCategory || classification.subCategory;
+  const severity = form.severity || classification.severity;
+  const priority = form.priority || classification.priority;
   const slaHours = getSLAHours(priority);
 
   const createdAt = new Date();
-
   const slaDueAt = new Date(
     createdAt.getTime() +
       slaHours * 60 * 60 * 1000
   );
 
   // Automatic assignment
-  const agent = getAvailableAgent();
+  const agent = getAvailableAgent(classification.team);
 
   const ticket = {
     id: ticketId,
-
     subject: form.subject,
     description: form.description,
-
-    category:
-      form.category || classification.category,
-
-    categoryHint: form.category || null,
-
+    category,
+    subCategory,
+    severity,
     priority,
+    status: "AI_RESOLUTION_READY",
 
-    status: "Open",
 
-    customerId: user.id,
-    customerName: user.name,
-    customerEmail: user.email,
+    customerId: user?.id || "USR-004",
+    customerName: user?.name || user?.username || "devipriya",
+    customerEmail: user?.email || "devipriya@gmail.com",
 
-    department: form.department || user.department,
+    department: form.department || user?.department || "IT support",
     location: form.location || "",
     assetTag: form.assetTag || "",
-
-    affectedSystem:
-      form.affectedSystem || "",
-
-    startedWhen:
-      form.startedWhen || "",
-
+    affectedSystem: form.affectedSystem || "",
+    startedWhen: form.startedWhen || "Today",
     scope: form.scope || "Just me",
-
-    workBlocked:
-      form.workBlocked || false,
-
-    urgency:
-      form.urgency || "Medium",
-
-    workaround:
-      form.workaround || "No",
-
-    contactPreference:
-      form.contactPreference || "Email",
-
-    bestTime:
-      form.bestTime || "",
-
-    attachments:
-      form.attachments || [],
+    workBlocked: form.workBlocked || false,
+    urgency: form.urgency || "Medium",
+    workaround: form.workaround || "No",
+    contactPreference: form.contactPreference || "Email",
+    bestTime: form.bestTime || "",
+    attachments: form.attachments || [],
 
     assignedTo: agent?.id || null,
     assignedAgent: agent?.name || "Unassigned",
+    team: agent?.team || classification.team,
 
-    team: agent?.team || "L1 Support",
-
-    createdAt:
-      createdAt.toISOString(),
-
-    updatedAt:
-      createdAt.toISOString(),
-
+    createdAt: createdAt.toISOString(),
+    updatedAt: createdAt.toISOString(),
     slaHours,
+    slaDueAt: slaDueAt.toISOString(),
 
-    slaDueAt:
-      slaDueAt.toISOString(),
+    knowledgeRetrieved: true,
+    knowledgeSource: form.knowledgeSource || classification.knowledgeSource,
 
     ai: {
-      categoryConfidence:
-        classification.confidence,
-
-      priorityConfidence: 0.89,
-
-      classificationPath:
-        classification.confidence > 0.9
-          ? "Fast-Path"
-          : "LLM",
-
-      severity: priority,
-
-      suggestedResolution: [
-        "Verify the reported issue.",
-        "Check the affected system.",
-        "Review relevant knowledge base articles.",
-        "Apply the recommended resolution.",
-        "Confirm the issue is resolved with the customer.",
-      ],
+      categoryConfidence: form.confidence || classification.confidence,
+      severityConfidence: Math.min(0.96, (form.confidence || classification.confidence) - 0.04),
+      classificationPath: form.classificationPath || classification.classificationPath,
+      severity,
+      suggestedResolution: form.suggestedResolution || classification.suggestedResolution,
     },
+
 
     timeline: [
       {
         id: Date.now(),
         type: "created",
         title: "Ticket created",
-        description:
-          "Your support request was submitted successfully.",
-        timestamp:
-          createdAt.toISOString(),
+        description: "Submitted and ingested into SupportPilot queue.",
+        timestamp: createdAt.toISOString(),
+      },
+      {
+        id: Date.now() + 1,
+        type: "classified",
+        title: "AI Classified & Categorized",
+        description: `Predicted Category: ${category}, Severity: ${severity}, Priority: ${priority}.`,
+        timestamp: new Date(createdAt.getTime() + 1000).toISOString(),
+      },
+      {
+        id: Date.now() + 2,
+        type: "rag",
+        title: "AI Automated Resolution Guide Ready",
+        description: `Knowledge retrieved from: ${classification.knowledgeSource}.`,
+        timestamp: new Date(createdAt.getTime() + 2000).toISOString(),
       },
 
       ...(agent
         ? [
             {
-              id: Date.now() + 1,
+              id: Date.now() + 3,
               type: "assigned",
               title: "Ticket assigned",
-              description:
-                `Assigned to ${agent.name}.`,
-              timestamp:
-                createdAt.toISOString(),
+              description: `Assigned to ${agent.name} (${classification.team}).`,
+              timestamp: new Date(createdAt.getTime() + 3000).toISOString(),
             },
           ]
         : []),
@@ -309,11 +420,37 @@ export const createTicket = (form, user) => {
   };
 
   tickets.unshift(ticket);
-
   saveTickets(tickets);
+
+  // Asynchronously persist ticket to backend PostgreSQL database
+  try {
+    api.post("/support/tickets/", {
+      title: ticket.subject,
+      description: ticket.description,
+      category: ticket.category,
+      sub_category: ticket.subCategory,
+      severity: ticket.severity,
+      priority: ticket.priority,
+      department: ticket.department || "IT support",
+      scope: ticket.scope || "Just me",
+      work_blocked: Boolean(ticket.workBlocked),
+      customer_email: ticket.customerEmail || "devipriya@gmail.com",
+      customer_name: ticket.customerName || "devipriya",
+    }).then((res) => {
+      if (res?.data?.id) {
+        console.log(`[DB Sync] Ticket #${res.data.id} persisted to PostgreSQL database.`);
+      }
+    }).catch((syncErr) => {
+      console.warn("[DB Sync Notice] Backend database sync:", syncErr?.message);
+    });
+  } catch (e) {
+    console.warn("[DB Sync Error]:", e);
+  }
+
 
   return ticket;
 };
+
 
 export const getAllTickets = () => {
   return getTickets();
@@ -321,16 +458,16 @@ export const getAllTickets = () => {
 
 export const getTicketById = (id) => {
   const tickets = getTickets();
-
   return tickets.find(
     (ticket) => ticket.id === id
   );
 };
 
 export const getCustomerTickets = (customerId) => {
-  return getTickets().filter(
-    (ticket) =>
-      ticket.customerId === customerId
+  const tickets = getTickets();
+  if (!customerId) return tickets;
+  return tickets.filter(
+    (ticket) => ticket.customerId === customerId
   );
 };
 
@@ -357,34 +494,37 @@ export const updateTicket = (
 
   const ticket = tickets[index];
 
-  const updatedTicket = {
-    ...ticket,
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
+  const newTimeline = [...(ticket.timeline || [])];
 
-  if (
+  if (updates.timelineEvent) {
+    newTimeline.push({
+      id: Date.now(),
+      ...updates.timelineEvent,
+      timestamp: new Date().toISOString(),
+    });
+  } else if (
     updates.status &&
     updates.status !== ticket.status
   ) {
-    updatedTicket.timeline = [
-      ...ticket.timeline,
-      {
-        id: Date.now(),
-        type: "status",
-        title: `Ticket moved to ${updates.status}`,
-        description:
-          getStatusDescription(
-            updates.status
-          ),
-        timestamp:
-          new Date().toISOString(),
-      },
-    ];
+    newTimeline.push({
+      id: Date.now(),
+      type: "status",
+      title: `Ticket moved to ${updates.status}`,
+      description: getStatusDescription(updates.status),
+      timestamp: new Date().toISOString(),
+    });
   }
 
-  tickets[index] = updatedTicket;
+  const updatedTicket = {
+    ...ticket,
+    ...updates,
+    timeline: newTimeline,
+    updatedAt: new Date().toISOString(),
+  };
 
+  delete updatedTicket.timelineEvent;
+
+  tickets[index] = updatedTicket;
   saveTickets(tickets);
 
   return updatedTicket;
@@ -392,21 +532,21 @@ export const updateTicket = (
 
 const getStatusDescription = (status) => {
   switch (status) {
+    case "NEW":
     case "Open":
-      return "Your ticket is waiting to be worked on.";
-
+      return "Your ticket is received and queued for review.";
+    case "CLASSIFIED":
+      return "AI has completed category, severity, and priority scoring.";
+    case "AI_RESOLUTION_READY":
+      return "AI has generated contextual troubleshooting steps from the knowledge base.";
     case "In Progress":
-      return "An agent is currently working on your issue.";
-
+      return "An agent is actively working on your ticket.";
     case "Pending":
-      return "We are waiting for additional information.";
-
+      return "Waiting for customer response or external verification.";
     case "Resolved":
-      return "The support team has marked this issue as resolved.";
-
+      return "Issue has been verified and marked as resolved.";
     case "Closed":
-      return "This ticket has been closed.";
-
+      return "This ticket is closed.";
     default:
       return "Ticket status was updated.";
   }
@@ -427,8 +567,7 @@ export const addComment = (
     {
       id: Date.now(),
       ...comment,
-      timestamp:
-        new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     },
   ];
 
