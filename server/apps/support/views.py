@@ -88,7 +88,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
         work_blocked = bool(self.request.data.get("work_blocked", False))
         cleaned = preprocess_ticket(raw_title, raw_description)
 
-        # 3. Milestone 1 — AI Classification
+        # 3. Dynamic AI Classification
         ai_result = classify_ticket(
             cleaned["subject"] or raw_title,
             cleaned["description"] or raw_description,
@@ -96,21 +96,28 @@ class TicketListCreateView(generics.ListCreateAPIView):
             work_blocked=work_blocked,
         )
 
-        category = self.request.data.get("category") or ai_result["category"]
-        sub_category = self.request.data.get("sub_category") or ai_result["sub_category"]
-        severity = self.request.data.get("severity") or ai_result["severity"]
-        priority = self.request.data.get("priority") or ai_result["priority"]
-        department = self.request.data.get("department") or ai_result["team"]
+        if ai_result.get("success") and ai_result.get("category"):
+            category = self.request.data.get("category") or ai_result["category"]
+            sub_category = self.request.data.get("sub_category") or (ai_result["sub_category"] or "")
+            severity = self.request.data.get("severity") or ai_result["severity"]
+            priority = self.request.data.get("priority") or ai_result["priority"]
+            department = self.request.data.get("department") or ai_result.get("team", "IT Support")
+            ai_confidence = ai_result.get("confidence", 0.95)
+            ai_path = ai_result.get("classification_path", "AI Engine")
+            knowledge_source = ai_result.get("knowledge_source", "")
+            suggested_steps = ai_result.get("suggested_resolution", [])
+        else:
+            category = self.request.data.get("category") or "General"
+            sub_category = self.request.data.get("sub_category") or ""
+            severity = self.request.data.get("severity") or "Medium"
+            priority = self.request.data.get("priority") or "P3"
+            department = self.request.data.get("department") or "IT Support"
+            ai_confidence = 0.0
+            ai_path = "Manual / Unclassified"
+            knowledge_source = ""
+            suggested_steps = []
 
-        # 4. Milestone 2 — Knowledge Retrieval & Resolution
-        rag_result = retrieve_knowledge_and_generate_resolution(
-            category=category,
-            sub_category=sub_category,
-            subject=cleaned["subject"] or raw_title,
-            description=cleaned["description"] or raw_description,
-        )
-
-        resolution_json = json.dumps(rag_result["suggested_steps"])
+        resolution_json = json.dumps(suggested_steps)
 
         ticket = serializer.save(
             created_by=user,
@@ -121,12 +128,12 @@ class TicketListCreateView(generics.ListCreateAPIView):
             severity=severity,
             priority=priority,
             department=department,
-            status="AI_RESOLUTION_READY",
-            ai_confidence=ai_result["confidence"],
-            ai_path=ai_result["classification_path"],
+            status="AI_RESOLUTION_READY" if suggested_steps else "Open",
+            ai_confidence=ai_confidence,
+            ai_path=ai_path,
             ai_resolution=resolution_json,
-            knowledge_source=rag_result["article_title"],
-            knowledge_retrieved=True,
+            knowledge_source=knowledge_source,
+            knowledge_retrieved=bool(knowledge_source),
         )
 
 
@@ -187,15 +194,15 @@ class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
 class ClassifyTicketAPIView(generics.GenericAPIView):
     """
     Dedicated AI ticket classification endpoint.
-    Takes complete subject, description, scope, and work_blocked.
-    Returns normalized category, sub_category, severity, priority, confidence, and suggested steps.
+    Dynamically loads Master Data + Knowledge Base to classify tickets.
+    Returns normalized, validated category, sub_category, priority, SLA, and KB steps.
     """
     authentication_classes = [SafeJWTAuthentication]
     permission_classes = [permissions.AllowAny]
 
-
     def post(self, request, *args, **kwargs):
         from rest_framework.response import Response
+        from rest_framework import status
 
         raw_subject = request.data.get("subject", "")
         raw_description = request.data.get("description", "")
@@ -210,24 +217,38 @@ class ClassifyTicketAPIView(generics.GenericAPIView):
             work_blocked=work_blocked,
         )
 
-        rag_result = retrieve_knowledge_and_generate_resolution(
-            category=ai_result["category"],
-            sub_category=ai_result["sub_category"],
-            subject=cleaned["subject"] or raw_subject,
-            description=cleaned["description"] or raw_description,
-        )
+        # Handle errors
+        if not ai_result.get("success", True):
+            return Response(
+                {
+                    "success": False,
+                    "error": ai_result.get("error", "Classification failed."),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        sla_hours = 4 if ai_result["priority"] == "P1" else 8 if ai_result["priority"] == "P2" else 24 if ai_result["priority"] == "P3" else 48
+        # Handle null classification (no matching classification found in Master Data)
+        if ai_result.get("category") is None:
+            return Response({
+                "success": True,
+                "category": None,
+                "sub_category": None,
+                "priority": None,
+                "reason": ai_result.get("reason", "No matching classification found in the current master data."),
+            })
 
         return Response({
+            "success": True,
             "category": ai_result["category"],
             "sub_category": ai_result["sub_category"],
-            "severity": ai_result["severity"],
+            "severity": ai_result.get("severity", "Medium"),
             "priority": ai_result["priority"],
-            "team": ai_result["team"],
-            "confidence": ai_result["confidence"],
-            "classification_path": ai_result["classification_path"],
-            "sla_hours": sla_hours,
-            "knowledge_source": rag_result["article_title"],
-            "suggested_resolution": rag_result["suggested_steps"],
+            "team": ai_result.get("team", "IT Support"),
+            "confidence": ai_result.get("confidence", 0.95),
+            "classification_path": ai_result.get("classification_path", "AI Engine"),
+            "sla_hours": ai_result.get("sla_hours", 24),
+            "knowledge_source": ai_result.get("knowledge_source", ""),
+            "suggested_resolution": ai_result.get("suggested_resolution", []),
+            "reason": ai_result.get("reason", ""),
         })
+

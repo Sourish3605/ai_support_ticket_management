@@ -26,228 +26,24 @@ const generateTicketId = (tickets) => {
   return `TKT${String(nextNumber).padStart(3, "0")}`;
 };
 
-const KNOWLEDGE_BASE = [
-  {
-    category: "VPN",
-    title: "Corporate VPN Troubleshooting Guide (KB-NET-001)",
-    steps: [
-      "1. Verify your local internet connection is active.",
-      "2. Confirm the VPN server address matches 'vpn.company.com'.",
-      "3. Restart the Cisco AnyConnect / VPN client service.",
-      "4. Check that your local network/firewall allows UDP ports 500/4500.",
-      "5. Clear cached VPN credentials and re-authenticate via company SSO.",
-    ],
-  },
-  {
-    category: "Network",
-    title: "Office & Remote Network Connectivity Guide (KB-NET-002)",
-    steps: [
-      "1. Disconnect and reconnect to the corporate Wi-Fi (Enterprise SSID).",
-      "2. Flush DNS cache (ipconfig /flushdns or dscacheutil -flushcache).",
-      "3. Verify IP assignment via DHCP gateway.",
-      "4. Restart the network adapter from system network settings.",
-    ],
-  },
-  {
-    category: "Security",
-    title: "Security Threat Isolation & Incident Response (KB-SEC-001)",
-    steps: [
-      "1. Disconnect device from corporate network/Wi-Fi immediately.",
-      "2. Do not open or forward suspicious attachments or links.",
-      "3. Change corporate SSO password from a secondary trusted device.",
-      "4. SecOps is notified to quarantine endpoint and inspect telemetry.",
-    ],
-  },
-  {
-    category: "Authentication",
-    title: "SSO Login & Self-Service Password Reset (KB-AUTH-003)",
-    steps: [
-      "1. Open self-service recovery at sso.company.com/recovery.",
-      "2. Approve the push notification sent to your registered authenticator app.",
-      "3. Set a new password meeting corporate complexity standards (12+ chars).",
-      "4. Wait 2 minutes for directory synchronization across active sessions.",
-    ],
-  },
-  {
-    category: "Hardware",
-    title: "Workstation Performance & Thermal Diagnostics (KB-HDW-004)",
-    steps: [
-      "1. Perform a full system reboot to clear runaway background processes.",
-      "2. Inspect Task Manager / Activity Monitor for CPU consumption > 80%.",
-      "3. Ensure the laptop vents are unobstructed and clean.",
-      "4. Run Apple Diagnostics / Dell Command hardware scan on boot.",
-    ],
-  },
-  {
-    category: "Software",
-    title: "Application Crash Recovery & Cache Clearing (KB-SFT-005)",
-    steps: [
-      "1. Force-close all instances of the application using Task Manager.",
-      "2. Clear local application cache files from user appdata folder.",
-      "3. Check Software Center / Company Portal for pending updates.",
-      "4. Run built-in application repair wizard and restart workstation.",
-    ],
-  },
-  {
-    category: "Email",
-    title: "Outlook Sync & Mailbox Recovery Guide (KB-EML-006)",
-    steps: [
-      "1. Verify Outlook status bar indicates 'Connected to Exchange'.",
-      "2. Toggle 'Work Offline' off and on to force a reconnection handshake.",
-      "3. Run Outlook in Safe Mode (outlook.exe /safe) to isolate add-in issues.",
-      "4. Rebuild the local OST data file via Account Settings.",
-    ],
-  },
-];
-
-export const classifyTicket = (subject = "", description = "", scope = "Just me", workBlocked = false) => {
-  const text = `${subject} ${description}`.toLowerCase();
-
-  let category = "General";
-  let subCategory = "Other";
-  let confidence = 0.78;
-  let team = "IT Support";
-
-  if (text.includes("vpn") || text.includes("anyconnect") || text.includes("tunnel") || text.includes("globalprotect")) {
-    category = "VPN";
-    subCategory = "Connection Failure";
-    confidence = 0.96;
-    team = "Network Team";
-  } else if (text.includes("network") || text.includes("wifi") || text.includes("wi-fi") || text.includes("internet") || text.includes("dns") || text.includes("connectivity")) {
-    category = "Network";
-    subCategory = "Internet / Wi-Fi";
-    confidence = 0.93;
-    team = "Network Team";
-  } else if (
-    text.includes("phishing") ||
-    text.includes("ransomware") ||
-    text.includes("malware") ||
-    text.includes("breach") ||
-    text.includes("unauthorized") ||
-    text.includes("hacked") ||
-    text.includes("attack") ||
-    text.includes("sql") ||
-    text.includes("injection") ||
-    text.includes("vulnerability") ||
-    text.includes("exploit") ||
-    text.includes("security") ||
-    text.includes("ddos") ||
-    text.includes("threat")
-  ) {
-    category = "Security";
-    subCategory = text.includes("phishing") ? "Phishing Alert" : text.includes("unauthorized") ? "Unauthorized Access" : "Malware / Incident";
-    confidence = 0.98;
-    team = "Security Team";
-  } else if (text.includes("password") || text.includes("login") || text.includes("locked") || text.includes("sso") || text.includes("mfa") || text.includes("account")) {
-
-    category = "Authentication";
-    subCategory = text.includes("password") ? "Password Reset" : "Login Issue";
-    confidence = 0.95;
-    team = "IT Support";
-  } else if (text.includes("laptop") || text.includes("desktop") || text.includes("macbook") || text.includes("monitor") || text.includes("printer") || text.includes("keyboard") || text.includes("hardware") || text.includes("battery") || text.includes("overheating")) {
-    category = "Hardware";
-    subCategory = text.includes("printer") ? "Printer" : "Computer/Peripheral";
-    confidence = 0.92;
-    team = "Hardware Team";
-  } else if (text.includes("outlook") || text.includes("email") || text.includes("mailbox") || text.includes("calendar")) {
-    category = "Email";
-    subCategory = "Outlook / Sync";
-    confidence = 0.91;
-    team = "IT Support";
-  } else if (text.includes("software") || text.includes("application") || text.includes("crash") || text.includes("license") || text.includes("error code") || text.includes("install")) {
-    category = "Software";
-    subCategory = "Application Error";
-    confidence = 0.90;
-    team = "Software Team";
-  } else if (text.includes("payment") || text.includes("billing") || text.includes("invoice") || text.includes("charge")) {
-    category = "Billing";
-    subCategory = "Invoice / Payment";
-    confidence = 0.91;
-    team = "Finance";
+export const classifyTicket = async (subject = "", description = "", scope = "Just me", workBlocked = false) => {
+  try {
+    const response = await api.post("/support/classify/", {
+      subject,
+      description,
+      scope,
+      work_blocked: workBlocked,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("[TicketService] AI classification error:", error);
+    return {
+      success: false,
+      error: error?.response?.data?.error || "AI classification service is temporarily unavailable.",
+    };
   }
-
-  // 1. Critical Severity Prediction (P1)
-  const isCritical =
-    text.includes("ransomware") ||
-    text.includes("breach") ||
-    text.includes("data leak") ||
-    text.includes("outage") ||
-    text.includes("system down") ||
-    text.includes("server down") ||
-    text.includes("production down") ||
-    text.includes("database down") ||
-    text.includes("completely down") ||
-    text.includes("all users") ||
-    text.includes("entire company") ||
-    text.includes("catastrophic") ||
-    text.includes("ddos") ||
-    (workBlocked && ["Whole org", "My department"].includes(scope));
-
-
-  // 2. High Severity Prediction (P2)
-  const isHigh =
-    !isCritical &&
-    (text.includes("hacked") ||
-      text.includes("attack") ||
-      text.includes("sql") ||
-      text.includes("injection") ||
-      text.includes("exploit") ||
-      text.includes("vulnerability") ||
-      text.includes("unauthorized") ||
-      text.includes("compromised") ||
-      text.includes("blocking") ||
-      text.includes("blocked") ||
-      text.includes("cannot work") ||
-      text.includes("cannot login") ||
-      text.includes("locked out") ||
-      text.includes("vpn") ||
-      workBlocked ||
-      scope === "My team" ||
-      scope === "My department");
-
-  // 3. Medium Severity Prediction (P3)
-  const isMedium =
-    !isCritical &&
-    !isHigh &&
-    (text.includes("error") ||
-      text.includes("slow") ||
-      text.includes("freeze") ||
-      text.includes("crash") ||
-      text.includes("bug") ||
-      text.includes("failing") ||
-      text.includes("glitch") ||
-      text.includes("unable to"));
-
-  const severity = isCritical ? "Critical" : isHigh ? "High" : isMedium ? "Medium" : "Low";
-
-  // Priority Scoring (P1, P2, P3, P4)
-  let priority = "P4";
-  if (severity === "Critical" || (severity === "High" && ["Whole org", "My department"].includes(scope))) {
-    priority = "P1";
-  } else if (severity === "High" || (severity === "Medium" && workBlocked)) {
-    priority = "P2";
-  } else if (severity === "Medium" || workBlocked) {
-    priority = "P3";
-  } else {
-    priority = "P4";
-  }
-
-
-  // Milestone 2 RAG Knowledge Retrieval
-  const kbMatch = KNOWLEDGE_BASE.find((k) => k.category.toLowerCase() === category.toLowerCase()) || KNOWLEDGE_BASE[0];
-
-  return {
-    category,
-    subCategory,
-    severity,
-    priority,
-    confidence,
-    team,
-    classificationPath: confidence >= 0.90 ? "Fast-Path" : "LLM",
-    knowledgeSource: kbMatch.title,
-    suggestedResolution: kbMatch.steps,
-  };
 };
+
 
 const getSLAHours = (priority) => {
   switch (priority) {

@@ -2,11 +2,18 @@ import { Link } from "react-router-dom";
 
 const modules = [
   {
+    title: "Classification Master Data",
+    description:
+      "Manage categories, sub-categories and priorities for the AI engine.",
+    path: "/admin/master-data",
+  },
+  {
     title: "User & Role Management",
     description:
       "Manage users, departments, teams and RBAC roles.",
     path: "/admin/users",
   },
+
   {
     title: "Routing Rules",
     description:

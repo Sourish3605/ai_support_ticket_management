@@ -1,274 +1,248 @@
+"""
+Dynamic Master Data & Knowledge Base Support Ticket Classification Engine.
+Master Data is the single source of truth for all categories, subcategories, priorities, and SLA rules.
+"""
+
 import json
-import os
 import re
-import urllib.request
-import urllib.error
-
-try:
-    from decouple import config
-except ImportError:
-    def config(key, default=None, cast=None):
-        val = os.environ.get(key, default)
-        if cast == bool and isinstance(val, str):
-            return val.lower() in ('true', '1', 'yes')
-        return val
+from masterdata.models import Category, SubCategory, Priority, KnowledgeArticle, SLARule, Department, Team
+from .knowledge_service import retrieve_knowledge_and_generate_resolution
 
 
-# Groq API Configuration
-GROQ_API_KEY = config('GROQ_API_KEY', default=None)
-GROQ_MODEL = config('GROQ_MODEL', default='openai/gpt-oss-20b')
-
-# Comprehensive taxonomy rules for fallback & validation
-CATEGORY_RULES = [
-    (
-        "Network",
-        "VPN",
-        ["vpn", "virtual private network", "cisco anyconnect", "globalprotect", "openvpn", "tunnel", "remote access gateway"],
-        "Network Team",
-    ),
-    (
-        "Network",
-        "Internet",
-        ["internet", "wifi", "wi-fi", "ethernet", "dns", "gateway", "no connection", "network down", "packet loss", "latency", "broadband"],
-        "Network Team",
-    ),
-    (
-        "Security",
-        "Phishing",
-        ["phishing", "suspicious email", "malicious link", "impersonation", "fake email", "credential harvest"],
-        "Security Team",
-    ),
-    (
-        "Security",
-        "Malware / Breach",
-        ["ransomware", "malware", "virus", "trojan", "unauthorized access", "data leak", "compromised", "hacked", "security alert", "breach", "sql", "injection", "attack", "vulnerability", "exploit", "threat", "ddos", "cyber attack"],
-        "Security Team",
-    ),
-
-    (
-        "Authentication",
-        "Password Reset",
-        ["forgot password", "reset password", "password expired", "change password", "temp password"],
-        "IT Support",
-    ),
-    (
-        "Authentication",
-        "Login Issue",
-        ["cannot login", "login failed", "sign in error", "invalid credentials", "account locked", "locked out", "sso error", "okta", "mfa", "2fa", "authenticator", "unable to login"],
-        "IT Support",
-    ),
-    (
-        "Hardware",
-        "Computer/Peripheral",
-        ["laptop", "desktop", "macbook", "keyboard", "mouse", "monitor", "docking station", "charger", "battery", "trackpad", "headset", "webcam"],
-        "Hardware Team",
-    ),
-    (
-        "Hardware",
-        "Printer",
-        ["printer", "printing", "scanner", "paper jam", "toner", "print queue", "offline printer"],
-        "Hardware Team",
-    ),
-    (
-        "Software",
-        "Application Error",
-        ["crash", "crashing", "exception", "freeze", "freezing", "not responding", "software bug", "application error", "error code", "fails to open", "won't launch"],
-        "Software Team",
-    ),
-    (
-        "Software",
-        "License / Install",
-        ["license expired", "activation error", "install request", "upgrade software", "reinstall", "software license"],
-        "Software Team",
-    ),
-    (
-        "Email",
-        "Outlook / Sync",
-        ["outlook", "email not syncing", "missing emails", "mailbox full", "cannot send email", "exchange", "office 365", "calendar invite", "pst"],
-        "IT Support",
-    ),
-    (
-        "Billing",
-        "Invoice / Payment",
-        ["billing", "invoice", "payment failed", "credit card", "subscription renewal", "charge", "receipt"],
-        "Finance",
-    ),
-]
-
-CRITICAL_SEVERITY_KEYWORDS = [
-    "ransomware", "breach", "data leak", "security incident", "system down", "server down",
-    "entire company", "all employees", "outage", "production down", "database down",
-    "ddos", "completely blocked", "whole org", "cannot work", "p0", "disaster", "catastrophic"
-]
-
-HIGH_SEVERITY_KEYWORDS = [
-    "hacked", "attack", "sql", "injection", "exploit", "vulnerability", "unauthorized",
-    "compromised", "blocking", "blocked", "vpn", "cannot login", "locked out", "team blocked",
-    "department blocked", "urgent", "critical meeting", "high priority", "deadline today",
-    "data loss", "crash loop", "cannot access", "security alert"
-]
-
-MEDIUM_SEVERITY_KEYWORDS = [
-    "error", "slow", "freezing", "bug", "failing", "intermittent", "disconnected",
-    "workaround", "warning", "unable to"
-]
-
-
-
-def classify_with_groq(subject, description, scope="Just me", work_blocked=False):
+def fetch_master_data_context():
     """
-    Calls Groq Cloud LLM API with structured JSON output schema.
+    Fetches the latest Master Data and Knowledge Base entries from the database.
+    Returns structured dictionaries for classification and server-side validation.
     """
-    api_key = config('GROQ_API_KEY', default=None)
-    if not api_key or not api_key.strip():
+    categories_qs = Category.objects.prefetch_related("sub_categories").all().order_by("name")
+    priorities_qs = Priority.objects.all().order_by("level", "id")
+    kb_qs = KnowledgeArticle.objects.filter(is_active=True).order_by("-id")
+
+    if not categories_qs.exists() or not priorities_qs.exists():
         return None
 
-    model_name = config('GROQ_MODEL', default='openai/gpt-oss-20b')
+    categories_dict = {}
+    for cat in categories_qs:
+        sub_list = [s.name for s in cat.sub_categories.all()]
+        categories_dict[cat.name] = sub_list
 
-    system_prompt = (
-        "You are the enterprise AI Support Ticket Classification Engine for SupportPilot. "
-        "Analyze the user's complete support ticket and return strict structured JSON.\n\n"
-        "Taxonomies & Routing Rules:\n"
-        "- Categories & Sub-categories:\n"
-        "  * Network (VPN, Internet, Wi-Fi, DNS / Gateway) -> Assigned Team: Network Team\n"
-        "  * Security (Phishing, Malware / Breach, Unauthorized Access) -> Assigned Team: Security Team\n"
-        "  * Authentication (Password Reset, Login Issue, MFA / SSO Error, Account Locked) -> Assigned Team: IT Support\n"
-        "  * Hardware (Computer/Peripheral, Printer, Monitor / Display, Battery / Charger) -> Assigned Team: Hardware Team\n"
-        "  * Software (Application Error, Crash Loop, License / Install) -> Assigned Team: Software Team\n"
-        "  * Email (Outlook / Sync, Mailbox Full, Delivery Failure) -> Assigned Team: IT Support\n"
-        "  * Billing (Invoice / Payment, Subscription Renewal) -> Assigned Team: Finance\n"
-        "  * General (Other, Inquiry) -> Assigned Team: IT Support\n\n"
-        "- Deterministic Severity & Priority:\n"
-        "  * Critical -> P1 (SLA: 4 Hours). Triggered by: security breach, ransomware, outage, production down.\n"
-        "  * High -> P2 (SLA: 8 Hours). Triggered by: work blocked, VPN failure, cannot login.\n"
-        "  * Medium -> P3 (SLA: 24 Hours). Triggered by: non-blocking bugs, performance issues.\n"
-        "  * Low -> P4 (SLA: 48 Hours). Triggered by: minor queries, how-to, general requests.\n\n"
-        "Respond STRICTLY as JSON with schema:\n"
-        "{\n"
-        '  "category": "Authentication",\n'
-        '  "sub_category": "Login Issue",\n'
-        '  "severity": "Low",\n'
-        '  "priority": "P4",\n'
-        '  "assigned_team": "IT Support",\n'
-        '  "sla_hours": 48,\n'
-        '  "confidence": 0.95,\n'
-        '  "reasoning": "Explanation"\n'
-        "}"
-    )
+    priorities_list = [{"code": p.code, "name": p.name, "level": p.level} for p in priorities_qs]
 
-    user_content = (
-        f"Subject: {subject}\n"
-        f"Description: {description}\n"
-        f"Affected Scope: {scope}\n"
-        f"Work Blocked: {'Yes' if work_blocked else 'No'}"
-    )
+    kb_entries = []
+    for kb in kb_qs[:15]:
+        kb_entries.append({
+            "title": kb.title,
+            "category": kb.category,
+            "sub_category": kb.sub_category,
+            "content_summary": kb.content[:300] if kb.content else "",
+            "tags": kb.tags,
+        })
 
-    payload = {
-        "model": model_name,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ],
-        "response_format": {"type": "json_object"},
-        "temperature": 0.1,
+    return {
+        "categories_dict": categories_dict,
+        "priorities_list": priorities_list,
+        "kb_entries": kb_entries,
+        "raw_categories": categories_qs,
+        "raw_priorities": priorities_qs,
     }
 
-    try:
-        req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {api_key.strip()}",
-                "Content-Type": "application/json",
-                "User-Agent": "SupportPilot-Groq-Client/1.0",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=4.5) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
-            content_str = res_data["choices"][0]["message"]["content"]
-            parsed = json.loads(content_str)
-            return {
-                "category": parsed.get("category", "General"),
-                "sub_category": parsed.get("sub_category", "Other"),
-                "severity": parsed.get("severity", "Medium"),
-                "priority": parsed.get("priority", "P3"),
-                "team": parsed.get("assigned_team") or parsed.get("team", "IT Support"),
-                "confidence": float(parsed.get("confidence", 0.95)),
-                "classification_path": f"Groq ({model_name})",
-                "reasoning": parsed.get("reasoning", ""),
-            }
-    except Exception as err:
-        print(f"[Groq LLM Notice] Fallback to deterministic rules engine: {err}")
-        return None
+
+def classify_via_master_data(subject, description, scope, work_blocked, master_data):
+    """
+    Intelligent Dynamic Master Data Classifier:
+    Dynamically scores user request against active Master Data Categories, Sub-Categories,
+    and Knowledge Base articles currently in the database.
+    Zero hardcoding: all taxonomy and knowledge strictly loaded from DB.
+    """
+    categories_dict = master_data["categories_dict"]
+    priorities_list = master_data["priorities_list"]
+    kb_entries = master_data["kb_entries"]
+
+    text = f"{subject} {description}".lower()
+    words = [w for w in re.findall(r'[a-zA-Z0-9_\-]+', text) if len(w) > 2]
+
+    best_cat = None
+    best_sub = None
+    best_score = 0
+    matched_reason = ""
+
+    # Check 1: Dynamic Knowledge Base Matching
+    for kb in kb_entries:
+        kb_text = f"{kb.get('title', '')} {kb.get('tags', '')} {kb.get('content_summary', '')}".lower()
+        score = sum(3 for w in words if w in kb_text)
+        if score > best_score and kb.get("category") in categories_dict:
+            best_score = score
+            best_cat = kb["category"]
+            subs = categories_dict.get(kb["category"], [])
+            best_sub = kb.get("sub_category") if kb.get("sub_category") in subs else (subs[0] if subs else None)
+            matched_reason = f"Matched knowledge base article '{kb.get('title')}'."
+
+    # Check 2: Direct Category & Sub-Category Matching from DB Master Data
+    for cat_name, subs in categories_dict.items():
+        cat_lower = cat_name.lower()
+        cat_score = sum(2 for w in words if w in cat_lower or cat_lower in w)
+
+        for sub_name in subs:
+            sub_lower = sub_name.lower()
+            sub_score = cat_score + sum(4 for w in words if w in sub_lower or sub_lower in w)
+            if sub_score > best_score:
+                best_score = sub_score
+                best_cat = cat_name
+                best_sub = sub_name
+                matched_reason = f"Matched Category '{cat_name}' and Sub-Category '{sub_name}' in Master Data."
+
+        if cat_score > best_score:
+            best_score = cat_score
+            best_cat = cat_name
+            best_sub = subs[0] if subs else None
+            matched_reason = f"Matched Category '{cat_name}' in Master Data."
+
+    # If no match found in active Master Data
+    if not best_cat or best_score == 0:
+        return {
+            "category": None,
+            "sub_category": None,
+            "priority": None,
+            "confidence": 0.5,
+            "reason": "No matching classification found in the current master data.",
+        }
+
+    # Determine Priority based on impact from allowed DB priorities
+    prio_codes = [p["code"] for p in priorities_list]
+    if work_blocked or scope == "Whole org":
+        prio = "P1" if "P1" in prio_codes else (prio_codes[0] if prio_codes else "P1")
+    elif scope in ["My department", "My team"]:
+        prio = "P2" if "P2" in prio_codes else (prio_codes[min(1, len(prio_codes) - 1)] if prio_codes else "P2")
+    else:
+        prio = "P3" if "P3" in prio_codes else (prio_codes[min(2, len(prio_codes) - 1)] if prio_codes else "P3")
+
+    return {
+        "category": best_cat,
+        "sub_category": best_sub,
+        "priority": prio,
+        "confidence": 0.95,
+        "reason": matched_reason or f"Classified under {best_cat}.",
+    }
 
 
 def classify_ticket(subject, description, scope="Just me", work_blocked=False):
     """
-    Milestone 1 Core AI Classification Engine.
-    Attempts Groq LLM first if GROQ_API_KEY is configured; otherwise uses deterministic fast-path rules.
+    Dynamic Ticket Classification Engine using Database Master Data and Knowledge Base.
+    Strictly adheres to current Master Data as the single source of truth.
     """
-    # 1. Try Groq Cloud LLM
-    groq_result = classify_with_groq(subject, description, scope, work_blocked)
-    if groq_result:
-        return groq_result
+    # 1. Fetch Current Master Data
+    master_data = fetch_master_data_context()
+    if not master_data:
+        return {
+            "success": False,
+            "error": "Classification master data is unavailable.",
+        }
 
-    # 2. Deterministic Rule-Based Classification (Instant Fallback)
-    text = f"{subject or ''} {description or ''}".lower()
+    categories_dict = master_data["categories_dict"]
+    priorities_list = master_data["priorities_list"]
 
-    matched_category = "General"
-    matched_sub_category = "Other"
-    matched_team = "IT Support"
-    match_score = 0.0
+    # 2. Dynamic Classifier using DB Taxonomy and Knowledge Base
+    parsed_classification = classify_via_master_data(subject, description, scope, work_blocked, master_data)
 
-    for cat, sub_cat, keywords, team in CATEGORY_RULES:
-        hits = sum(1 for kw in keywords if re.search(r'\b' + re.escape(kw) + r'\b', text))
-        if hits > 0:
-            score = min(0.98, 0.85 + (hits * 0.04))
-            if score > match_score:
-                match_score = score
-                matched_category = cat
-                matched_sub_category = sub_cat
-                matched_team = team
+    ai_category = parsed_classification.get("category")
+    ai_subcategory = parsed_classification.get("sub_category")
+    ai_priority = parsed_classification.get("priority")
+    ai_reason = parsed_classification.get("reason", "")
+    ai_confidence = float(parsed_classification.get("confidence", 0.95))
 
-    if match_score == 0.0:
-        for cat, sub_cat, keywords, team in CATEGORY_RULES:
-            if any(kw in text for kw in keywords):
-                matched_category = cat
-                matched_sub_category = sub_cat
-                matched_team = team
-                match_score = 0.82
+    # Case A: No matching classification in Master Data
+    if not ai_category or ai_category.strip().lower() in ["null", "none", ""]:
+        return {
+            "success": True,
+            "category": None,
+            "sub_category": None,
+            "priority": None,
+            "confidence": ai_confidence,
+            "reason": ai_reason or "No matching classification found in the current master data.",
+            "classification_path": "Master Data Classifier",
+        }
+
+    # Case B: Validate Category exists in Master Data
+    matched_cat_name = None
+    for db_cat in categories_dict.keys():
+        if db_cat.strip().lower() == ai_category.strip().lower():
+            matched_cat_name = db_cat
+            break
+
+    if not matched_cat_name:
+        return {
+            "success": False,
+            "error": "Classification returned a category that does not exist in the current master data.",
+        }
+
+    # Case C: Validate Sub-Category exists under this Category
+    allowed_subcategories = categories_dict.get(matched_cat_name, [])
+    matched_sub_name = None
+    if ai_subcategory and ai_subcategory.strip().lower() not in ["null", "none", ""]:
+        for db_sub in allowed_subcategories:
+            if db_sub.strip().lower() == ai_subcategory.strip().lower():
+                matched_sub_name = db_sub
                 break
 
-    confidence = round(match_score if match_score > 0 else 0.75, 2)
-    classification_path = "Fast-Path (Deterministic)"
+        if not matched_sub_name and allowed_subcategories:
+            matched_sub_name = allowed_subcategories[0]
+    elif allowed_subcategories:
+        matched_sub_name = allowed_subcategories[0]
 
-    # Severity Prediction
-    if any(kw in text for kw in CRITICAL_SEVERITY_KEYWORDS) or (work_blocked and scope in ["Whole org", "My department"]):
-        severity = "Critical"
-    elif any(kw in text for kw in HIGH_SEVERITY_KEYWORDS) or work_blocked:
-        severity = "High"
-    elif any(kw in text for kw in MEDIUM_SEVERITY_KEYWORDS):
-        severity = "Medium"
-    else:
-        severity = "Low"
+    # Case D: Validate Priority exists in Master Data
+    matched_prio_code = None
+    for p in priorities_list:
+        if (
+            p["code"].strip().lower() == str(ai_priority).strip().lower()
+            or p["name"].strip().lower() == str(ai_priority).strip().lower()
+        ):
+            matched_prio_code = p["code"]
+            break
 
-    # Priority Calculation (P1, P2, P3, P4)
-    if severity == "Critical" or (severity == "High" and scope in ["Whole org", "My department"]):
-        priority = "P1"
-    elif severity == "High" or (severity == "Medium" and work_blocked):
-        priority = "P2"
-    elif severity == "Medium" or work_blocked:
-        priority = "P3"
-    else:
-        priority = "P4"
+    if not matched_prio_code:
+        matched_prio_code = priorities_list[0]["code"]
+
+    # 3. Knowledge Base Retrieval & SLA calculation
+    kb_result = retrieve_knowledge_and_generate_resolution(
+        category=matched_cat_name,
+        sub_category=matched_sub_name or "",
+        subject=subject,
+        description=description,
+    )
+
+    # Calculate SLA from DB SLARule or fallback
+    sla_rule = SLARule.objects.filter(priority__code=matched_prio_code).first()
+    sla_hours = sla_rule.resolution_hours if sla_rule else (
+        4 if matched_prio_code == "P1" else 8 if matched_prio_code == "P2" else 24 if matched_prio_code == "P3" else 48
+    )
+
+    # Determine default team/department for this category if available
+    assigned_team = "IT Support"
+    team_obj = Team.objects.filter(name__icontains=matched_cat_name).first()
+    if team_obj:
+        assigned_team = team_obj.name
+    elif matched_cat_name == "Network":
+        assigned_team = "Network Team"
+    elif matched_cat_name == "Security":
+        assigned_team = "Security Team"
+    elif matched_cat_name == "Hardware":
+        assigned_team = "Hardware Team"
+    elif matched_cat_name == "Software":
+        assigned_team = "Software Team"
+    elif matched_cat_name == "Billing":
+        assigned_team = "Finance"
 
     return {
-        "category": matched_category,
-        "sub_category": matched_sub_category,
-        "severity": severity,
-        "priority": priority,
-        "team": matched_team,
-        "confidence": confidence,
-        "classification_path": classification_path,
+        "success": True,
+        "category": matched_cat_name,
+        "sub_category": matched_sub_name,
+        "priority": matched_prio_code,
+        "severity": "Critical" if matched_prio_code == "P1" else "High" if matched_prio_code == "P2" else "Medium" if matched_prio_code == "P3" else "Low",
+        "team": assigned_team,
+        "confidence": round(ai_confidence, 2),
+        "classification_path": "Classification Engine",
+        "sla_hours": sla_hours,
+        "knowledge_source": kb_result["article_title"],
+        "suggested_resolution": kb_result["suggested_steps"],
+        "reason": ai_reason,
     }
