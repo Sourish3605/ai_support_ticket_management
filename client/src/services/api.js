@@ -8,9 +8,6 @@ const resolveBaseUrl = () => {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       return 'http://localhost:8000/api';
     }
-    if (window.location.hostname.endsWith('vercel.app')) {
-      return '/api';
-    }
   }
   return 'https://ai-support-ticket-management.onrender.com/api';
 };
