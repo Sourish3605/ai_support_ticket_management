@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { addComment, getTicketById, updateTicket } from "../../services/ticketService";
+import { useAuth } from "../../context/AuthContext";
 
 const priorityClass = { High: "sp-p1", Medium: "sp-p2", Low: "sp-p4" };
 
 export default function AgentTicketDetails() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [ticket, setTicket] = useState(null);
   const [comment, setComment] = useState("");
   const [override, setOverride] = useState("");
@@ -14,10 +16,13 @@ export default function AgentTicketDetails() {
   useEffect(() => setTicket(getTicketById(id)), [id]);
   if (!ticket) return <div className="sp-card p-10 text-center text-sm text-[#8b95a1]">Ticket not found.</div>;
 
+  const agentName = user?.name || user?.username || "Agent";
+  const agentId = user?.id || "agent-current";
+
   const update = (updates) => setTicket(updateTicket(ticket.id, updates));
   const postComment = () => {
     if (!comment.trim()) return;
-    setTicket(addComment(ticket.id, { author: "Arun K.", authorRole: "Agent", visibility: "Public", message: comment }));
+    setTicket(addComment(ticket.id, { author: agentName, authorRole: "Agent", visibility: "Public", message: comment }));
     setComment("");
   };
   const saveOverride = () => {
@@ -30,7 +35,7 @@ export default function AgentTicketDetails() {
     <div>
       <div className="mb-4 flex justify-end gap-2">
         <span className={`sp-priority ${priorityClass[ticket.priority] || "sp-p4"}`}>{ticket.priority}</span>
-        <button onClick={() => update({ assignedAgent: "Arun K.", assignedTo: "agent-1" })} className="sp-btn sp-btn-secondary">Assign to me</button>
+        <button onClick={() => update({ assignedAgent: agentName, assignedTo: agentId })} className="sp-btn sp-btn-secondary">Assign to me</button>
         <select value={ticket.status} onChange={(event) => update({ status: event.target.value })} className="rounded-lg border border-[#dfe5e1] bg-white px-3 text-xs">
           <option>Open</option><option>In Progress</option><option>Pending</option><option>Resolved</option>
           {(ticket.status === "Resolved" || ticket.status === "Closed") && <option>Closed</option>}

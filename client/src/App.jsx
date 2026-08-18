@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -12,6 +13,7 @@ import {
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { getAllTickets } from "./services/ticketService";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -19,6 +21,7 @@ import RegisterPage from "./pages/RegisterPage";
 import NewTicketPage from "./pages/customer/NewTicketPage";
 import MyTicketsPage from "./pages/customer/MyTicketsPage";
 import CustomerTicketDetails from "./pages/customer/CustomerTicketDetails";
+import SelfHelpPage from "./pages/customer/SelfHelpPage";
 
 import AgentDashboard from "./pages/agent/AgentDashboard";
 import WorkQueuePage from "./pages/agent/WorkQueuePage";
@@ -28,13 +31,23 @@ import AgentAllTicketsPage from "./pages/agent/AgentAllTicketsPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
 import AdminConfigPage from "./pages/admin/AdminConfigPage";
+import KnowledgeBasePage from "./pages/admin/KnowledgeBasePage";
+
+
+function initials(name) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : parts[0].slice(0, 2).toUpperCase();
+}
 
 /* =====================================================
    CUSTOMER LAYOUT
 ===================================================== */
 
 function CustomerLayout({ children }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -52,8 +65,9 @@ function CustomerLayout({ children }) {
           <Link to="/portal/self-help">Self-help</Link>
         </div>
         <div className="flex items-center gap-3">
+          <span className="text-xs text-white/70 hidden sm:block">{user?.name || user?.username}</span>
           <button onClick={handleLogout} className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10">Logout</button>
-          <div className="sp-avatar">PS</div>
+          <div className="sp-avatar" title={user?.name}>{initials(user?.name)}</div>
         </div>
       </header>
       <main className="sp-portal-main">
@@ -68,9 +82,16 @@ function CustomerLayout({ children }) {
 ===================================================== */
 
 function AgentLayout({ children }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [ticketCounts, setTicketCounts] = useState({ all: 0, open: 0 });
+
+  useEffect(() => {
+    const tickets = getAllTickets();
+    const open = tickets.filter((t) => !["Resolved", "Closed"].includes(t.status));
+    setTicketCounts({ all: tickets.length, open: open.length });
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -86,29 +107,54 @@ function AgentLayout({ children }) {
         : ["Tickets", "All tickets"];
 
   const navigation = [
-    ["/dashboard", "▦", "Dashboard"],
-    ["/tickets", "▤", "All tickets"],
-    ["/tickets/queue", "◉", "My queue"],
+    ["/dashboard", "▦", "Dashboard", null],
+    ["/tickets", "▤", "All tickets", ticketCounts.all],
+    ["/tickets/queue", "◉", "My queue", ticketCounts.open],
   ];
+
+  const userInitials = initials(user?.name);
+  const displayName = user?.name || user?.username || "Agent";
 
   return (
     <div className="sp-agent-shell">
-      <aside className="sp-sidebar">
-        <Link to="/dashboard" className="sp-sidebar-logo"><span className="sp-logo-mark">SP</span><span><span className="sp-logo-name">SupportPilot</span><span className="sp-sidebar-sub">TICKET RESOLUTION</span></span></Link>
+      <aside className="sp-agent-sidebar">
+        <Link to="/dashboard" className="sp-sidebar-logo">
+          <span className="sp-logo-mark">SP</span>
+          <span>
+            <span className="sp-logo-name">SupportPilot</span>
+            <span className="sp-sidebar-sub">AGENT WORKSPACE</span>
+          </span>
+        </Link>
         <nav className="sp-sidebar-nav">
-          <div className="sp-nav-heading">Work</div>
-          {navigation.map(([to, icon, label]) => <NavLink end key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}><span>{icon}</span><span>{label}</span>{label !== "Dashboard" && <span className="sp-sidebar-count">{label === "All tickets" ? "127" : "14"}</span>}</NavLink>)}
-          <div className="sp-nav-heading">Configuration</div>
-          <Link to="/tickets"><span>☰</span><span>Taxonomy</span></Link>
-          <Link to="/tickets/queue"><span>⏱</span><span>SLA policies</span></Link>
-          <Link to="/dashboard"><span>☷</span><span>Audit log</span></Link>
+          <div className="sp-nav-heading">Work Queue</div>
+          {navigation.map(([to, icon, label, count]) => (
+            <NavLink end key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}>
+              <span>{icon}</span>
+              <span>{label}</span>
+              {count !== null && <span className="sp-sidebar-count">{count}</span>}
+            </NavLink>
+          ))}
         </nav>
-        <div className="sp-sidebar-footer"><div className="flex items-center gap-2"><div className="sp-avatar">AK</div><div><div className="text-xs font-semibold text-white">Arun K.</div><div className="text-[10px] text-white/50">Support Agent</div></div></div></div>
+        <div className="sp-sidebar-footer">
+          <div className="flex items-center gap-2">
+            <div className="sp-avatar sp-agent-avatar" title={displayName}>{userInitials}</div>
+            <div>
+              <div className="text-xs font-semibold text-white">{displayName}</div>
+              <div className="text-[10px] text-blue-300">Support Agent</div>
+            </div>
+          </div>
+        </div>
       </aside>
       <main className="sp-agent-main">
-        <header className="sp-topbar"><div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div><div className="flex items-center gap-3"><button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">Logout</button><div className="sp-avatar">AK</div></div></header>
+        <header className="sp-agent-topbar">
+          <div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div>
+          <div className="flex items-center gap-3">
+            <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">Logout</button>
+            <div className="sp-avatar sp-agent-avatar" title={displayName}>{userInitials}</div>
+          </div>
+        </header>
         <div className="sp-content">
-        {children}
+          {children}
         </div>
       </main>
     </div>
@@ -120,60 +166,83 @@ function AgentLayout({ children }) {
 ===================================================== */
 
 function AdminLayout({ children }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate("/", { replace: true });
   };
 
+  const adminNav = [
+    { to: "/admin", icon: "▦", label: "Dashboard" },
+    { to: "/admin/users", icon: "👥", label: "Users" },
+    { to: "/admin/routing", icon: "⇆", label: "Routing Rules" },
+    { to: "/admin/sla", icon: "⏱", label: "SLA Policies" },
+    { to: "/admin/ai-settings", icon: "✦", label: "AI Settings" },
+    { to: "/knowledge", icon: "📚", label: "Knowledge Base" },
+    { to: "/integrations", icon: "🔗", label: "Integrations" },
+    { to: "/analytics", icon: "📊", label: "Analytics" },
+    { to: "/admin/audit", icon: "☷", label: "Audit Logs" },
+  ];
+
+  const userInitials = initials(user?.name);
+  const displayName = user?.name || user?.username || "Admin";
+
   return (
-    <div className="min-h-screen bg-[#eef4ef]">
-
-      <header className="flex items-center justify-between bg-[#0f2b1d] px-8 py-5 text-white">
-
-        <Link
-          to="/admin"
-          className="text-xl font-bold"
-        >
-          SupportPilot Admin
+    <div className="sp-admin-shell">
+      <aside className="sp-admin-sidebar">
+        <Link to="/admin" className="sp-sidebar-logo">
+          <span className="sp-logo-mark">SP</span>
+          <span>
+            <span className="sp-logo-name">SupportPilot</span>
+            <span className="sp-sidebar-sub">ADMIN MISSION CONTROL</span>
+          </span>
         </Link>
-
-        <nav className="flex items-center gap-6 text-sm">
-
-          <Link
-            to="/admin"
-            className="hover:text-emerald-300"
-          >
-            Dashboard
-          </Link>
-
-          <Link
-            to="/admin/users"
-            className="hover:text-emerald-300"
-          >
-            Users
-          </Link>
-
-          <button
-            onClick={handleLogout}
-            className="rounded-lg border border-white/30 px-3 py-1.5 font-semibold hover:bg-white/10"
-          >
-            Logout
-          </button>
-
+        <nav className="sp-sidebar-nav">
+          <div className="sp-nav-heading">Mission Control</div>
+          {adminNav.map(({ to, icon, label }) => (
+            <NavLink
+              end
+              key={to}
+              to={to}
+              className={({ isActive }) => isActive ? "active" : ""}
+            >
+              <span>{icon}</span>
+              <span>{label}</span>
+            </NavLink>
+          ))}
         </nav>
-
-      </header>
-
-      <main className="p-8">
-        {children}
+        <div className="sp-sidebar-footer">
+          <div className="flex items-center gap-2">
+            <div className="sp-avatar sp-admin-avatar" title={displayName}>{userInitials}</div>
+            <div>
+              <div className="text-xs font-semibold text-white">{displayName}</div>
+              <div className="text-[10px] text-cyan-300">Administrator</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <main className="sp-agent-main">
+        <header className="sp-admin-topbar">
+          <div>
+            <div className="sp-breadcrumb">Admin Console</div>
+            <h1>{adminNav.find((n) => n.to === location.pathname)?.label || "Admin"}</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={handleLogout} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-slate-700 transition">Logout</button>
+            <div className="sp-avatar sp-admin-avatar" title={displayName}>{userInitials}</div>
+          </div>
+        </header>
+        <div className="sp-content">
+          {children}
+        </div>
       </main>
-
     </div>
   );
 }
+
 
 /* =====================================================
    UNAUTHORIZED PAGE
@@ -248,36 +317,62 @@ function PlaceholderPage({ title, description }) {
 }
 
 function UnauthorizedPage() {
+  const { user, logout } = useAuth();
+  const targetHome = user?.role === "admin" ? "/admin" : user?.role === "agent" ? "/dashboard" : "/portal/tickets";
+  const portalName = user?.role === "admin" ? "Admin Control Center" : user?.role === "agent" ? "Agent Workspace" : "Customer Portal";
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#eef4ef] px-6">
-
-      <div className="w-full max-w-md rounded-2xl border border-[#dfe5e1] bg-white p-8 text-center shadow-sm">
-
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-2xl">
-          🔒
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 px-6">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white backdrop-blur-xl shadow-2xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/20 text-3xl text-amber-400 border border-amber-500/30">
+          🛡️
         </div>
 
-        <h1 className="mt-5 text-2xl font-bold text-[#1c2430]">
-          Access Denied
+        <h1 className="mt-5 text-2xl font-bold text-white tracking-tight">
+          Restricted Resource
         </h1>
 
-        <p className="mt-3 text-[#4b5563]">
-          You do not have permission to
-          access this page.
+        <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+          {user ? (
+            <>
+              You are currently logged in as <strong className="text-emerald-400">{user.name || user.username}</strong> ({user.role?.toUpperCase()}). This specific section requires different authorization credentials.
+            </>
+          ) : (
+            "Authentication is required to access this system area."
+          )}
         </p>
 
-        <Link
-          to="/"
-          className="mt-6 inline-block rounded-lg bg-[#14532d] px-6 py-3 font-semibold text-white hover:bg-[#0f2b1d]"
-        >
-          Go to Home
-        </Link>
+        <div className="mt-6 flex flex-col gap-2.5">
+          {user ? (
+            <Link
+              to={targetHome}
+              className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white shadow-lg hover:bg-emerald-500 transition"
+            >
+              Return to Your {portalName}
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white shadow-lg hover:bg-emerald-500 transition"
+            >
+              Sign In to Your Account
+            </Link>
+          )}
 
+          {user && (
+            <button
+              onClick={logout}
+              className="w-full rounded-xl bg-white/10 px-5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/15 transition border border-white/10"
+            >
+              Switch Account / Sign Out
+            </button>
+          )}
+        </div>
       </div>
-
     </div>
   );
 }
+
 
 /* =====================================================
    APP
@@ -330,6 +425,19 @@ export default function App() {
               >
                 <CustomerLayout>
                   <MyTicketsPage />
+                </CustomerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/portal/self-help"
+            element={
+              <ProtectedRoute
+                allowedRoles={["customer"]}
+              >
+                <CustomerLayout>
+                  <SelfHelpPage />
                 </CustomerLayout>
               </ProtectedRoute>
             }
@@ -543,27 +651,12 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminLayout>
-                  <AdminConfigPage
-                    title="Knowledge Base"
-                    description="Manage support articles and indexing configuration."
-                    storageKey="supportpilot_knowledge_base"
-                    defaultValues={{
-                      indexingMode: "Daily refresh",
-                      articleLimit: "500",
-                      language: "English",
-                      staleArticlePolicy: "Archive after 30 days",
-                    }}
-                    fields={[
-                      { name: "indexingMode", label: "Indexing mode", type: "text" },
-                      { name: "articleLimit", label: "Article limit", type: "text" },
-                      { name: "language", label: "Knowledge language", type: "text" },
-                      { name: "staleArticlePolicy", label: "Stale article policy", type: "textarea", fullWidth: true },
-                    ]}
-                  />
+                  <KnowledgeBasePage />
                 </AdminLayout>
               </ProtectedRoute>
             }
           />
+
 
           <Route
             path="/integrations"
