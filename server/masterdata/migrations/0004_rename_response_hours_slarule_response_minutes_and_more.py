@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('masterdata', '0001_initial'),
+        ('masterdata', '0003_knowledgearticle_alter_priority_code_and_more'),
     ]
 
     operations = [

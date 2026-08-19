@@ -43,15 +43,18 @@ class Command(BaseCommand):
 
         # 3. Priorities & SLA Rules
         priorities_data = [
-            ("P1", "Critical", 1, 1, 4),      # response_hours, resolution_hours
-            ("P2", "High", 2, 2, 8),
-            ("P3", "Medium", 3, 4, 24),
-            ("P4", "Low", 4, 8, 48),
+            ("P1", "Critical", 1, 15, 4, "24/7"),      # response_minutes, resolution_hours, coverage
+            ("P2", "High", 2, 30, 8, "24/7"),
+            ("P3", "Medium", 3, 60, 24, "Business Hours"),
+            ("P4", "Low", 4, 120, 48, "Business Hours"),
         ]
 
-        for code, name, level, resp_hrs, res_hrs in priorities_data:
+        for code, name, level, resp_mins, res_hrs, coverage in priorities_data:
             prio, _ = Priority.objects.get_or_create(code=code, defaults={"name": name, "level": level})
-            SLARule.objects.get_or_create(priority=prio, defaults={"response_hours": resp_hrs, "resolution_hours": res_hrs})
+            SLARule.objects.update_or_create(
+                priority=prio,
+                defaults={"response_minutes": resp_mins, "resolution_hours": res_hrs, "coverage": coverage}
+            )
 
         # 4. Severity Rules
         severities = [
@@ -204,6 +207,13 @@ class Command(BaseCommand):
                 article_id=article_data["article_id"],
                 defaults=article_data
             )
+
+        # Sync Milestone 2 Knowledge Articles, Versions, Chunks, and Ingestion Job to MongoDB
+        try:
+            from knowledge_articles import ingest_knowledge_batch
+            ingest_knowledge_batch(kb_articles, source_type="SYSTEM_SEED")
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"MongoDB knowledge ingestion notice: {e}"))
 
         # 7. Default Demo Users
         User.objects.filter(email__in=["arun@company.com", "bala@company.com", "admin@company.com"]).delete()

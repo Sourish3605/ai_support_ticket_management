@@ -1,3 +1,35 @@
-from .db import db, tickets_collection, users_collection
+from .db import (
+    db,
+    client,
+    tickets_collection,
+    classifications_collection,
+    sla_calculations_collection,
+    knowledge_articles_collection,
+    article_versions_collection,
+    article_chunks_collection,
+    ingestion_jobs_collection,
+    ticket_responses_collection,
+    citations_collection,
+    feedback_collection,
+    kb_gaps_collection,
+    retrieval_logs_collection,
+    users_collection,
+)
 
-__all__ = ['db', 'tickets_collection', 'users_collection']
+__all__ = [
+    "db",
+    "client",
+    "tickets_collection",
+    "classifications_collection",
+    "sla_calculations_collection",
+    "knowledge_articles_collection",
+    "article_versions_collection",
+    "article_chunks_collection",
+    "ingestion_jobs_collection",
+    "ticket_responses_collection",
+    "citations_collection",
+    "feedback_collection",
+    "kb_gaps_collection",
+    "retrieval_logs_collection",
+    "users_collection",
+]
