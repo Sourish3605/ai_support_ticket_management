@@ -175,14 +175,27 @@ def generate_grounded_resolution(
     citations = []
 
     for idx, chunk in enumerate(top_chunks[:3]):
-        chunk_lines = [line.strip() for line in chunk.get("text", "").split("\n") if line.strip()]
-        for line in chunk_lines:
-            clean_line = line.lstrip("0123456789.-* ")
+        raw_text = chunk.get("text", "")
+        extracted_lines = []
+        if raw_text.startswith("[") and raw_text.endswith("]"):
+            try:
+                import json
+                parsed_json = json.loads(raw_text)
+                if isinstance(parsed_json, list):
+                    extracted_lines = [str(s).strip() for s in parsed_json if str(s).strip()]
+            except Exception:
+                pass
+        if not extracted_lines:
+            extracted_lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
+
+        for line in extracted_lines:
+            clean_line = line.lstrip("0123456789.-* \"'").rstrip("\"'")
             if clean_line and clean_line not in suggested_steps and len(clean_line) > 10:
                 suggested_steps.append(clean_line)
                 if len(suggested_steps) >= 5:
                     break
 
+        first_quote = extracted_lines[0].lstrip("0123456789.-* \"'").rstrip("\"'") if extracted_lines else chunk.get("title")
         cit_id = f"CIT-{uuid.uuid4().hex[:6].upper()}"
         citation_obj = {
             "citation_id": cit_id,
@@ -192,7 +205,7 @@ def generate_grounded_resolution(
             "chunk_id": chunk.get("chunk_id"),
             "source_title": chunk.get("title"),
             "section": chunk.get("section", f"{chunk.get('title')} §1.{idx+1}"),
-            "quote": chunk_lines[0] if chunk_lines else chunk.get("title"),
+            "quote": first_quote,
             "score": chunk.get("score", 1.0),
             "created_at": now_iso,
         }
