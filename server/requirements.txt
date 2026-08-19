@@ -11,3 +11,6 @@ pymongo==4.17.0
 python-decouple==3.8
 sqlparse==0.5.5
 tzdata==2026.3
+pypdf==6.16.1
+dj-database-url==2.3.0
+psycopg2-binary==2.9.10
