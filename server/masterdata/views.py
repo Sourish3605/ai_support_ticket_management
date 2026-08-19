@@ -1,7 +1,9 @@
 import json
 import re
-from pypdf import PdfReader
-from rest_framework import generics, permissions, status, views
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from .models import (
