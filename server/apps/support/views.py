@@ -174,7 +174,7 @@ class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class TicketClassificationView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         subject = request.data.get("subject", "")
@@ -209,6 +209,7 @@ class TicketClassificationView(APIView):
         )
 
         return Response({
+            "success": True,
             "category": category,
             "sub_category": sub_category,
             "severity": severity,
@@ -218,9 +219,10 @@ class TicketClassificationView(APIView):
             "sla_hours": sla_info["resolution_hours"],
             "response_minutes": sla_info["response_minutes"],
             "coverage": sla_info["coverage"],
-            "team": f"{category} Support",
+            "team": f"{category} Support" if category != "General" else "Service Desk",
             "knowledge_source": rag_result.get("knowledge_source", "Enterprise Knowledge Store"),
             "suggested_resolution": rag_result.get("suggested_steps", []),
             "citations": rag_result.get("citations", []),
             "classification_path": "AI Engine (M1 + M2 Hybrid RAG)",
+            "reason": f"Classified as {category} → {sub_category} ({priority}) based on issue description.",
         })
