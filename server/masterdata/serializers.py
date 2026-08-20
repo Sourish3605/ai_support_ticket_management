@@ -4,20 +4,16 @@ from .models import (
     SubCategory,
     Priority,
     SLARule,
-    Department,
     Team,
-    SeverityRule,
     Product,
     KnowledgeArticle,
 )
 
 
 class SubCategorySerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source="category.name", read_only=True)
-
     class Meta:
         model = SubCategory
-        fields = ["id", "name", "category", "category_name"]
+        fields = ["id", "name", "category"]
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -48,30 +44,16 @@ class SLARuleSerializer(serializers.ModelSerializer):
         ]
 
 
-class DepartmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Department
-        fields = ["id", "name", "description"]
-
-
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
-        fields = ["id", "name", "department"]
-
-
-class SeverityRuleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SeverityRule
-        fields = ["id", "code", "description", "suggested_priority"]
+        fields = ["id", "name"]
 
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ["id", "name"]
-
-
 class KnowledgeArticleSerializer(serializers.ModelSerializer):
     class Meta:
         model = KnowledgeArticle
@@ -86,6 +68,11 @@ class KnowledgeArticleSerializer(serializers.ModelSerializer):
             "steps",
             "source",
             "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
             "created_at",
             "updated_at",
         ]

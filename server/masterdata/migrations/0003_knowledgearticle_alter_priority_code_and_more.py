@@ -42,9 +42,5 @@ class Migration(migrations.Migration):
             name='resolution_hours',
             field=models.IntegerField(default=24),
         ),
-        migrations.AlterField(
-            model_name='slarule',
-            name='response_hours',
-            field=models.IntegerField(default=4),
-        ),
+        
     ]

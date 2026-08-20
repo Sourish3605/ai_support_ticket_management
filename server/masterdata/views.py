@@ -1,9 +1,7 @@
+
 import json
 import re
-try:
-    from pypdf import PdfReader
-except ImportError:
-    PdfReader = None
+from pypdf import PdfReader
 from rest_framework import generics, permissions, status, views
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -12,23 +10,21 @@ from .models import (
     SubCategory,
     Priority,
     SLARule,
-    Department,
     Team,
-    SeverityRule,
     Product,
     KnowledgeArticle,
 )
+
 from .serializers import (
     CategorySerializer,
     SubCategorySerializer,
     PrioritySerializer,
     SLARuleSerializer,
-    DepartmentSerializer,
     TeamSerializer,
-    SeverityRuleSerializer,
     ProductSerializer,
     KnowledgeArticleSerializer,
 )
+
 
 
 def extract_and_structure_pdf(full_text, filename):
@@ -86,14 +82,18 @@ def extract_and_structure_pdf(full_text, filename):
 
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.prefetch_related("sub_categories").all().order_by("id")
+
+class CategoryListView(generics.ListAPIView):
+    queryset = Category.objects.prefetch_related("sub_categories").all()
+
     serializer_class = CategorySerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
 
-class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [permissions.AllowAny]
+class SubCategoryListView(generics.ListAPIView):
+    queryset = SubCategory.objects.all()
+    serializer_class = SubCategorySerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class SubCategoryListCreateView(generics.ListCreateAPIView):
@@ -117,7 +117,7 @@ class SubCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 class PriorityListCreateView(generics.ListCreateAPIView):
     queryset = Priority.objects.all().order_by("level", "id")
     serializer_class = PrioritySerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class PriorityDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -247,31 +247,25 @@ class KnowledgeArticleUploadPDFView(views.APIView):
             )
 
 
+
 class SLARuleListView(generics.ListAPIView):
     queryset = SLARule.objects.select_related("priority").all()
     serializer_class = SLARuleSerializer
-    permission_classes = [permissions.AllowAny]
-
-
-class DepartmentListCreateView(generics.ListCreateAPIView):
-    queryset = Department.objects.all()
-    serializer_class = DepartmentSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class TeamListView(generics.ListAPIView):
-    queryset = Team.objects.select_related("department").all()
+    queryset = Team.objects.all()
     serializer_class = TeamSerializer
-    permission_classes = [permissions.AllowAny]
-
-
-class SeverityRuleListView(generics.ListAPIView):
-    queryset = SeverityRule.objects.all()
-    serializer_class = SeverityRuleSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class ProductListView(generics.ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+
     permission_classes = [permissions.AllowAny]
+
+
+    permission_classes = [permissions.IsAuthenticated]
+
