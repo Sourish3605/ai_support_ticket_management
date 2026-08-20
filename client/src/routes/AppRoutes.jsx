@@ -13,6 +13,7 @@ import RegisterPage from "../pages/RegisterPage";
 
 import DashboardPage from "../pages/DashboardPage";
 import MyTicketsPage from "../pages/MyTicketsPage";
+import AgentTicketDetails from "../pages/agent/AgentTicketDetails";
 import CreateTicketPage from "../pages/CreateTicketPage";
 import AllTicketsPage from "../pages/AllTicketsPage";
 import AiAssistantPage from "../pages/AiAssistantPage";
@@ -203,7 +204,7 @@ const AppRoutes = () => {
 
         <Route
           path="/agent/tickets/:ticketId"
-          element={<TicketDetailsPage />}
+          element={<AgentTicketDetails />}
         />
       </Route>
 

@@ -12,6 +12,9 @@ export default function AgentTicketDetails() {
   const [comment, setComment] = useState("");
   const [override, setOverride] = useState("");
   const [editing, setEditing] = useState(false);
+  const [aiAction, setAiAction] = useState("");
+  const [showSources, setShowSources] = useState(false);
+  const [editResolution, setEditResolution] = useState("");
 
   useEffect(() => setTicket(getTicketById(id)), [id]);
   if (!ticket) return <div className="sp-card p-10 text-center text-sm text-[#8b95a1]">Ticket not found.</div>;
@@ -30,7 +33,14 @@ export default function AgentTicketDetails() {
     setEditing(false);
   };
   const timeline = [...(ticket.timeline || []), ...(ticket.comments || []).map((item) => ({ ...item, title: `${item.author} commented`, description: item.message }))];
+  const suggestedResolution = ticket.ai?.suggestedResolution || [];
 
+  const citations = ticket.ai?.citations || ticket.citations || [];
+
+  const contextSufficient =
+  ticket.ai?.contextSufficient ??
+  ticket.contextSufficient ??
+  true;
   return (
     <div>
       <div className="mb-4 flex justify-end gap-2">
@@ -44,7 +54,12 @@ export default function AgentTicketDetails() {
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
           <section className="sp-card mb-3">
-            <div className="sp-card-header"><h2>Ticket</h2><span className="sp-tag sp-tag-info">{ticket.status}</span></div>
+            <div className="sp-card-header"><h2>Ticket</h2><span className="sp-tag sp-tag-info">{ticket.status}</span> 
+            <span className={`sp-tag ${
+                   contextSufficient
+                    ? "sp-tag-success"
+                    : "sp-tag-warning" }`} >
+                {contextSufficient ? "Context sufficient" : "More context needed"} </span></div>
             <div className="sp-card-body">
               <div className="mb-4 grid grid-cols-2 gap-3 border-b border-[#eef2f0] pb-4 sm:grid-cols-4">
                 {[["Requester", ticket.customerName], ["Department", ticket.department || "-"], ["Site", ticket.location || "-"], ["Asset", ticket.assetTag || "-"]].map(([label, value]) => <div key={label}><div className="text-[10px] text-[#8b95a1]">{label}</div><div className="mt-1 text-xs font-semibold">{value}</div></div>)}
@@ -53,6 +68,68 @@ export default function AgentTicketDetails() {
               <div className="mt-4 flex flex-wrap gap-5 border-t border-[#eef2f0] pt-3 text-xs"><span><small className="block text-[10px] text-[#8b95a1]">Affected</small>{ticket.scope}</span><span><small className="block text-[10px] text-[#8b95a1]">Work blocked</small>{ticket.workBlocked ? "Yes" : "No"}</span><span><small className="block text-[10px] text-[#8b95a1]">Assigned</small>{ticket.assignedAgent || "Unassigned"}</span></div>
             </div>
           </section>
+          <section className="sp-card mb-3">
+  <div className="sp-card-header">
+    <h2>AI Suggested Resolution</h2>
+    <span className="sp-tag sp-tag-warning">
+      Draft — not sent
+    </span>
+  </div>
+
+  <div className="sp-card-body">
+
+    {ticket.ai?.suggestedResolution?.length ? (
+  <div>
+    <div className="space-y-3">
+      {ticket.ai.suggestedResolution.map((step, index) => (
+        <div
+          key={index}
+          className="rounded-lg border border-[#eef2f0] bg-[#f8faf9] p-3"
+        >
+          <div className="text-xs font-semibold">
+            Step {index + 1}
+          </div>
+
+          <div className="mt-1 text-xs text-[#4b5563]">
+            {step}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {citations.length > 0 && (
+      <button
+        onClick={() => setShowSources(!showSources)}
+        className="sp-btn sp-btn-secondary mt-3"
+      >
+        {showSources
+          ? "Hide sources"
+          : `View sources (${citations.length})`}
+      </button>
+    )}
+  </div>
+) : (
+
+      <div className="text-xs text-[#8b95a1]">
+        No AI resolution available.
+      </div>
+    )}
+
+    <div className="mt-4 flex gap-2">
+      <button className="sp-btn sp-btn-primary">
+        Accept
+      </button>
+
+      <button className="sp-btn sp-btn-secondary">
+        Edit & Send
+      </button>
+
+      <button className="sp-btn sp-btn-secondary">
+        Reject
+      </button>
+    </div>
+  </div>
+</section>
           <section className="sp-card"><div className="sp-card-header"><h2>Activity</h2></div><div className="sp-card-body"><div className="border-l-2 border-[#eef2f0] pl-4">{timeline.map((event) => <div className="relative mb-4" key={event.id}><div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-[#1f7a45] bg-white" /><div className="text-xs font-semibold">{event.title}</div><div className="text-[10px] text-[#8b95a1]">{new Date(event.timestamp).toLocaleString()}</div><div className="mt-1 rounded-md bg-[#f8faf9] p-2 text-xs text-[#4b5563]">{event.description}</div></div>)}</div><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows="2" placeholder="Add a comment..." className="mt-2 w-full rounded-lg border border-[#dfe5e1] p-2.5 text-xs" /><div className="mt-2 flex justify-end"><button onClick={postComment} className="sp-btn sp-btn-primary">Post comment</button></div></div></section>
         </div>
         <aside>

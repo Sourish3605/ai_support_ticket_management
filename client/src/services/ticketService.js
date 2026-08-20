@@ -101,11 +101,11 @@ const getAvailableAgent = (team = "IT Support") => {
   return counts[0].agent;
 };
 
-export const createTicket = (form, user) => {
+export const createTicket = async (form, user) => {
   const tickets = getTickets();
   const ticketId = generateTicketId(tickets);
 
-  const classification = classifyTicket(
+  const classification = await classifyTicket(
     form.subject,
     form.description,
     form.scope || "Just me",
