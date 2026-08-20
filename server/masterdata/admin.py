@@ -12,40 +12,35 @@ from .models import (
 )
 
 
-class SubCategoryInline(admin.TabularInline):
-    model = SubCategory
-    extra = 1
-
-
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "get_subcategories_count")
+    list_display = ("id", "name")
     search_fields = ("name",)
-    inlines = [SubCategoryInline]
-
-    def get_subcategories_count(self, obj):
-        return obj.sub_categories.count()
-    get_subcategories_count.short_description = "Sub-Categories"
 
 
 @admin.register(SubCategory)
 class SubCategoryAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "category")
     list_filter = ("category",)
-    search_fields = ("name", "category__name")
+    search_fields = ("name",)
 
 
 @admin.register(Priority)
 class PriorityAdmin(admin.ModelAdmin):
     list_display = ("id", "code", "name", "level")
-    ordering = ("level",)
     search_fields = ("code", "name")
+    ordering = ("level",)
 
 
 @admin.register(SLARule)
 class SLARuleAdmin(admin.ModelAdmin):
-    list_display = ("id", "priority", "response_minutes", "resolution_hours", "coverage")
-    list_filter = ("priority",)
+    list_display = (
+        "id",
+        "priority",
+        "response_minutes",
+        "resolution_hours",
+        "coverage",
+    )
 
 
 @admin.register(Department)
@@ -58,12 +53,17 @@ class DepartmentAdmin(admin.ModelAdmin):
 class TeamAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "department")
     list_filter = ("department",)
-    search_fields = ("name", "department__name")
+    search_fields = ("name",)
 
 
 @admin.register(SeverityRule)
 class SeverityRuleAdmin(admin.ModelAdmin):
-    list_display = ("id", "code", "suggested_priority", "description")
+    list_display = (
+        "id",
+        "code",
+        "description",
+        "suggested_priority",
+    )
     search_fields = ("code",)
 
 
@@ -75,6 +75,28 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(KnowledgeArticle)
 class KnowledgeArticleAdmin(admin.ModelAdmin):
-    list_display = ("article_id", "title", "category", "sub_category", "is_active", "updated_at")
-    list_filter = ("category", "is_active")
-    search_fields = ("article_id", "title", "tags", "content")
+    list_display = (
+        "id",
+        "article_id",
+        "title",
+        "category",
+        "is_active",
+        "created_at",
+    )
+    list_filter = (
+        "category",
+        "is_active",
+        "created_at",
+    )
+    search_fields = (
+        "article_id",
+        "title",
+        "content",
+        "tags",
+    )
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
+    ordering = ("-created_at",)
+    

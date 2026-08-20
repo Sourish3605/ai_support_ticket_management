@@ -1,45 +1,26 @@
 from django.urls import path
 
 from .views import (
-    CategoryListCreateView,
-    CategoryDetailView,
-    SubCategoryListCreateView,
-    SubCategoryDetailView,
+    CategoryListView,
+    SubCategoryListView,
     PriorityListCreateView,
-    PriorityDetailView,
     SLARuleListView,
-    DepartmentListCreateView,
     TeamListView,
-    SeverityRuleListView,
     ProductListView,
     KnowledgeArticleListCreateView,
     KnowledgeArticleDetailView,
-    KnowledgeArticleUploadPDFView,
 )
 
 
 urlpatterns = [
-    # Master Data: Categories
-    path("categories/", CategoryListCreateView.as_view(), name="category-list-create"),
-    path("categories/<int:pk>/", CategoryDetailView.as_view(), name="category-detail"),
+    path("categories/", CategoryListView.as_view()),
+    path("subcategories/", SubCategoryListView.as_view()),
+    path("priorities/", PriorityListCreateView.as_view()),
+    path("sla-rules/", SLARuleListView.as_view()),
+    path("teams/", TeamListView.as_view()),
+    path("products/", ProductListView.as_view()),
 
-    # Master Data: Sub-Categories
-    path("subcategories/", SubCategoryListCreateView.as_view(), name="subcategory-list-create"),
-    path("subcategories/<int:pk>/", SubCategoryDetailView.as_view(), name="subcategory-detail"),
-
-    # Master Data: Priorities
-    path("priorities/", PriorityListCreateView.as_view(), name="priority-list-create"),
-    path("priorities/<int:pk>/", PriorityDetailView.as_view(), name="priority-detail"),
-
-    # Master Data: Rules & Departments
-    path("sla-rules/", SLARuleListView.as_view(), name="sla-rules-list"),
-    path("departments/", DepartmentListCreateView.as_view(), name="department-list-create"),
-    path("teams/", TeamListView.as_view(), name="team-list"),
-    path("severity-rules/", SeverityRuleListView.as_view(), name="severity-rules-list"),
-    path("products/", ProductListView.as_view(), name="product-list"),
-
-    # Knowledge Base Articles & PDF Upload
-    path("knowledge-articles/", KnowledgeArticleListCreateView.as_view(), name="knowledge-article-list-create"),
-    path("knowledge-articles/<int:pk>/", KnowledgeArticleDetailView.as_view(), name="knowledge-article-detail"),
-    path("knowledge-articles/upload-pdf/", KnowledgeArticleUploadPDFView.as_view(), name="knowledge-article-upload-pdf"),
+    # Knowledge Articles
+    path("knowledge-articles/", KnowledgeArticleListCreateView.as_view()),
+    path("knowledge-articles/<int:pk>/", KnowledgeArticleDetailView.as_view()),
 ]

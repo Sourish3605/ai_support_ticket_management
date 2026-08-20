@@ -81,8 +81,6 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
-
-
 class KnowledgeArticle(models.Model):
     article_id = models.CharField(max_length=50, unique=True, blank=True)
     title = models.CharField(max_length=255)
@@ -90,19 +88,15 @@ class KnowledgeArticle(models.Model):
     sub_category = models.CharField(max_length=100, blank=True, default="")
     tags = models.CharField(max_length=255, blank=True, default="")
     content = models.TextField(blank=True, default="")
-    steps = models.TextField(blank=True, default="")  # Can store JSON array of steps or newline-delimited text
-    source = models.CharField(max_length=255, default="Enterprise IT Knowledge Base")
+    steps = models.TextField(blank=True, default="")
+    source = models.CharField(
+        max_length=255,
+        default="Enterprise IT Knowledge Base"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def save(self, *args, **kwargs):
-        if not self.article_id:
-            super().save(*args, **kwargs)
-            self.article_id = f"KB-DOC-{self.id:03d}"
-            super().save(update_fields=["article_id"])
-        else:
-            super().save(*args, **kwargs)
-
     def __str__(self):
-        return f"{self.article_id} - {self.title}"
+        return self.title
+    
