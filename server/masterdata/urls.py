@@ -9,6 +9,7 @@ from .views import (
     ProductListView,
     KnowledgeArticleListCreateView,
     KnowledgeArticleDetailView,
+    KnowledgeArticleUploadPDFView,
 )
 
 
@@ -23,4 +24,6 @@ urlpatterns = [
     # Knowledge Articles
     path("knowledge-articles/", KnowledgeArticleListCreateView.as_view()),
     path("knowledge-articles/<int:pk>/", KnowledgeArticleDetailView.as_view()),
+    path("knowledge-articles/upload-pdf/",KnowledgeArticleUploadPDFView.as_view(),),
+
 ]
