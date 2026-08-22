@@ -73,6 +73,25 @@ export const AuthProvider = ({ children }) => {
       const apiUser = response?.data?.user;
       const parsedRole = normalizeRole(apiUser?.role || fallbackRole);
 
+      if (expectedRole) {
+        const canonicalExpected = normalizeRole(expectedRole);
+        if (parsedRole !== canonicalExpected) {
+          const roleNames = {
+            admin: "Administrator",
+            agent: "Support Agent",
+            customer: "Customer",
+          };
+          const targetPortals = {
+            admin: "Admin Portal",
+            agent: "Agent Workspace",
+            customer: "Customer Portal",
+          };
+          throw new Error(
+            `Access Denied: This account is registered as a ${roleNames[parsedRole] || parsedRole}. Please switch to the ${targetPortals[parsedRole] || "correct"} workspace to sign in.`
+          );
+        }
+      }
+
       const account = {
         id: apiUser?.id ?? `USR-${Date.now()}`,
         username: apiUser?.username || username,
@@ -85,6 +104,10 @@ export const AuthProvider = ({ children }) => {
       setUser(account);
       return account;
     } catch (error) {
+      if (error?.message && error.message.startsWith("Access Denied:")) {
+        throw error;
+      }
+
       // If the backend actively responded with 400 or 401, fail immediately
       if (error?.response?.status === 401 || error?.response?.status === 400) {
         throw new Error(getApiError(error, "Invalid username or password. Please try again."));
@@ -101,6 +124,25 @@ export const AuthProvider = ({ children }) => {
 
         if (matchSeed && password === "password123") {
           const seedRole = normalizeRole(matchSeed.role || fallbackRole);
+          if (expectedRole) {
+            const canonicalExpected = normalizeRole(expectedRole);
+            if (seedRole !== canonicalExpected) {
+              const roleNames = {
+                admin: "Administrator",
+                agent: "Support Agent",
+                customer: "Customer",
+              };
+              const targetPortals = {
+                admin: "Admin Portal",
+                agent: "Agent Workspace",
+                customer: "Customer Portal",
+              };
+              throw new Error(
+                `Access Denied: This account is registered as a ${roleNames[seedRole] || seedRole}. Please switch to the ${targetPortals[seedRole] || "correct"} workspace to sign in.`
+              );
+            }
+          }
+
           const account = {
             id: matchSeed.id,
             username: matchSeed.email.split("@")[0],

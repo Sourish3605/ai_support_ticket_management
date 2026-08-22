@@ -667,33 +667,76 @@ const LoginPage = () => {
                 )}
               </form>
 
-              {/* Quick Demo Logins */}
+              {/* Quick Demo Logins for Current Workspace */}
 
               <div className="mt-5 border-t border-slate-200/80 pt-4">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 text-center">Quick Demo Credentials</div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedRole("admin"); setForm({ email: "admin@gmail.com", password: "password123" }); }}
-                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer"
-                  >
-                    👑 Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedRole("agent"); setForm({ email: "agent@gmail.com", password: "password123" }); }}
-                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer"
-                  >
-                    🛡️ Agent
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedRole("customer"); setForm({ email: "customer@gmail.com", password: "password123" }); }}
-                    className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer"
-                  >
-                    👤 Customer
-                  </button>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 text-center">
+                  Quick Demo Credentials ({selectedRole === "admin" ? "Admin Portal" : selectedRole === "agent" ? "Agent Workspace" : "Customer Portal"})
                 </div>
+
+                {selectedRole === "admin" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ email: "admin@gmail.com", password: "password123" }); setError(""); }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
+                    >
+                      👑 admin@gmail.com
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ email: "sourish@gmail.com", password: "password123" }); setError(""); }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
+                    >
+                      👑 sourish@gmail.com
+                    </button>
+                  </div>
+                )}
+
+                {selectedRole === "agent" && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ email: "agent@gmail.com", password: "password123" }); setError(""); }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
+                    >
+                      🛡️ agent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ email: "yogitha@gmail.com", password: "password123" }); setError(""); }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
+                    >
+                      🛡️ yogitha
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ email: "premalatha@gmail.com", password: "password123" }); setError(""); }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
+                    >
+                      🛡️ prema
+                    </button>
+                  </div>
+                )}
+
+                {selectedRole === "customer" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ email: "customer@gmail.com", password: "password123" }); setError(""); }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
+                    >
+                      👤 customer@gmail.com
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ email: "devipriya@gmail.com", password: "password123" }); setError(""); }}
+                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
+                    >
+                      👤 devipriya@gmail.com
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* REGISTER */}
