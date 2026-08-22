@@ -1,3 +1,4 @@
+from typing import Any, cast
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -6,7 +7,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 
-User = get_user_model()
+User: Any = get_user_model()
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -35,13 +36,17 @@ class RegisterSerializer(serializers.Serializer):
 
 class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
-    def get_token(cls, user):
+    def get_token(cls, user: Any):
         token = super().get_token(user)
-        token['username'] = user.username
-        token['role'] = 'admin' if user.is_superuser else 'agent' if user.is_staff else 'customer'
+        token['username'] = getattr(user, 'username', '')
+        token['role'] = (
+            'admin' if getattr(user, 'is_superuser', False)
+            else 'agent' if getattr(user, 'is_staff', False)
+            else 'customer'
+        )
         return token
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:  # type: ignore[override]
         username_or_email = attrs.get('username')
         if username_or_email:
             matched_user = (
@@ -51,7 +56,7 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
             if matched_user:
                 attrs['username'] = matched_user.username
 
-        data: dict[str, object] = dict(super().validate(attrs))
+        data: dict[str, Any] = dict(super().validate(attrs))
         current_user = self.user
         if current_user is not None:
             full_name = getattr(current_user, 'get_full_name', lambda: '')()
@@ -66,7 +71,7 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
                     else 'customer'
                 ),
             }
-        return data
+        return cast(dict[str, Any], data)
 
 
 class GoogleLoginSerializer(serializers.Serializer):
