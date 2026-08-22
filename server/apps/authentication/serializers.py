@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -71,7 +71,7 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
                     else 'customer'
                 ),
             }
-        return cast(dict[str, Any], data)
+        return data
 
 
 class GoogleLoginSerializer(serializers.Serializer):
