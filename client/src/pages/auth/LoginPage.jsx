@@ -667,76 +667,65 @@ const LoginPage = () => {
                 )}
               </form>
 
-              {/* Quick Demo Logins for Current Workspace */}
+              {/* Quick Demo Credentials */}
 
               <div className="mt-5 border-t border-slate-200/80 pt-4">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 text-center">
-                  Quick Demo Credentials ({selectedRole === "admin" ? "Admin Portal" : selectedRole === "agent" ? "Agent Workspace" : "Customer Portal"})
+                  Quick Demo Credentials
                 </div>
 
-                {selectedRole === "admin" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setForm({ email: "admin@gmail.com", password: "password123" }); setError(""); }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
-                    >
-                      👑 admin@gmail.com
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setForm({ email: "sourish@gmail.com", password: "password123" }); setError(""); }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
-                    >
-                      👑 sourish@gmail.com
-                    </button>
-                  </div>
-                )}
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("admin");
+                      setForm({ email: "admin@gmail.com", password: "password123" });
+                      setError("");
+                    }}
+                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
+                      selectedRole === "admin"
+                        ? "border-slate-900 bg-slate-900 text-cyan-300 ring-2 ring-cyan-400/20"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-sm">👑</span>
+                    <span>Admin</span>
+                  </button>
 
-                {selectedRole === "agent" && (
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setForm({ email: "agent@gmail.com", password: "password123" }); setError(""); }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
-                    >
-                      🛡️ agent
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setForm({ email: "yogitha@gmail.com", password: "password123" }); setError(""); }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
-                    >
-                      🛡️ yogitha
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setForm({ email: "premalatha@gmail.com", password: "password123" }); setError(""); }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
-                    >
-                      🛡️ prema
-                    </button>
-                  </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("agent");
+                      setForm({ email: "agent@gmail.com", password: "password123" });
+                      setError("");
+                    }}
+                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
+                      selectedRole === "agent"
+                        ? "border-blue-700 bg-blue-700 text-white ring-2 ring-blue-400/20"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-sm">🛡️</span>
+                    <span>Agent</span>
+                  </button>
 
-                {selectedRole === "customer" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setForm({ email: "customer@gmail.com", password: "password123" }); setError(""); }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
-                    >
-                      👤 customer@gmail.com
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setForm({ email: "devipriya@gmail.com", password: "password123" }); setError(""); }}
-                      className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition shadow-sm cursor-pointer truncate text-center"
-                    >
-                      👤 devipriya@gmail.com
-                    </button>
-                  </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("customer");
+                      setForm({ email: "customer@gmail.com", password: "password123" });
+                      setError("");
+                    }}
+                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
+                      selectedRole === "customer"
+                        ? "border-emerald-700 bg-emerald-700 text-white ring-2 ring-emerald-400/20"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-sm">👤</span>
+                    <span>Customer</span>
+                  </button>
+                </div>
               </div>
 
               {/* REGISTER */}
