@@ -35,7 +35,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
         user = self.request.user
 
         # Admin and Agent can see all tickets
-        if hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]:
+        if user.is_superuser or user.is_staff or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
             queryset = Ticket.objects.all()
         else:
             # Customer can see only their own tickets
@@ -149,7 +149,7 @@ class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
 
         # Admin and Agent can access all tickets
-        if hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]:
+        if user.is_superuser or user.is_staff or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
             return Ticket.objects.all()
 
         # Customer can access only their own tickets
