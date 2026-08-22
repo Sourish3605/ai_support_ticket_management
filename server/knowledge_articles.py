@@ -15,7 +15,7 @@ def compute_content_hash(text: str) -> str:
     return hashlib.sha256((text or "").strip().encode("utf-8")).hexdigest()
 
 
-def chunk_document_content(content: str, article_id: str = None, max_chunk_size: int = 500) -> list:
+def chunk_document_content(content: str, article_id: str | None = None, max_chunk_size: int = 500) -> list:
     """
     Split knowledge document into contextual chunks with section headers and metadata.
     """
@@ -80,7 +80,7 @@ def create_knowledge_article(
     source_url: str = "",
     author_id: str = "system",
     author_name: str = "Admin",
-    visible_to_departments: list = None,
+    visible_to_departments: list | None = None,
     is_internal_only: bool = False,
     status: str = "PUBLISHED",
 ):
@@ -111,7 +111,7 @@ def create_knowledge_article(
         "is_internal_only": is_internal_only,
         "chunk_count": len(chunks),
         "embedding_model": "bge-m3-hybrid",
-        "author_id": str(author_id),
+        "author_id": author_id,
         "author_name": author_name,
         "created_at": now,
         "updated_at": now,

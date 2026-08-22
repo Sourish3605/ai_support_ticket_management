@@ -177,11 +177,11 @@ export default function CustomerTicketDetails() {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-bold mt-3 text-[#1c2430]">
-            {ticket.subject}
+            {ticket.subject || ticket.title}
           </h1>
 
           <p className="text-xs text-gray-500 mt-1">
-            Submitted by {ticket.customerName} on {new Date(ticket.createdAt).toLocaleString()}
+            Submitted by {ticket.customerName || "Customer"} on {ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : "Recently"}
           </p>
         </div>
 

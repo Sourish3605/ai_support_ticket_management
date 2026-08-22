@@ -35,7 +35,12 @@ class TicketListCreateView(generics.ListCreateAPIView):
         user = self.request.user
 
         # Admin and Agent can see all tickets
-        if user.is_superuser or user.is_staff or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
+        is_admin_or_agent = (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or (hasattr(user, "profile") and getattr(user.profile, "role", "") in ["Admin", "Agent"])
+        )
+        if is_admin_or_agent:
             queryset = Ticket.objects.all()
         else:
             # Customer can see only their own tickets
@@ -54,8 +59,9 @@ class TicketListCreateView(generics.ListCreateAPIView):
         return queryset
 
     def perform_create(self, serializer):
-        raw_title = self.request.data.get("title", "")
-        raw_description = self.request.data.get("description", "")
+        req_data = self.request.data if isinstance(self.request.data, dict) else {}
+        raw_title = str(req_data.get("title", "") or req_data.get("subject", ""))
+        raw_description = str(req_data.get("description", ""))
 
         # 1. Milestone 1 Text Preprocessing & PII Masking
         preprocessed = preprocess_ticket(raw_title, raw_description)
@@ -113,7 +119,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
             },
             "grounded_resolution": rag_result.get("suggested_steps", []),
             "citations": rag_result.get("citations", []),
-            "created_by": ticket.created_by.username,
+            "created_by": getattr(ticket.created_by, "username", "Unknown"),
             "created_at": str(ticket.created_at)
         })
 
@@ -149,7 +155,12 @@ class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
         user = self.request.user
 
         # Admin and Agent can access all tickets
-        if user.is_superuser or user.is_staff or (hasattr(user, "profile") and user.profile.role in ["Admin", "Agent"]):
+        is_admin_or_agent = (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or (hasattr(user, "profile") and getattr(user.profile, "role", "") in ["Admin", "Agent"])
+        )
+        if is_admin_or_agent:
             return Ticket.objects.all()
 
         # Customer can access only their own tickets
@@ -157,7 +168,8 @@ class TicketDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         ticket = self.get_object()
-        new_status = self.request.data.get("status")
+        req_data = self.request.data if isinstance(self.request.data, dict) else {}
+        new_status = req_data.get("status")
 
         if new_status and new_status != ticket.status:
             if not ticket.can_transition(new_status):

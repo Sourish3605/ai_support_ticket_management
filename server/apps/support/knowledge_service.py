@@ -6,7 +6,13 @@ Integrates with Milestone 2 RAG Pipeline to return grounded resolution with mand
 from .rag_service import generate_grounded_resolution
 
 
-def retrieve_knowledge_and_generate_resolution(category, sub_category, subject, description, ticket_id=None):
+def retrieve_knowledge_and_generate_resolution(
+    category: str | None = None,
+    sub_category: str | None = None,
+    subject: str = "",
+    description: str = "",
+    ticket_id: int | None = None
+) -> dict:
     """
     RAG Knowledge Retrieval & AI Resolution Generation with Citations.
     """

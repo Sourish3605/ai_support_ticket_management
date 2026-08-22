@@ -43,20 +43,17 @@ const MyTicketsPage = () => {
     useState([]);
 
   useEffect(() => {
-    const load = async () => {
-      const data = await getTickets();
+    const load = () => {
+      const data = getTickets();
 
       const mine =
         user?.role === "customer"
-          ? data.filter(
-              (ticket) =>
-                ticket.customerEmail ===
-                user.email
-            )
+          ? getCustomerTickets(user)
           : data.filter(
               (ticket) =>
-                ticket.assignedTo ===
-                user?.name
+                ticket.assignedTo === user?.id ||
+                ticket.assignedAgent === user?.name ||
+                ticket.assignedAgent === user?.username
             );
 
       setTickets(mine);
@@ -150,7 +147,7 @@ const MyTicketsPage = () => {
                 <div>
 
                   <h2 className="font-bold text-slate-900">
-                    {ticket.title}
+                    {ticket.subject || ticket.title}
                   </h2>
 
                   <p className="mt-1 text-xs text-slate-400">
@@ -161,7 +158,7 @@ const MyTicketsPage = () => {
                   <p className="mt-2 text-sm text-slate-500">
                     Assigned to{" "}
                     <span className="font-semibold text-slate-700">
-                      {ticket.assignedTo}
+                      {ticket.assignedAgent || ticket.assignedTo || "Unassigned"}
                     </span>
                   </p>
 

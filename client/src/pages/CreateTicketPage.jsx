@@ -1,97 +1,52 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { createTicket } from "../services/ticketService";
 
 
 const CreateTicketPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
+  const [form, setForm] = useState({
+    title: "",
+    category: "General",
+    priority: "Medium",
+    description: "",
+  });
 
-const navigate = useNavigate();
+  const [message, setMessage] = useState("");
 
+  const handleChange = (e) => {
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    });
+  };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-const [form,setForm]=useState({
+    if (!form.title || !form.description) {
+      setMessage("Please fill all required fields");
+      return;
+    }
 
-title:"",
+    try {
+      const ticket = await createTicket(form, user);
+      setMessage("Ticket created successfully");
 
-category:"General",
-
-priority:"Medium",
-
-description:""
-
-});
-
-
-
-const [message,setMessage]=useState("");
-
-
-
-
-const handleChange=(e)=>{
-
-
-setForm({
-
-...form,
-
-[e.target.name]:e.target.value
-
-});
-
-
-};
-
-
-
-
-
-const handleSubmit=async(e)=>{
-
-
-e.preventDefault();
-
-
-
-if(
-!form.title ||
-!form.description
-){
-
-setMessage(
-"Please fill all required fields"
-);
-
-
-return;
-
-}
-
-
-
-
-await createTicket(form);
-
-
-
-setMessage(
-"Ticket created successfully"
-);
-
-
-
-setTimeout(()=>{
-
-
-navigate("/customer/my-tickets");
-
-
-},1000);
-
-
-
-};
+      setTimeout(() => {
+        if (ticket && ticket.id) {
+          navigate(`/customer/tickets/${ticket.id}`);
+        } else {
+          navigate("/customer/my-tickets");
+        }
+      }, 800);
+    } catch (err) {
+      setMessage("Failed to create ticket. Please retry.");
+    }
+  };
 
 
 
