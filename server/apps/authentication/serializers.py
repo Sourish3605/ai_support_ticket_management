@@ -44,17 +44,28 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         username_or_email = attrs.get('username')
         if username_or_email:
-            user = User.objects.filter(email__iexact=username_or_email).first() or User.objects.filter(username__iexact=username_or_email).first()
-            if user:
-                attrs['username'] = user.username
-        data = super().validate(attrs)
-        data['user'] = {
-            'id': self.user.id,
-            'username': self.user.username,
-            'email': self.user.email,
-            'name': self.user.get_full_name() or self.user.username,
-            'role': 'admin' if self.user.is_superuser else 'agent' if self.user.is_staff else 'customer',
-        }
+            matched_user = (
+                User.objects.filter(email__iexact=username_or_email).first()
+                or User.objects.filter(username__iexact=username_or_email).first()
+            )
+            if matched_user:
+                attrs['username'] = matched_user.username
+
+        data: dict[str, object] = dict(super().validate(attrs))
+        current_user = self.user
+        if current_user is not None:
+            full_name = getattr(current_user, 'get_full_name', lambda: '')()
+            data['user'] = {
+                'id': getattr(current_user, 'id', None),
+                'username': getattr(current_user, 'username', ''),
+                'email': getattr(current_user, 'email', ''),
+                'name': full_name or getattr(current_user, 'username', ''),
+                'role': (
+                    'admin' if getattr(current_user, 'is_superuser', False)
+                    else 'agent' if getattr(current_user, 'is_staff', False)
+                    else 'customer'
+                ),
+            }
         return data
 
 
