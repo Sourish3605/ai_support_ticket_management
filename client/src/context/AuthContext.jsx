@@ -85,53 +85,35 @@ export const AuthProvider = ({ children }) => {
       setUser(account);
       return account;
     } catch (error) {
-      // Offline / Demo seed user fallback for resilient login
-      const matchSeed = seedUsers.find(
-        (u) =>
-          u.email.toLowerCase() === username.toLowerCase() ||
-          u.name.toLowerCase() === username.toLowerCase() ||
-          u.id.toLowerCase() === username.toLowerCase()
-      );
-
-      if (matchSeed) {
-        const seedRole = normalizeRole(matchSeed.role || fallbackRole);
-        const account = {
-          id: matchSeed.id,
-          username: matchSeed.email.split("@")[0],
-          email: matchSeed.email,
-          name: matchSeed.name,
-          role: seedRole,
-          department: matchSeed.department,
-        };
-        const mockTokens = { access: `demo-access-${Date.now()}`, refresh: `demo-refresh-${Date.now()}` };
-        setTokens(mockTokens);
-        setUser(account);
-        return account;
+      // If the backend actively responded with 400 or 401, fail immediately
+      if (error?.response?.status === 401 || error?.response?.status === 400) {
+        throw new Error(getApiError(error, "Invalid username or password. Please try again."));
       }
 
-      // If generic credentials like sourish / password, yogitha / password, devipriya / password
-      if (password.length >= 4) {
-        const lowerUser = username.toLowerCase();
-        const inferredRole = lowerUser.includes("admin") || lowerUser.includes("sourish")
-          ? ROLES.ADMIN
-          : lowerUser.includes("agent") || lowerUser.includes("yogitha") || lowerUser.includes("premalatha")
-          ? ROLES.AGENT
-          : fallbackRole;
+      // Offline fallback: ONLY when backend is completely unreachable and credentials match demo users
+      if (error?.code === "ECONNABORTED" || !error?.response) {
+        const matchSeed = seedUsers.find(
+          (u) =>
+            u.email.toLowerCase() === username.toLowerCase() ||
+            u.name.toLowerCase() === username.toLowerCase() ||
+            u.id.toLowerCase() === username.toLowerCase()
+        );
 
-        const account = {
-          id: `USR-${Date.now().toString().slice(-4)}`,
-          username: username.includes("@") ? username.split("@")[0] : username,
-          email: username.includes("@") ? username : `${username}@gmail.com`,
-          name: (username.includes("@") ? username.split("@")[0] : username)
-            .replace(/[._]/g, " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase()),
-          role: inferredRole,
-        };
-
-        const mockTokens = { access: `demo-token-${Date.now()}`, refresh: `demo-refresh-${Date.now()}` };
-        setTokens(mockTokens);
-        setUser(account);
-        return account;
+        if (matchSeed && password === "password123") {
+          const seedRole = normalizeRole(matchSeed.role || fallbackRole);
+          const account = {
+            id: matchSeed.id,
+            username: matchSeed.email.split("@")[0],
+            email: matchSeed.email,
+            name: matchSeed.name,
+            role: seedRole,
+            department: matchSeed.department,
+          };
+          const mockTokens = { access: `demo-access-${Date.now()}`, refresh: `demo-refresh-${Date.now()}` };
+          setTokens(mockTokens);
+          setUser(account);
+          return account;
+        }
       }
 
       throw new Error(getApiError(error, "Invalid login details. Please try again."));
@@ -272,8 +254,10 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setTokens(null);
+    delete api.defaults.headers.common["Authorization"];
     localStorage.removeItem("supportpilot-user");
     localStorage.removeItem("supportpilot-tokens");
+    sessionStorage.clear();
   };
 
   const value = useMemo(
