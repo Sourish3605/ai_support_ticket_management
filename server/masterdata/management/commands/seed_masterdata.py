@@ -220,32 +220,35 @@ class Command(BaseCommand):
         User.objects.filter(username__in=["arun", "bala"]).delete()
 
         # Primary Demo Credentials
-        # 1. Admin (admin@gmail.com)
-        admin_u, _ = User.objects.get_or_create(username="admin@gmail.com", defaults={"email": "admin@gmail.com"})
-        admin_u.email = "admin@gmail.com"
-        admin_u.first_name = "Admin"
-        admin_u.is_staff = True
-        admin_u.is_superuser = True
-        admin_u.set_password("password123")
-        admin_u.save()
+        # 1. Admin (admin@gmail.com & admin)
+        for u_name in ["admin@gmail.com", "admin"]:
+            admin_u, _ = User.objects.get_or_create(username=u_name, defaults={"email": "admin@gmail.com"})
+            admin_u.email = "admin@gmail.com"
+            admin_u.first_name = "Admin"
+            admin_u.is_staff = True
+            admin_u.is_superuser = True
+            admin_u.set_password("password123")
+            admin_u.save()
 
-        # 2. Agent (agent@gmail.com)
-        agent_u, _ = User.objects.get_or_create(username="agent@gmail.com", defaults={"email": "agent@gmail.com"})
-        agent_u.email = "agent@gmail.com"
-        agent_u.first_name = "Agent"
-        agent_u.is_staff = True
-        agent_u.is_superuser = False
-        agent_u.set_password("password123")
-        agent_u.save()
+        # 2. Agent (agent@gmail.com & agent)
+        for u_name in ["agent@gmail.com", "agent"]:
+            agent_u, _ = User.objects.get_or_create(username=u_name, defaults={"email": "agent@gmail.com"})
+            agent_u.email = "agent@gmail.com"
+            agent_u.first_name = "Agent"
+            agent_u.is_staff = True
+            agent_u.is_superuser = False
+            agent_u.set_password("password123")
+            agent_u.save()
 
-        # 3. Customer (customer@gmail.com)
-        cust_u, _ = User.objects.get_or_create(username="customer@gmail.com", defaults={"email": "customer@gmail.com"})
-        cust_u.email = "customer@gmail.com"
-        cust_u.first_name = "Customer"
-        cust_u.is_staff = False
-        cust_u.is_superuser = False
-        cust_u.set_password("password123")
-        cust_u.save()
+        # 3. Customer (customer@gmail.com & customer)
+        for u_name in ["customer@gmail.com", "customer"]:
+            cust_u, _ = User.objects.get_or_create(username=u_name, defaults={"email": "customer@gmail.com"})
+            cust_u.email = "customer@gmail.com"
+            cust_u.first_name = "Customer"
+            cust_u.is_staff = False
+            cust_u.is_superuser = False
+            cust_u.set_password("password123")
+            cust_u.save()
 
         # Additional specific users
         # Admin (sourish)
