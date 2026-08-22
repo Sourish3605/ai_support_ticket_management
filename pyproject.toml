@@ -1,0 +1,16 @@
+[tool.pyrefly]
+search-paths = [
+    "server",
+    "server/venv/lib/python3.13/site-packages"
+]
+site-package-path = [
+    "server/venv/lib/python3.13/site-packages"
+]
+
+[tool.pyright]
+extraPaths = [
+    "server",
+    "server/venv/lib/python3.13/site-packages"
+]
+venvPath = "server"
+venv = "venv"

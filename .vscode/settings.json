@@ -1,0 +1,10 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/server/venv/bin/python",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/server"
+  ],
+  "pyrefly.pythonPath": "${workspaceFolder}/server/venv/bin/python",
+  "pyrefly.extraPaths": [
+    "${workspaceFolder}/server"
+  ]
+}
