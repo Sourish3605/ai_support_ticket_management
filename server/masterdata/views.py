@@ -1,7 +1,10 @@
-
 import json
 import re
-from pypdf import PdfReader
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None
+
 from rest_framework import generics, permissions, status, views
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -10,7 +13,9 @@ from .models import (
     SubCategory,
     Priority,
     SLARule,
+    Department,
     Team,
+    SeverityRule,
     Product,
     KnowledgeArticle,
 )
@@ -20,11 +25,12 @@ from .serializers import (
     SubCategorySerializer,
     PrioritySerializer,
     SLARuleSerializer,
+    DepartmentSerializer,
     TeamSerializer,
+    SeverityRuleSerializer,
     ProductSerializer,
     KnowledgeArticleSerializer,
 )
-
 
 
 def extract_and_structure_pdf(full_text, filename):
@@ -82,18 +88,14 @@ def extract_and_structure_pdf(full_text, filename):
 
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.prefetch_related("sub_categories").all().order_by("id")
-
-class CategoryListView(generics.ListAPIView):
-    queryset = Category.objects.prefetch_related("sub_categories").all()
-
     serializer_class = CategorySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
 
-class SubCategoryListView(generics.ListAPIView):
-    queryset = SubCategory.objects.all()
-    serializer_class = SubCategorySerializer
-    permission_classes = [permissions.IsAuthenticated]
+class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class SubCategoryListCreateView(generics.ListCreateAPIView):
@@ -117,7 +119,7 @@ class SubCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 class PriorityListCreateView(generics.ListCreateAPIView):
     queryset = Priority.objects.all().order_by("level", "id")
     serializer_class = PrioritySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
 
 class PriorityDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -163,6 +165,12 @@ class KnowledgeArticleUploadPDFView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
+        if PdfReader is None:
+            return Response(
+                {"error": "PDF parsing library (pypdf) is not installed on the server."},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
+            )
+
         file_obj = request.FILES.get("file") or request.FILES.get("pdf")
         if not file_obj:
             return Response(
@@ -247,25 +255,31 @@ class KnowledgeArticleUploadPDFView(views.APIView):
             )
 
 
-
 class SLARuleListView(generics.ListAPIView):
     queryset = SLARule.objects.select_related("priority").all()
     serializer_class = SLARuleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+
+
+class DepartmentListCreateView(generics.ListCreateAPIView):
+    queryset = Department.objects.all()
+    serializer_class = DepartmentSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class TeamListView(generics.ListAPIView):
-    queryset = Team.objects.all()
+    queryset = Team.objects.select_related("department").all()
     serializer_class = TeamSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+
+
+class SeverityRuleListView(generics.ListAPIView):
+    queryset = SeverityRule.objects.all()
+    serializer_class = SeverityRuleSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class ProductListView(generics.ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-
     permission_classes = [permissions.AllowAny]
-
-
-    permission_classes = [permissions.IsAuthenticated]
-

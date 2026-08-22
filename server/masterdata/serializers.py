@@ -4,7 +4,9 @@ from .models import (
     SubCategory,
     Priority,
     SLARule,
+    Department,
     Team,
+    SeverityRule,
     Product,
     KnowledgeArticle,
 )
@@ -44,10 +46,24 @@ class SLARuleSerializer(serializers.ModelSerializer):
         ]
 
 
+class DepartmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ["id", "name", "description"]
+
+
+class SeverityRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SeverityRule
+        fields = ["id", "code", "description", "suggested_priority"]
+
+
 class TeamSerializer(serializers.ModelSerializer):
+    department = DepartmentSerializer(read_only=True)
+
     class Meta:
         model = Team
-        fields = ["id", "name"]
+        fields = ["id", "name", "department"]
 
 
 class ProductSerializer(serializers.ModelSerializer):
