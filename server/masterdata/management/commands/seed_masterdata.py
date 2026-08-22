@@ -1,9 +1,7 @@
 from django.core.management.base import BaseCommand
-from django.contrib.auth import get_user_model
+from django.contrib.auth.models import User
 import json
 from masterdata.models import Category, SubCategory, Priority, SLARule, Department, Team, SeverityRule, Product, KnowledgeArticle
-
-User = get_user_model()
 
 
 class Command(BaseCommand):

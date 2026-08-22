@@ -22,7 +22,7 @@ from mongodb import (
 )
 
 
-def hybrid_retrieve_chunks(query_text: str, category: str = None, sub_category: str = None, top_k: int = 5) -> list:
+def hybrid_retrieve_chunks(query_text: str, category: str | None = None, sub_category: str | None = None, top_k: int = 5) -> list:
     """
     Perform hybrid retrieval across Knowledge Base chunks.
     Matches against MongoDB article_chunks with fallback to Django ORM KnowledgeArticle.
@@ -114,10 +114,10 @@ def hybrid_retrieve_chunks(query_text: str, category: str = None, sub_category: 
 
 def generate_grounded_resolution(
     query_text: str,
-    category: str,
-    sub_category: str,
-    ticket_id: int = None,
-    user_id: str = None
+    category: str | None = None,
+    sub_category: str | None = None,
+    ticket_id: int | None = None,
+    user_id: str | None = None
 ) -> dict:
     """
     Complete Milestone 2 RAG Pipeline:

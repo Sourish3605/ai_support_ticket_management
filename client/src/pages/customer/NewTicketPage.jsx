@@ -366,10 +366,15 @@ export default function NewTicketPage() {
         suggestedResolution: finalClassification?.suggestedResolution || [],
       };
 
-      const ticket = createTicket(finalForm, user);
+      const ticket = await createTicket(finalForm, user);
       localStorage.removeItem("supportpilot_ticket_draft");
-      navigate(`/portal/tickets/${ticket.id}`);
+      if (ticket && ticket.id) {
+        navigate(`/portal/tickets/${ticket.id}`);
+      } else {
+        navigate("/portal/tickets");
+      }
     } catch (err) {
+      console.error("[Ticket Submit Error]:", err);
       setError(err?.message || "Failed to submit ticket. Please retry.");
       setIsSubmitting(false);
     }

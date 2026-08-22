@@ -4,7 +4,7 @@ import { api } from "./api.js";
 
 
 
-const getTickets = () => {
+export const getTickets = () => {
   return storage.get(
     STORAGE_KEYS.tickets,
     seedTickets
@@ -18,7 +18,7 @@ const saveTickets = (tickets) => {
 const generateTicketId = (tickets) => {
   const numbers = tickets
     .map((ticket) => {
-      const match = ticket.id.match(/\d+/);
+      const match = String(ticket.id || "").match(/\d+/);
       return match ? Number(match[0]) : 0;
     });
 
@@ -49,6 +49,7 @@ const getSLAHours = (priority) => {
   switch (priority) {
     case "P1":
     case "High":
+    case "Critical":
       return 4;
     case "P2":
       return 8;
@@ -105,18 +106,28 @@ export const createTicket = async (form, user) => {
   const tickets = getTickets();
   const ticketId = generateTicketId(tickets);
 
-  const classification = await classifyTicket(
-    form.subject,
-    form.description,
-    form.scope || "Just me",
-    Boolean(form.workBlocked)
-  );
+  const rawSubject = form.subject || form.title || "Support Request";
+  const rawDesc = form.description || "";
 
-  const category = form.category || classification.category;
-  const subCategory = form.subCategory || classification.subCategory;
-  const severity = form.severity || classification.severity;
-  const priority = form.priority || classification.priority;
-  const slaHours = getSLAHours(priority);
+  let classification = form.aiClassification || null;
+  if (!classification || !classification.category || classification.category === "—") {
+    try {
+      classification = await classifyTicket(
+        rawSubject,
+        rawDesc,
+        form.scope || "Just me",
+        Boolean(form.workBlocked)
+      );
+    } catch (e) {
+      console.warn("[TicketService] Classification error during createTicket:", e);
+    }
+  }
+
+  const category = form.category || classification?.category || "General";
+  const subCategory = form.subCategory || classification?.subCategory || "General";
+  const severity = form.severity || classification?.severity || "Medium";
+  const priority = form.priority || classification?.priority || "P3";
+  const slaHours = form.slaHours || classification?.slaHours || getSLAHours(priority);
 
   const createdAt = new Date();
   const slaDueAt = new Date(
@@ -125,22 +136,26 @@ export const createTicket = async (form, user) => {
   );
 
   // Automatic assignment
-  const agent = getAvailableAgent(classification.team);
+  const agent = getAvailableAgent(classification?.team);
+
+  const customerId = user?.id ? String(user.id) : "USR-003";
+  const customerName = user?.name || user?.username || "Customer";
+  const customerEmail = user?.email || (user?.username?.includes("@") ? user.username : `${user?.username || "customer"}@gmail.com`);
 
   const ticket = {
     id: ticketId,
-    subject: form.subject,
-    description: form.description,
+    title: rawSubject,
+    subject: rawSubject,
+    description: rawDesc,
     category,
     subCategory,
     severity,
     priority,
     status: "AI_RESOLUTION_READY",
 
-
-    customerId: user?.id || "USR-004",
-    customerName: user?.name || user?.username || "devipriya",
-    customerEmail: user?.email || "devipriya@gmail.com",
+    customerId,
+    customerName,
+    customerEmail,
 
     department: form.department || user?.department || "IT support",
     location: form.location || "",
@@ -157,7 +172,7 @@ export const createTicket = async (form, user) => {
 
     assignedTo: agent?.id || null,
     assignedAgent: agent?.name || "Unassigned",
-    team: agent?.team || classification.team,
+    team: agent?.team || classification?.team || "IT Support",
 
     createdAt: createdAt.toISOString(),
     updatedAt: createdAt.toISOString(),
@@ -165,16 +180,20 @@ export const createTicket = async (form, user) => {
     slaDueAt: slaDueAt.toISOString(),
 
     knowledgeRetrieved: true,
-    knowledgeSource: form.knowledgeSource || classification.knowledgeSource,
+    knowledgeSource: form.knowledgeSource || classification?.knowledgeSource || "Enterprise Knowledge Store",
 
     ai: {
-      categoryConfidence: form.confidence || classification.confidence,
-      severityConfidence: Math.min(0.96, (form.confidence || classification.confidence) - 0.04),
-      classificationPath: form.classificationPath || classification.classificationPath,
+      categoryConfidence: form.confidence || classification?.confidence || 0.95,
+      severityConfidence: Math.min(0.96, (form.confidence || classification?.confidence || 0.95) - 0.04),
+      classificationPath: form.classificationPath || classification?.classificationPath || "AI Engine",
       severity,
-      suggestedResolution: form.suggestedResolution || classification.suggestedResolution,
+      suggestedResolution: form.suggestedResolution || classification?.suggestedResolution || [
+        "Review instructions in knowledge base documentation.",
+        "Check network and system connectivity status.",
+        "Restart affected application or hardware device.",
+        "Contact IT administrator if the issue persists."
+      ],
     },
-
 
     timeline: [
       {
@@ -195,7 +214,7 @@ export const createTicket = async (form, user) => {
         id: Date.now() + 2,
         type: "rag",
         title: "AI Automated Resolution Guide Ready",
-        description: `Knowledge retrieved from: ${classification.knowledgeSource}.`,
+        description: `Knowledge retrieved from: ${classification?.knowledgeSource || "Enterprise Knowledge Store"}.`,
         timestamp: new Date(createdAt.getTime() + 2000).toISOString(),
       },
 
@@ -205,7 +224,7 @@ export const createTicket = async (form, user) => {
               id: Date.now() + 3,
               type: "assigned",
               title: "Ticket assigned",
-              description: `Assigned to ${agent.name} (${classification.team}).`,
+              description: `Assigned to ${agent.name} (${classification?.team || "IT Support"}).`,
               timestamp: new Date(createdAt.getTime() + 3000).toISOString(),
             },
           ]
@@ -230,8 +249,8 @@ export const createTicket = async (form, user) => {
       department: ticket.department || "IT support",
       scope: ticket.scope || "Just me",
       work_blocked: Boolean(ticket.workBlocked),
-      customer_email: ticket.customerEmail || "devipriya@gmail.com",
-      customer_name: ticket.customerName || "devipriya",
+      customer_email: ticket.customerEmail,
+      customer_name: ticket.customerName,
     }).then((res) => {
       if (res?.data?.id) {
         console.log(`[DB Sync] Ticket #${res.data.id} persisted to PostgreSQL database.`);
@@ -243,7 +262,6 @@ export const createTicket = async (form, user) => {
     console.warn("[DB Sync Error]:", e);
   }
 
-
   return ticket;
 };
 
@@ -253,18 +271,52 @@ export const getAllTickets = () => {
 };
 
 export const getTicketById = (id) => {
+  if (!id || id === "undefined" || id === "null") return null;
   const tickets = getTickets();
+  const searchId = String(id).trim().toLowerCase();
   return tickets.find(
-    (ticket) => ticket.id === id
+    (ticket) => String(ticket.id || "").trim().toLowerCase() === searchId
   );
 };
 
-export const getCustomerTickets = (customerId) => {
+export const getCustomerTickets = (userOrId) => {
   const tickets = getTickets();
-  if (!customerId) return tickets;
-  return tickets.filter(
-    (ticket) => ticket.customerId === customerId
-  );
+  if (!userOrId) return tickets;
+
+  let targetId = null;
+  let targetEmail = null;
+  let targetName = null;
+
+  if (typeof userOrId === "object") {
+    targetId = userOrId.id != null ? String(userOrId.id).trim().toLowerCase() : null;
+    targetEmail = userOrId.email ? String(userOrId.email).trim().toLowerCase() : null;
+    targetName = (userOrId.name || userOrId.username) ? String(userOrId.name || userOrId.username).trim().toLowerCase() : null;
+  } else {
+    const val = String(userOrId).trim().toLowerCase();
+    if (val.includes("@")) {
+      targetEmail = val;
+    } else {
+      targetId = val;
+      targetName = val;
+    }
+  }
+
+  return tickets.filter((ticket) => {
+    const ticketCustId = ticket.customerId != null ? String(ticket.customerId).trim().toLowerCase() : "";
+    const ticketEmail = ticket.customerEmail ? String(ticket.customerEmail).trim().toLowerCase() : "";
+    const ticketName = ticket.customerName ? String(ticket.customerName).trim().toLowerCase() : "";
+
+    if (targetId && ticketCustId && (ticketCustId === targetId || ticketCustId.includes(targetId) || targetId.includes(ticketCustId))) {
+      return true;
+    }
+    if (targetEmail && ticketEmail && ticketEmail === targetEmail) {
+      return true;
+    }
+    if (targetName && ticketName && (ticketName === targetName || ticketName.includes(targetName) || targetName.includes(ticketName))) {
+      return true;
+    }
+    return false;
+  });
 };
 
 export const getAgentTickets = (agentId) => {
