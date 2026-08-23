@@ -53,7 +53,7 @@ function CustomerLayout({ children }) {
 
   const handleLogout = () => {
     logout();
-    navigate("/", { replace: true });
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -67,7 +67,7 @@ function CustomerLayout({ children }) {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-white/70 hidden sm:block">{user?.name || user?.username}</span>
-          <button onClick={handleLogout} className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10">Logout</button>
+          <button onClick={handleLogout} className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 cursor-pointer">Logout</button>
           <div className="sp-avatar" title={user?.name}>{initials(user?.name)}</div>
         </div>
       </header>
@@ -96,7 +96,7 @@ function AgentLayout({ children }) {
 
   const handleLogout = () => {
     logout();
-    navigate("/", { replace: true });
+    navigate("/login", { replace: true });
   };
 
   const pageMeta = location.pathname === "/dashboard"
@@ -150,7 +150,7 @@ function AgentLayout({ children }) {
         <header className="sp-agent-topbar">
           <div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div>
           <div className="flex items-center gap-3">
-            <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">Logout</button>
+            <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer">Logout</button>
             <div className="sp-avatar sp-agent-avatar" title={displayName}>{userInitials}</div>
           </div>
         </header>
@@ -173,7 +173,7 @@ function AdminLayout({ children }) {
 
   const handleLogout = () => {
     logout();
-    navigate("/", { replace: true });
+    navigate("/login", { replace: true });
   };
 
   const adminNav = [
@@ -363,8 +363,11 @@ function UnauthorizedPage() {
 
           {user && (
             <button
-              onClick={logout}
-              className="w-full rounded-xl bg-white/10 px-5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/15 transition border border-white/10"
+              onClick={() => {
+                logout();
+                window.location.href = "/login";
+              }}
+              className="w-full rounded-xl bg-white/10 px-5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/15 transition border border-white/10 cursor-pointer"
             >
               Switch Account / Sign Out
             </button>

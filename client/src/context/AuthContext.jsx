@@ -100,7 +100,12 @@ export const AuthProvider = ({ children }) => {
         role: parsedRole,
       };
 
-      setTokens({ access: response.data.access, refresh: response.data.refresh });
+      const authTokens = { access: response.data.access, refresh: response.data.refresh };
+      localStorage.setItem("supportpilot-user", JSON.stringify(account));
+      localStorage.setItem("supportpilot-tokens", JSON.stringify(authTokens));
+      api.defaults.headers.common["Authorization"] = `Bearer ${authTokens.access}`;
+
+      setTokens(authTokens);
       setUser(account);
       return account;
     } catch (error) {
@@ -152,6 +157,10 @@ export const AuthProvider = ({ children }) => {
             department: matchSeed.department,
           };
           const mockTokens = { access: `demo-access-${Date.now()}`, refresh: `demo-refresh-${Date.now()}` };
+          localStorage.setItem("supportpilot-user", JSON.stringify(account));
+          localStorage.setItem("supportpilot-tokens", JSON.stringify(mockTokens));
+          api.defaults.headers.common["Authorization"] = `Bearer ${mockTokens.access}`;
+
           setTokens(mockTokens);
           setUser(account);
           return account;
@@ -180,7 +189,12 @@ export const AuthProvider = ({ children }) => {
         name: profile.name || username.split("@")[0],
         role: ROLES.CUSTOMER,
       };
-      setTokens({ access: response.data.access, refresh: response.data.refresh });
+      const authTokens = { access: response.data.access, refresh: response.data.refresh };
+      localStorage.setItem("supportpilot-user", JSON.stringify(account));
+      localStorage.setItem("supportpilot-tokens", JSON.stringify(authTokens));
+      api.defaults.headers.common["Authorization"] = `Bearer ${authTokens.access}`;
+
+      setTokens(authTokens);
       setUser(account);
       return account;
     } catch (error) {
@@ -193,6 +207,10 @@ export const AuthProvider = ({ children }) => {
         role: ROLES.CUSTOMER,
       };
       const mockTokens = { access: `demo-reg-${Date.now()}`, refresh: `demo-refresh-${Date.now()}` };
+      localStorage.setItem("supportpilot-user", JSON.stringify(account));
+      localStorage.setItem("supportpilot-tokens", JSON.stringify(mockTokens));
+      api.defaults.headers.common["Authorization"] = `Bearer ${mockTokens.access}`;
+
       setTokens(mockTokens);
       setUser(account);
       return account;
@@ -228,46 +246,43 @@ export const AuthProvider = ({ children }) => {
         : credential?.credential || credential?.access_token || credential?.id_token || "mock-google-customer-token";
 
     try {
-      let response;
+      let response = null;
       try {
-        response = await api.post("/auth/google/", { credential: rawToken });
+        response = await api.post("/auth/google/", { credential: rawToken }, { timeout: 5000 });
       } catch {
         try {
-          response = await api.post("/auth/google-login/", { credential: rawToken });
-        } catch (postErr) {
-          // If backend API fails, decode JWT or generate client mock customer session
-          const decoded = decodeGoogleJwt(rawToken);
-          const email = decoded?.email || "customer@gmail.com";
-          const name = decoded?.name || decoded?.given_name || email.split("@")[0] || "Customer";
-          const account = {
-            id: `USR-${decoded?.sub ? decoded.sub.slice(-6) : Date.now().toString().slice(-4)}`,
-            username: email.split("@")[0],
-            email,
-            name,
-            role: ROLES.CUSTOMER,
-            picture: decoded?.picture || "",
-          };
-          const mockTokens = {
-            access: `google-access-${Date.now()}`,
-            refresh: `google-refresh-${Date.now()}`,
-          };
-          setTokens(mockTokens);
-          setUser(account);
-          return account;
+          response = await api.post("/auth/google-login/", { credential: rawToken }, { timeout: 5000 });
+        } catch {
+          // Backend offline or unreachable: continue to client decode / session generation
         }
       }
 
-      const apiUser = response?.data?.user;
       const decoded = decodeGoogleJwt(rawToken);
+      const email = response?.data?.user?.email || decoded?.email || "customer@gmail.com";
+      const name = response?.data?.user?.name || decoded?.name || decoded?.given_name || email.split("@")[0] || "Customer";
+      const id = response?.data?.user?.id ?? (decoded?.sub ? `USR-${decoded.sub.slice(-6)}` : "USR-003");
+      const role = normalizeRole(response?.data?.user?.role || ROLES.CUSTOMER);
+      const picture = decoded?.picture || "";
+
       const account = {
-        id: apiUser?.id ?? `USR-${Date.now()}`,
-        username: apiUser?.username || "customer",
-        email: apiUser?.email || decoded?.email || "customer@gmail.com",
-        name: apiUser?.name || decoded?.name || "Customer",
-        role: normalizeRole(apiUser?.role || ROLES.CUSTOMER),
-        picture: decoded?.picture || "",
+        id,
+        username: response?.data?.user?.username || email.split("@")[0],
+        email,
+        name,
+        role,
+        picture,
       };
-      setTokens({ access: response.data.access, refresh: response.data.refresh });
+
+      const authTokens = {
+        access: response?.data?.access || `google-access-${Date.now()}`,
+        refresh: response?.data?.refresh || `google-refresh-${Date.now()}`,
+      };
+
+      localStorage.setItem("supportpilot-user", JSON.stringify(account));
+      localStorage.setItem("supportpilot-tokens", JSON.stringify(authTokens));
+      api.defaults.headers.common["Authorization"] = `Bearer ${authTokens.access}`;
+
+      setTokens(authTokens);
       setUser(account);
       return account;
     } catch (error) {
@@ -275,7 +290,7 @@ export const AuthProvider = ({ children }) => {
       const email = decoded?.email || "customer@gmail.com";
       const name = decoded?.name || decoded?.given_name || email.split("@")[0] || "Customer";
       const account = {
-        id: `USR-${decoded?.sub ? decoded.sub.slice(-6) : Date.now().toString().slice(-4)}`,
+        id: decoded?.sub ? `USR-${decoded.sub.slice(-6)}` : "USR-003",
         username: email.split("@")[0],
         email,
         name,
@@ -286,6 +301,10 @@ export const AuthProvider = ({ children }) => {
         access: `google-access-${Date.now()}`,
         refresh: `google-refresh-${Date.now()}`,
       };
+      localStorage.setItem("supportpilot-user", JSON.stringify(account));
+      localStorage.setItem("supportpilot-tokens", JSON.stringify(mockTokens));
+      api.defaults.headers.common["Authorization"] = `Bearer ${mockTokens.access}`;
+
       setTokens(mockTokens);
       setUser(account);
       return account;
@@ -294,14 +313,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-
-
   const logout = () => {
     setUser(null);
     setTokens(null);
     delete api.defaults.headers.common["Authorization"];
     localStorage.removeItem("supportpilot-user");
     localStorage.removeItem("supportpilot-tokens");
+    localStorage.removeItem("supportpilot_ticket_draft");
     sessionStorage.clear();
   };
 
