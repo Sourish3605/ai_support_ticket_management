@@ -56,17 +56,23 @@ class GoogleLoginView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
+        role = (
+            'admin' if getattr(user, 'is_superuser', False)
+            else 'agent' if getattr(user, 'is_staff', False)
+            else 'customer'
+        )
         refresh = RefreshToken.for_user(user)
         refresh['username'] = user.username
-        refresh['role'] = 'customer'
+        refresh['role'] = role
         return Response({
             'user': {
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
                 'name': user.get_full_name() or user.username,
-                'role': 'customer',
+                'role': role,
             },
             'access': str(refresh.access_token),
             'refresh': str(refresh),
         })
+
