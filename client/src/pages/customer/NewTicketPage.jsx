@@ -213,12 +213,12 @@ export default function NewTicketPage() {
     const searchTerms = form.subject.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 3);
     if (!searchTerms.length) return null;
 
-    return getCustomerTickets(user?.id).find((ticket) => {
+    return getCustomerTickets(user).find((ticket) => {
       if (["Resolved", "Closed"].includes(ticket.status)) return false;
-      const subj = ticket.subject.toLowerCase();
+      const subj = (ticket.subject || ticket.title || "").toLowerCase();
       return searchTerms.some((term) => subj.includes(term));
     });
-  }, [form.subject, user?.id]);
+  }, [form.subject, user]);
 
   // AI Classification Trigger: Backend AI API + Database Master Data
   const handleRunAiClassification = async () => {

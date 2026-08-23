@@ -98,9 +98,9 @@ export default function ProfileMenu() {
               onClick={() => {
                 logout();
                 setOpen(false);
-                navigate("/", { replace: true });
+                navigate("/login", { replace: true });
               }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50 cursor-pointer"
             >
               <FiLogOut />
               Sign out

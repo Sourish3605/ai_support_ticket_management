@@ -647,14 +647,37 @@ const LoginPage = () => {
                 {isCustomerLogin && (
                   <div className="flex flex-col gap-2">
                     {isGoogleConfigured ? (
-                      <div className="flex justify-center w-full">
-                        <GoogleLogin
-                          onSuccess={handleGoogleSuccess}
-                          onError={() => setError("Google sign-in popup was cancelled or failed.")}
-                          theme="outline"
-                          size="large"
-                          width="100%"
-                        />
+                      <div className="flex flex-col items-center gap-2 w-full">
+                        <div className="flex justify-center w-full">
+                          <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => setError("Google sign-in popup was cancelled or failed. You can use the demo button below.")}
+                            theme="outline"
+                            size="large"
+                            width="100%"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={async () => {
+                            setError("");
+                            try {
+                              setLoading(true);
+                              const loggedUser = await loginWithGoogle("mock-google-customer-token");
+                              if (loggedUser) {
+                                redirectUser(loggedUser);
+                              }
+                            } catch (err) {
+                              setError(err?.message || "Google sign-in failed.");
+                            } finally {
+                              setLoading(false);
+                            }
+                          }}
+                          className="text-center text-[11px] text-emerald-700 hover:text-emerald-800 font-medium underline cursor-pointer py-0.5"
+                        >
+                          Or continue with Google Customer Demo
+                        </button>
                       </div>
                     ) : (
                       <button

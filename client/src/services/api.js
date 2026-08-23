@@ -70,6 +70,7 @@ api.interceptors.response.use(
       !originalRequest._retry &&
       !originalRequest.url?.includes('/auth/login') &&
       !originalRequest.url?.includes('/auth/register') &&
+      !originalRequest.url?.includes('/auth/google') &&
       !originalRequest.url?.includes('/token/refresh')
     ) {
       if (isRefreshing) {
