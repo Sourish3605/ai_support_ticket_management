@@ -251,7 +251,7 @@ function AdminLayout({ children }) {
 ===================================================== */
 
 function HomePage() {
-  const { user, isAuthenticated, startFreshSession } = useAuth();
+  const { startFreshSession } = useAuth();
   const navigate = useNavigate();
 
   const handleStartFresh = (e) => {
@@ -259,14 +259,6 @@ function HomePage() {
     startFreshSession();
     navigate("/login?fresh=true", { replace: true });
   };
-
-  const roleNames = {
-    admin: "Administrator",
-    agent: "Support Agent",
-    customer: "Customer",
-  };
-
-  const targetHome = user?.role === "admin" ? "/admin" : user?.role === "agent" ? "/dashboard" : "/portal/tickets";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#14532d] via-[#166534] to-[#0f2b1d] text-white">
@@ -277,15 +269,6 @@ function HomePage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {isAuthenticated && user ? (
-            <Link
-              to={targetHome}
-              className="rounded-full bg-emerald-400/20 border border-emerald-400/40 px-4 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/30 transition flex items-center gap-1.5"
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Resume ({user.name || user.username})</span>
-            </Link>
-          ) : null}
           <Link
             to="/login?fresh=true"
             onClick={handleStartFresh}
@@ -311,21 +294,11 @@ function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            {isAuthenticated && user && (
-              <Link
-                to={targetHome}
-                className="rounded-xl border border-emerald-300/40 bg-emerald-950/70 px-6 py-3.5 font-semibold text-emerald-100 shadow-xl backdrop-blur-sm hover:bg-emerald-900/90 transition text-center flex items-center justify-center gap-2"
-              >
-                <span>⚡ Continue Previous Session</span>
-                <span className="text-xs text-emerald-300">({user.name || user.username} · {roleNames[user.role] || user.role})</span>
-              </Link>
-            )}
-
             <button
               onClick={handleStartFresh}
               className="rounded-xl bg-white px-6 py-3.5 font-semibold text-[#14532d] hover:bg-emerald-50 transition shadow-xl cursor-pointer text-center"
             >
-              Get started (Fresh Session)
+              Get started
             </button>
 
             <Link

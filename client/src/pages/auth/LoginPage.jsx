@@ -541,36 +541,6 @@ const LoginPage = () => {
 
               </div>
 
-              {/* ACTIVE PREVIOUS SESSION RESUMPTION BANNER */}
-              {isAuthenticated && user && (
-                <div className="mt-5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 backdrop-blur-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs text-slate-800 font-semibold">
-                      Active session: <span className="text-emerald-700 font-bold">{user.name || user.username}</span> ({user.role?.toUpperCase()})
-                    </div>
-                  </div>
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => redirectUser(user)}
-                      className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition cursor-pointer shadow-xs"
-                    >
-                      Continue Previous Session →
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        startFreshSession();
-                        setError("");
-                      }}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                    >
-                      Start Fresh Session
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* ERROR */}
 
               {error && (
