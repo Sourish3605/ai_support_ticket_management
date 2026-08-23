@@ -137,9 +137,7 @@ const roleDetails = {
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const { login, loginWithGoogle, user, isAuthenticated } = useAuth();
+  const { login, loginWithGoogle, user, isAuthenticated, startFreshSession } = useAuth();
 
   const [form, setForm] = useState({
     email: "",
@@ -152,6 +150,16 @@ const LoginPage = () => {
   const [selectedRole, setSelectedRole] = useState("customer");
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const roleDropdownRef = useRef(null);
+
+  // Check for fresh session request from URL query or state
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("fresh") === "true" || location.state?.fresh) {
+      startFreshSession();
+      setForm({ email: "", password: "" });
+      setError("");
+    }
+  }, [location.search, location.state]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -185,13 +193,13 @@ const LoginPage = () => {
     setError("");
   };
 
-  const redirectUser = (user) => {
-    if (!user) {
+  const redirectUser = (targetUser) => {
+    if (!targetUser) {
       setError("Login failed. Please try again.");
       return;
     }
 
-    const canonicalRole = normalizeRole(user.role);
+    const canonicalRole = normalizeRole(targetUser.role);
     const targetHome = getDefaultRouteForRole(canonicalRole);
 
     const fromPath = location.state?.from;
@@ -213,12 +221,6 @@ const LoginPage = () => {
 
     navigate(isPermittedForFrom ? fromPath : targetHome, { replace: true });
   };
-
-  useEffect(() => {
-    if (isAuthenticated && user?.role) {
-      redirectUser(user);
-    }
-  }, [isAuthenticated, user, location.state]);
 
 
   const handleSubmit = async (e) => {
@@ -538,6 +540,36 @@ const LoginPage = () => {
 
 
               </div>
+
+              {/* ACTIVE PREVIOUS SESSION RESUMPTION BANNER */}
+              {isAuthenticated && user && (
+                <div className="mt-5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 backdrop-blur-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-slate-800 font-semibold">
+                      Active session: <span className="text-emerald-700 font-bold">{user.name || user.username}</span> ({user.role?.toUpperCase()})
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => redirectUser(user)}
+                      className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition cursor-pointer shadow-xs"
+                    >
+                      Continue Previous Session →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        startFreshSession();
+                        setError("");
+                      }}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                    >
+                      Start Fresh Session
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* ERROR */}
 

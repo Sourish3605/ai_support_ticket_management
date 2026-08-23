@@ -49,93 +49,45 @@ function Step({ number, title, subtitle, done = false }) {
 }
 
 const DEFAULT_CATEGORIES = [
-  {
-    id: 1,
-    name: "Network",
-    sub_categories: [
-      { id: 1, name: "VPN", category: 1 },
-      { id: 2, name: "Internet", category: 1 },
-      { id: 3, name: "Wi-Fi", category: 1 },
-      { id: 4, name: "DNS / Gateway", category: 1 },
-      { id: 5, name: "Firewall", category: 1 },
-    ],
-  },
-  {
-    id: 2,
-    name: "Security",
-    sub_categories: [
-      { id: 6, name: "Phishing", category: 2 },
-      { id: 7, name: "Malware", category: 2 },
-      { id: 8, name: "Unauthorized Access", category: 2 },
-      { id: 9, name: "Security Alert", category: 2 },
-    ],
-  },
-  {
-    id: 3,
-    name: "Authentication",
-    sub_categories: [
-      { id: 10, name: "Password Reset", category: 3 },
-      { id: 11, name: "Login Issue", category: 3 },
-      { id: 12, name: "MFA / SSO", category: 3 },
-      { id: 13, name: "Account Locked", category: 3 },
-    ],
-  },
-  {
-    id: 4,
-    name: "Hardware",
-    sub_categories: [
-      { id: 14, name: "Laptop", category: 4 },
-      { id: 15, name: "Desktop", category: 4 },
-      { id: 16, name: "Monitor", category: 4 },
-      { id: 17, name: "Keyboard / Mouse", category: 4 },
-      { id: 18, name: "Printer", category: 4 },
-    ],
-  },
-  {
-    id: 5,
-    name: "Software",
-    sub_categories: [
-      { id: 19, name: "Application Error", category: 5 },
-      { id: 20, name: "Crash", category: 5 },
-      { id: 21, name: "License Expired", category: 5 },
-      { id: 22, name: "Installation", category: 5 },
-    ],
-  },
-  {
-    id: 6,
-    name: "Email",
-    sub_categories: [
-      { id: 23, name: "Outlook Sync", category: 6 },
-      { id: 24, name: "Calendar Issue", category: 6 },
-      { id: 25, name: "Spam", category: 6 },
-      { id: 26, name: "Delivery Failure", category: 6 },
-    ],
-  },
-  {
-    id: 7,
-    name: "Billing",
-    sub_categories: [
-      { id: 27, name: "Invoice", category: 7 },
-      { id: 28, name: "Payment Failure", category: 7 },
-      { id: 29, name: "Subscription", category: 7 },
-    ],
-  },
+  { id: 1, name: "Security", sub_categories: [{ id: 101, name: "Unauthorized Access" }, { id: 102, name: "Fraud" }, { id: 103, name: "Phishing" }, { id: 104, name: "Security Alert" }] },
+  { id: 2, name: "Network", sub_categories: [{ id: 201, name: "VPN" }, { id: 202, name: "Internet" }, { id: 203, name: "DNS" }] },
+  { id: 3, name: "Authentication", sub_categories: [{ id: 301, name: "Login Issue" }, { id: 302, name: "MFA" }, { id: 303, name: "Password Reset" }] },
+  { id: 4, name: "Hardware", sub_categories: [{ id: 401, name: "Laptop" }, { id: 402, name: "Monitor" }, { id: 403, name: "Keyboard/Mouse" }] },
+  { id: 5, name: "Software", sub_categories: [{ id: 501, name: "Application Error" }, { id: 502, name: "License Issue" }, { id: 503, name: "Crash" }] },
+  { id: 6, name: "Email", sub_categories: [{ id: 601, name: "Outlook Sync" }, { id: 602, name: "Delivery Failure" }] },
+  { id: 7, name: "Billing", sub_categories: [{ id: 701, name: "Invoice" }, { id: 702, name: "Payment Failure" }, { id: 703, name: "Refund" }] },
 ];
 
 const DEFAULT_PRIORITIES = [
-  { id: 1, code: "P1", name: "Critical" },
-  { id: 2, code: "P2", name: "High" },
-  { id: 3, code: "P3", name: "Medium" },
-  { id: 4, code: "P4", name: "Low" },
+  { id: 1, level: "P1", name: "Critical", max_sla_hours: 1 },
+  { id: 2, level: "P2", name: "High", max_sla_hours: 4 },
+  { id: 3, level: "P3", name: "Medium", max_sla_hours: 24 },
+  { id: 4, level: "P4", name: "Low", max_sla_hours: 48 },
 ];
 
 export default function NewTicketPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Dynamic Master Data State (single source of truth from Database)
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
-  const [priorities, setPriorities] = useState(DEFAULT_PRIORITIES);
+  // Instant cached Master Data State
+  const [categories, setCategories] = useState(() => {
+    try {
+      const cached = localStorage.getItem("supportpilot_master_categories");
+      return cached ? JSON.parse(cached) : DEFAULT_CATEGORIES;
+    } catch {
+      return DEFAULT_CATEGORIES;
+    }
+  });
+
+  const [priorities, setPriorities] = useState(() => {
+    try {
+      const cached = localStorage.getItem("supportpilot_master_priorities");
+      return cached ? JSON.parse(cached) : DEFAULT_PRIORITIES;
+    } catch {
+      return DEFAULT_PRIORITIES;
+    }
+  });
+
   const [isLoadingMasterData, setIsLoadingMasterData] = useState(false);
 
   const [form, setForm] = useState(() => {
@@ -157,28 +109,27 @@ export default function NewTicketPage() {
   // Dynamic AI Classification State
   const [aiClassification, setAiClassification] = useState(null);
 
-  // Fetch Master Data dynamically from database on component mount
+  // Revalidate Master Data in background without blocking UI
   useEffect(() => {
     let isMounted = true;
     const fetchMasterData = async () => {
       try {
-        setIsLoadingMasterData(true);
         const [catRes, prioRes] = await Promise.all([
-          api.get("/masterdata/categories/"),
-          api.get("/masterdata/priorities/"),
+          api.get("/masterdata/categories/", { timeout: 3000 }),
+          api.get("/masterdata/priorities/", { timeout: 3000 }),
         ]);
         if (isMounted) {
           if (Array.isArray(catRes?.data) && catRes.data.length > 0) {
             setCategories(catRes.data);
+            localStorage.setItem("supportpilot_master_categories", JSON.stringify(catRes.data));
           }
           if (Array.isArray(prioRes?.data) && prioRes.data.length > 0) {
             setPriorities(prioRes.data);
+            localStorage.setItem("supportpilot_master_priorities", JSON.stringify(prioRes.data));
           }
         }
       } catch (err) {
-        console.warn("[MasterData Notice]: Using default categories cache:", err);
-      } finally {
-        if (isMounted) setIsLoadingMasterData(false);
+        // Silently use cached master data
       }
     };
     fetchMasterData();
@@ -207,20 +158,13 @@ export default function NewTicketPage() {
     return selectedCategoryObj.sub_categories || [];
   }, [selectedCategoryObj]);
 
-  // Duplicate ticket detector
+  // Full subject duplicate ticket detector (ignores punctuation, case, extra whitespace)
   const duplicate = useMemo(() => {
-    if (!form.subject.trim() || form.subject.trim().length < 6) return null;
-    const searchTerms = form.subject.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 3);
-    if (!searchTerms.length) return null;
-
-    return getCustomerTickets(user).find((ticket) => {
-      if (["Resolved", "Closed"].includes(ticket.status)) return false;
-      const subj = (ticket.subject || ticket.title || "").toLowerCase();
-      return searchTerms.some((term) => subj.includes(term));
-    });
+    if (!form.subject || !form.subject.trim()) return null;
+    return findDuplicateTicket(form.subject, user);
   }, [form.subject, user]);
 
-  // AI Classification Trigger: Backend AI API + Database Master Data
+  // AI Classification Trigger: Backend AI API + Fallback Engine
   const handleRunAiClassification = async () => {
     setError("");
     setStatusMessage("");
@@ -229,78 +173,52 @@ export default function NewTicketPage() {
       setError("Please enter a subject before classifying.");
       return;
     }
-    if (form.description.trim().length < 10) {
-      setError("Please provide at least 10 characters in description for accurate AI classification.");
+    if (form.description.trim().length < 8) {
+      setError("Please provide at least 8 characters in description for accurate AI classification.");
       return;
     }
 
     setIsClassifying(true);
-    setStatusMessage("⚡ AI is analyzing ticket with current Master Data & Knowledge Base...");
+    setStatusMessage("⚡ AI is analyzing ticket with Knowledge Base & Master Data...");
 
     try {
-      const res = await api.post("/support/classify/", {
-        subject: form.subject.trim(),
-        description: form.description.trim(),
-        scope: form.scope,
-        work_blocked: form.workBlocked,
-      });
+      const data = await classifyTicket(form.subject.trim(), form.description.trim(), form.scope, form.workBlocked);
 
-      if (res.data) {
-        // Case: No matching classification found in current Master Data
-        if (res.data.category === null) {
-          setAiClassification({
-            category: "—",
-            subCategory: "—",
-            priority: "—",
-            severity: "—",
-            team: "—",
-            confidence: res.data.confidence || 0.0,
-            slaHours: "—",
-            classificationPath: "AI Engine (No Match)",
-            knowledgeSource: "No matching knowledge article",
-            suggestedResolution: [],
-            reason: res.data.reason || "No matching classification found in the current master data.",
-          });
-          setStatusMessage(`⚠️ AI Notice: ${res.data.reason || "No matching classification found in current master data."}`);
-          return;
-        }
-
-        // Case: Successful valid classification matching Master Data
+      if (data && (data.category || data.success)) {
         const result = {
-          category: res.data.category,
-          subCategory: res.data.sub_category,
-          severity: res.data.severity || "Medium",
-          priority: res.data.priority,
-          team: res.data.team || "IT Support",
-          confidence: res.data.confidence || 0.95,
-          slaHours: res.data.sla_hours || 24,
-          classificationPath: res.data.classification_path || "AI Engine",
-          knowledgeSource: res.data.knowledge_source || "Enterprise Knowledge Store",
-          suggestedResolution: res.data.suggested_resolution || [],
-          reason: res.data.reason || "",
+          category: data.category || "General",
+          subCategory: data.sub_category || "",
+          severity: data.severity || "Medium",
+          priority: data.priority || "P3",
+          team: data.team || "IT Support",
+          confidence: data.confidence || 0.95,
+          slaHours: data.sla_hours || 24,
+          classificationPath: data.classification_path || "AI Engine",
+          knowledgeSource: data.knowledge_source || "Enterprise Knowledge Store",
+          suggestedResolution: data.suggested_resolution || [],
+          reason: data.reason || "",
         };
-
 
         setAiClassification(result);
 
-        // Auto-populate Category, Sub-Category, Priority, and Severity in the form state
-        setForm((curr) => ({
-          ...curr,
+        // Autofill the form with AI predicted values
+        setForm((prev) => ({
+          ...prev,
           category: result.category,
-          subCategory: result.subCategory,
-          priority: result.priority,
+          subCategory: result.subCategory || prev.subCategory,
           severity: result.severity,
+          priority: result.priority,
         }));
 
         setStatusMessage(
-          `✓ AI classified as ${result.category} → ${result.subCategory} (${result.priority}, Target SLA: ${result.slaHours}h). You can review or manually adjust fields below.`
+          `✅ AI Classified: ${result.category} → ${result.subCategory || "General"} (${result.priority} · SLA: ${result.slaHours}h)`
         );
+      } else {
+        setStatusMessage("Classification completed with general defaults.");
       }
     } catch (err) {
-      console.error("[Classification Error]:", err);
-      const errMsg = err?.response?.data?.error || err?.response?.data?.detail || "AI Classification service is temporarily unavailable. You can manually select Category & Priority.";
-      setError(errMsg);
-      setStatusMessage("");
+      console.error("[AI Classification Error]:", err);
+      setError("Failed to run AI classification. Please select categories manually.");
     } finally {
       setIsClassifying(false);
     }
@@ -315,37 +233,40 @@ export default function NewTicketPage() {
       setError("Please enter a clear subject for your ticket.");
       return;
     }
-    if (form.description.trim().length < 10) {
-      setError("Description must contain at least 10 characters.");
+    if (form.description.trim().length < 8) {
+      setError("Description must contain at least 8 characters.");
       return;
     }
 
-    setIsSubmitting(true);
+    if (duplicate) {
+      setError("A ticket with the same subject has already been created.");
+      return;
+    }
 
     try {
-      let finalClassification = aiClassification;
+      setIsSubmitting(true);
 
-      // If user did not click "Classify with AI" button earlier, perform classification on submit
-      if (!finalClassification || !finalClassification.category || finalClassification.category === "—") {
+      let finalClassification = aiClassification;
+      if (!finalClassification && form.subject.trim()) {
         try {
-          const res = await api.post("/support/classify/", {
-            subject: form.subject.trim(),
-            description: form.description.trim(),
-            scope: form.scope,
-            work_blocked: form.workBlocked,
-          });
-          if (res.data && res.data.category) {
+          const data = await classifyTicket(
+            form.subject.trim(),
+            form.description.trim(),
+            form.scope,
+            form.workBlocked
+          );
+          if (data && (data.category || data.success)) {
             finalClassification = {
-              category: res.data.category,
-              subCategory: res.data.sub_category,
-              severity: res.data.severity,
-              priority: res.data.priority,
-              team: res.data.team,
-              confidence: res.data.confidence,
-              slaHours: res.data.sla_hours,
-              classificationPath: res.data.classification_path || "AI Engine",
-              knowledgeSource: res.data.knowledge_source,
-              suggestedResolution: res.data.suggested_resolution,
+              category: data.category,
+              subCategory: data.sub_category,
+              severity: data.severity,
+              priority: data.priority,
+              team: data.team,
+              confidence: data.confidence,
+              slaHours: data.sla_hours,
+              classificationPath: data.classification_path || "AI Engine",
+              knowledgeSource: data.knowledge_source,
+              suggestedResolution: data.suggested_resolution,
             };
             setAiClassification(finalClassification);
           }
@@ -389,19 +310,22 @@ export default function NewTicketPage() {
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div>
             {duplicate && (
-              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+              <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm animate-fade-in">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-amber-900">⚠️ Existing Open Ticket Detected</div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                    <span className="text-base">⚠️</span>
+                    <span>A ticket with the same subject has already been created.</span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => navigate(`/portal/tickets/${duplicate.id}`)}
-                    className="sp-btn sp-btn-secondary px-2.5 py-1 text-[11px]"
+                    className="sp-btn sp-btn-secondary px-3 py-1 text-xs font-semibold"
                   >
-                    View Ticket {duplicate.id}
+                    View Ticket #{duplicate.id}
                   </button>
                 </div>
-                <div className="mt-1 text-xs text-amber-800">
-                  You already have an active ticket matching this topic: <strong className="font-semibold">{duplicate.subject}</strong>
+                <div className="mt-1.5 text-xs text-amber-800">
+                  You already have an active open ticket with this exact subject: <strong className="font-semibold">{duplicate.subject || duplicate.title}</strong> (Status: <span className="font-bold">{duplicate.status}</span>).
                 </div>
               </div>
             )}

@@ -251,51 +251,109 @@ function AdminLayout({ children }) {
 ===================================================== */
 
 function HomePage() {
+  const { user, isAuthenticated, startFreshSession } = useAuth();
+  const navigate = useNavigate();
+
+  const handleStartFresh = (e) => {
+    e.preventDefault();
+    startFreshSession();
+    navigate("/login?fresh=true", { replace: true });
+  };
+
+  const roleNames = {
+    admin: "Administrator",
+    agent: "Support Agent",
+    customer: "Customer",
+  };
+
+  const targetHome = user?.role === "admin" ? "/admin" : user?.role === "agent" ? "/dashboard" : "/portal/tickets";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#14532d] via-[#166534] to-[#0f2b1d] text-white">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-lg font-bold">SP</div>
-          <span className="text-2xl font-bold">SupportPilot</span>
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-lg font-bold shadow-inner">SP</div>
+          <span className="text-2xl font-bold tracking-tight">SupportPilot</span>
         </div>
 
         <div className="flex items-center gap-3">
-          <Link to="/login" className="rounded-full border border-white/30 px-4 py-2 text-sm font-medium hover:bg-white/10">Login</Link>
-          <Link to="/register" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#14532d] hover:bg-emerald-50">Create account</Link>
+          {isAuthenticated && user ? (
+            <Link
+              to={targetHome}
+              className="rounded-full bg-emerald-400/20 border border-emerald-400/40 px-4 py-2 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/30 transition flex items-center gap-1.5"
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Resume ({user.name || user.username})</span>
+            </Link>
+          ) : null}
+          <Link
+            to="/login?fresh=true"
+            onClick={handleStartFresh}
+            className="rounded-full border border-white/30 px-4 py-2 text-sm font-medium hover:bg-white/10 transition"
+          >
+            Login
+          </Link>
+          <Link
+            to="/register"
+            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#14532d] hover:bg-emerald-50 transition shadow-sm"
+          >
+            Create account
+          </Link>
         </div>
       </header>
 
       <main className="mx-auto grid max-w-6xl gap-12 px-6 py-16 lg:grid-cols-2 lg:items-center">
         <div>
-          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-100">Intelligent support</p>
-          <h1 className="text-5xl font-bold leading-tight">Support tickets made simple.</h1>
-          <p className="mt-6 max-w-xl text-lg text-emerald-50/90">
-            Manage customer requests, route work to agents, keep SLA promises, and power support operations from one workspace.
+          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.25em] text-emerald-100">Intelligent support operations</p>
+          <h1 className="text-5xl font-bold leading-tight tracking-tight">Support tickets made simple.</h1>
+          <p className="mt-6 max-w-xl text-lg text-emerald-50/90 leading-relaxed">
+            Manage customer requests, route work to agents, keep SLA promises, and power intelligent support operations from one workspace.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-4">
-            <Link to="/login" className="rounded-xl bg-white px-6 py-3 font-semibold text-[#14532d] hover:bg-emerald-50">Get started</Link>
-            <Link to="/register" className="rounded-xl border border-white/30 px-6 py-3 font-semibold text-white hover:bg-white/10">Create account</Link>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            {isAuthenticated && user && (
+              <Link
+                to={targetHome}
+                className="rounded-xl border border-emerald-300/40 bg-emerald-950/70 px-6 py-3.5 font-semibold text-emerald-100 shadow-xl backdrop-blur-sm hover:bg-emerald-900/90 transition text-center flex items-center justify-center gap-2"
+              >
+                <span>⚡ Continue Previous Session</span>
+                <span className="text-xs text-emerald-300">({user.name || user.username} · {roleNames[user.role] || user.role})</span>
+              </Link>
+            )}
+
+            <button
+              onClick={handleStartFresh}
+              className="rounded-xl bg-white px-6 py-3.5 font-semibold text-[#14532d] hover:bg-emerald-50 transition shadow-xl cursor-pointer text-center"
+            >
+              Get started (Fresh Session)
+            </button>
+
+            <Link
+              to="/register"
+              className="rounded-xl border border-white/30 px-6 py-3.5 font-semibold text-white hover:bg-white/10 transition text-center"
+            >
+              Create account
+            </Link>
           </div>
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-sm">
           <div className="rounded-2xl bg-white/5 p-5">
             <div className="mb-4 flex items-center justify-between text-sm text-emerald-100">
-              <span>Live operations</span>
-              <span className="rounded-full bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-100">Healthy</span>
+              <span className="font-semibold">Live operations</span>
+              <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-100 border border-emerald-400/30">Healthy</span>
             </div>
             <div className="space-y-4">
-              <div className="rounded-xl bg-white/10 p-4">
+              <div className="rounded-xl bg-white/10 p-4 border border-white/5">
                 <p className="text-xs uppercase tracking-[0.2em] text-emerald-100">Open tickets</p>
                 <p className="mt-2 text-3xl font-bold">428</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl bg-white/10 p-4">
+                <div className="rounded-xl bg-white/10 p-4 border border-white/5">
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-100">Agents</p>
                   <p className="mt-2 text-2xl font-bold">24</p>
                 </div>
-                <div className="rounded-xl bg-white/10 p-4">
+                <div className="rounded-xl bg-white/10 p-4 border border-white/5">
                   <p className="text-xs uppercase tracking-[0.2em] text-emerald-100">Avg. resolve</p>
                   <p className="mt-2 text-2xl font-bold">2.4h</p>
                 </div>

@@ -323,6 +323,10 @@ export const AuthProvider = ({ children }) => {
     sessionStorage.clear();
   };
 
+  const startFreshSession = () => {
+    logout();
+  };
+
   const value = useMemo(
     () => ({
       user,
@@ -333,6 +337,7 @@ export const AuthProvider = ({ children }) => {
       loginWithGoogle,
       register,
       logout,
+      startFreshSession,
     }),
     [user, tokens, isLoading, isAuthenticated]
   );
