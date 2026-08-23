@@ -5,36 +5,53 @@ import os
 DEFAULT_MONGO_URI = "mongodb+srv://support_admin:Support12345@cluster0.kzld13c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 MONGO_URI = config("MONGO_URI", default=DEFAULT_MONGO_URI)
 
+import time
+
 _client = None
 _db = None
+_offline_until = 0.0
+
+
+def is_mongo_available():
+    global _offline_until
+    return time.time() > _offline_until
+
+
+def mark_mongo_offline(seconds=60.0):
+    global _offline_until
+    _offline_until = time.time() + seconds
 
 
 def get_mongo_client():
     global _client
+    if not is_mongo_available():
+        return None
     if _client is None:
         try:
             _client = MongoClient(
                 MONGO_URI,
-                serverSelectionTimeoutMS=3000,
-                connectTimeoutMS=3000,
-                socketTimeoutMS=3000,
+                serverSelectionTimeoutMS=800,
+                connectTimeoutMS=800,
+                socketTimeoutMS=800,
                 tlsAllowInvalidCertificates=True,
             )
         except Exception as err:
-            print(f"[MongoDB Warning] Failed to initialize MongoClient: {err}")
+            mark_mongo_offline(60.0)
             return None
     return _client
 
 
 def get_mongo_db():
     global _db
+    if not is_mongo_available():
+        return None
     if _db is None:
         client = get_mongo_client()
         if client:
             try:
                 _db = client["support_ai_db"]
-            except Exception as err:
-                print(f"[MongoDB Warning] Failed to get database: {err}")
+            except Exception:
+                mark_mongo_offline(60.0)
                 return None
     return _db
 
@@ -45,12 +62,14 @@ class SafeCollection:
         self.name = name
 
     def _get_coll(self):
+        if not is_mongo_available():
+            return None
         db_instance = get_mongo_db()
         if db_instance is not None:
             try:
                 return db_instance[self.name]
-            except Exception as e:
-                print(f"[MongoDB Error] Accessing collection '{self.name}': {e}")
+            except Exception:
+                mark_mongo_offline(60.0)
         return None
 
     def insert_one(self, document, *args, **kwargs):
