@@ -5,25 +5,90 @@ import { api } from "./api.js";
 
 
 export const getTickets = () => {
-  return storage.get(
-    STORAGE_KEYS.tickets,
-    seedTickets
-  );
+  try {
+    return storage.get(STORAGE_KEYS.tickets, seedTickets) || seedTickets;
+  } catch {
+    return seedTickets;
+  }
 };
 
-const saveTickets = (tickets) => {
-  storage.set(STORAGE_KEYS.tickets, tickets);
+export const saveTickets = (tickets) => {
+  try {
+    storage.set(STORAGE_KEYS.tickets, tickets);
+  } catch (e) {
+    console.warn("[ticketService] Failed to save tickets:", e);
+  }
 };
 
-const generateTicketId = (tickets) => {
-  const numbers = tickets
-    .map((ticket) => {
-      const match = String(ticket.id || "").match(/\d+/);
-      return match ? Number(match[0]) : 0;
-    });
+export const generateTicketId = (tickets = []) => {
+  const safeTickets = Array.isArray(tickets) ? tickets : [];
+  const numbers = safeTickets.map((ticket) => {
+    const match = String(ticket?.id || "").match(/\d+/);
+    return match ? Number(match[0]) : 0;
+  });
 
   const nextNumber = Math.max(1, ...numbers) + 1;
   return `TKT${String(nextNumber).padStart(3, "0")}`;
+};
+
+export const getAllTickets = () => {
+  return getTickets();
+};
+
+export const getTicketById = (id) => {
+  if (!id || id === "undefined" || id === "null") return null;
+  const tickets = getTickets();
+  const searchId = String(id).trim().toLowerCase();
+  return tickets.find(
+    (ticket) => String(ticket.id || "").trim().toLowerCase() === searchId
+  ) || null;
+};
+
+export const getCustomerTickets = (userOrId) => {
+  const tickets = getTickets();
+  if (!userOrId) return tickets;
+
+  let targetId = null;
+  let targetEmail = null;
+  let targetName = null;
+
+  if (typeof userOrId === "object") {
+    targetId = userOrId.id != null ? String(userOrId.id).trim().toLowerCase() : null;
+    targetEmail = userOrId.email ? String(userOrId.email).trim().toLowerCase() : null;
+    targetName = (userOrId.name || userOrId.username) ? String(userOrId.name || userOrId.username).trim().toLowerCase() : null;
+  } else {
+    const val = String(userOrId).trim().toLowerCase();
+    if (val.includes("@")) {
+      targetEmail = val;
+    } else {
+      targetId = val;
+      targetName = val;
+    }
+  }
+
+  return tickets.filter((ticket) => {
+    if (!ticket) return false;
+    const ticketCustId = ticket.customerId != null ? String(ticket.customerId).trim().toLowerCase() : "";
+    const ticketEmail = ticket.customerEmail ? String(ticket.customerEmail).trim().toLowerCase() : "";
+    const ticketName = ticket.customerName ? String(ticket.customerName).trim().toLowerCase() : "";
+
+    if (targetId && ticketCustId && (ticketCustId === targetId || ticketCustId.includes(targetId) || targetId.includes(ticketCustId))) {
+      return true;
+    }
+    if (targetEmail && ticketEmail && ticketEmail === targetEmail) {
+      return true;
+    }
+    if (targetName && ticketName && (ticketName === targetName || ticketName.includes(targetName) || targetName.includes(ticketName))) {
+      return true;
+    }
+    return false;
+  });
+};
+
+export const getAgentTickets = (agentId) => {
+  return getTickets().filter(
+    (ticket) => ticket && ticket.assignedTo === agentId
+  );
 };
 
 export const normalizeSubject = (subject) => {
@@ -36,16 +101,24 @@ export const normalizeSubject = (subject) => {
 };
 
 export const findDuplicateTicket = (newSubject, user, currentTicketId = null) => {
-  const normNew = normalizeSubject(newSubject);
-  if (!normNew || normNew.length < 3) return null;
+  try {
+    const normNew = normalizeSubject(newSubject);
+    if (!normNew || normNew.length < 3) return null;
 
-  const customerTickets = getCustomerTickets(user);
-  return customerTickets.find((t) => {
-    if (currentTicketId && String(t.id) === String(currentTicketId)) return false;
-    if (["Resolved", "Closed"].includes(t.status)) return false;
-    const normExisting = normalizeSubject(t.subject || t.title || "");
-    return normExisting === normNew;
-  }) || null;
+    const customerTickets = getCustomerTickets(user);
+    if (!Array.isArray(customerTickets)) return null;
+
+    return customerTickets.find((t) => {
+      if (!t) return false;
+      if (currentTicketId && String(t.id) === String(currentTicketId)) return false;
+      if (["Resolved", "Closed"].includes(t.status)) return false;
+      const normExisting = normalizeSubject(t.subject || t.title || "");
+      return normExisting === normNew;
+    }) || null;
+  } catch (err) {
+    console.warn("[ticketService] findDuplicateTicket safe check:", err);
+    return null;
+  }
 };
 
 export const classifyTicket = async (subject = "", description = "", scope = "Just me", workBlocked = false) => {
@@ -375,67 +448,6 @@ export const createTicket = async (form, user) => {
   }
 
   return ticket;
-};
-
-
-export const getAllTickets = () => {
-  return getTickets();
-};
-
-export const getTicketById = (id) => {
-  if (!id || id === "undefined" || id === "null") return null;
-  const tickets = getTickets();
-  const searchId = String(id).trim().toLowerCase();
-  return tickets.find(
-    (ticket) => String(ticket.id || "").trim().toLowerCase() === searchId
-  );
-};
-
-export const getCustomerTickets = (userOrId) => {
-  const tickets = getTickets();
-  if (!userOrId) return tickets;
-
-  let targetId = null;
-  let targetEmail = null;
-  let targetName = null;
-
-  if (typeof userOrId === "object") {
-    targetId = userOrId.id != null ? String(userOrId.id).trim().toLowerCase() : null;
-    targetEmail = userOrId.email ? String(userOrId.email).trim().toLowerCase() : null;
-    targetName = (userOrId.name || userOrId.username) ? String(userOrId.name || userOrId.username).trim().toLowerCase() : null;
-  } else {
-    const val = String(userOrId).trim().toLowerCase();
-    if (val.includes("@")) {
-      targetEmail = val;
-    } else {
-      targetId = val;
-      targetName = val;
-    }
-  }
-
-  return tickets.filter((ticket) => {
-    const ticketCustId = ticket.customerId != null ? String(ticket.customerId).trim().toLowerCase() : "";
-    const ticketEmail = ticket.customerEmail ? String(ticket.customerEmail).trim().toLowerCase() : "";
-    const ticketName = ticket.customerName ? String(ticket.customerName).trim().toLowerCase() : "";
-
-    if (targetId && ticketCustId && (ticketCustId === targetId || ticketCustId.includes(targetId) || targetId.includes(ticketCustId))) {
-      return true;
-    }
-    if (targetEmail && ticketEmail && ticketEmail === targetEmail) {
-      return true;
-    }
-    if (targetName && ticketName && (ticketName === targetName || ticketName.includes(targetName) || targetName.includes(ticketName))) {
-      return true;
-    }
-    return false;
-  });
-};
-
-export const getAgentTickets = (agentId) => {
-  return getTickets().filter(
-    (ticket) =>
-      ticket.assignedTo === agentId
-  );
 };
 
 export const updateTicket = (

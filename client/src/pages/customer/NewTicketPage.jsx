@@ -160,9 +160,14 @@ export default function NewTicketPage() {
 
   // Full subject duplicate ticket detector (ignores punctuation, case, extra whitespace)
   const duplicate = useMemo(() => {
-    if (!form.subject || !form.subject.trim()) return null;
-    return findDuplicateTicket(form.subject, user);
-  }, [form.subject, user]);
+    try {
+      if (!form?.subject || typeof form.subject !== "string" || !form.subject.trim()) return null;
+      return findDuplicateTicket(form.subject, user);
+    } catch (err) {
+      console.warn("[NewTicketPage] Duplicate check note:", err);
+      return null;
+    }
+  }, [form?.subject, user]);
 
   // AI Classification Trigger: Backend AI API + Fallback Engine
   const handleRunAiClassification = async () => {
