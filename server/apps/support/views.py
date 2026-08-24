@@ -191,6 +191,8 @@ class TicketClassificationView(APIView):
     def post(self, request):
         subject = request.data.get("subject", "")
         description = request.data.get("description", "")
+        scope = request.data.get("scope", "Just me")
+        work_blocked = bool(request.data.get("work_blocked", False))
 
         if not subject and not description:
             return Response(
@@ -203,10 +205,12 @@ class TicketClassificationView(APIView):
         cleaned_sub = preprocessed.get("subject", subject)
         cleaned_desc = preprocessed.get("description", description)
 
-        # 2. Milestone 1 Classification
+        # 2. Milestone 1 Classification based on Master Data rules
         category, sub_category, severity, priority = classify_ticket(
             cleaned_sub,
-            cleaned_desc
+            cleaned_desc,
+            scope=scope,
+            work_blocked=work_blocked,
         )
 
         # 3. Milestone 1 SLA Calculation

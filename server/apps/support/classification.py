@@ -13,7 +13,7 @@ def normalize_text(text: str) -> str:
     return " ".join(s.split())
 
 
-def classify_ticket(subject, description):
+def classify_ticket(subject, description, scope: str = "Just me", work_blocked: bool = False):
     raw_text = f"{subject or ''} {description or ''}"
     text = normalize_text(raw_text)
 
@@ -183,6 +183,7 @@ def classify_ticket(subject, description):
                 "latency",
                 "disconnecting",
                 "cannot connect to network",
+                "no internet",
             ],
         ),
         (
@@ -343,9 +344,22 @@ def classify_ticket(subject, description):
             sub_category = rule_sub_category
             break
 
-    # Fallback to valid standard master data category if not strictly matched
+    # Dynamic fallback check against MasterData Category / SubCategory if available
     if not category:
-        if any(w in text for w in ["slow", "down", "not working", "unable", "cannot", "failed", "broken", "connect", "access", "wifi", "network"]):
+        try:
+            from masterdata.models import Category, SubCategory
+            for cat in Category.objects.all():
+                if cat.name.lower() in text:
+                    category = cat.name
+                    first_sub = cat.sub_categories.first()
+                    sub_category = first_sub.name if first_sub else "General"
+                    break
+        except Exception:
+            pass
+
+    # Standard fallback defaults if no match
+    if not category:
+        if any(w in text for w in ["slow", "down", "not working", "unable", "cannot", "failed", "broken", "connect", "access", "wifi", "network", "internet"]):
             category = "Network"
             sub_category = "Internet"
         elif any(w in text for w in ["pay", "money", "price", "card", "cost", "dollar"]):
@@ -362,7 +376,7 @@ def classify_ticket(subject, description):
             sub_category = "Application Error"
 
     # -------------------------------------------------------------
-    # 3. Severity & Priority Classification
+    # 3. Severity & Priority Classification (Impact-Aware)
     # -------------------------------------------------------------
     critical_keywords = [
         "emergency",
@@ -414,9 +428,11 @@ def classify_ticket(subject, description):
         "glitch",
     ]
 
-    if any(keyword in text for keyword in critical_keywords):
+    is_org_wide = str(scope).strip().lower() in ["whole org", "my department"]
+
+    if any(keyword in text for keyword in critical_keywords) or (work_blocked and is_org_wide):
         severity = "Critical"
-    elif any(keyword in text for keyword in high_keywords):
+    elif any(keyword in text for keyword in high_keywords) or work_blocked or is_org_wide:
         severity = "High"
     elif any(keyword in text for keyword in medium_keywords):
         severity = "Medium"
