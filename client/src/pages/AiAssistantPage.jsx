@@ -32,25 +32,24 @@ const AiAssistantPage = () => {
     setLoading(true);
 
     try {
-      const response = await api.post("/support/classify/", {
-        subject: query,
-        description: query,
-        scope: "Just me",
-        work_blocked: false,
-      });
+      const data = await classifyTicket(query, query);
 
-      if (response.data && response.data.category) {
+      if (data && data.category) {
         const aiResult = {
-          category: response.data.category,
-          subCategory: response.data.sub_category,
-          severity: response.data.severity || "Medium",
-          priority: response.data.priority,
-          team: response.data.team || "IT Support",
-          confidence: response.data.confidence || 0.95,
-          slaHours: response.data.sla_hours || 24,
-          knowledgeSource: response.data.knowledge_source || "Enterprise Knowledge Store",
-          suggestedResolution: response.data.suggested_resolution || [],
-          classificationPath: response.data.classification_path || "AI Engine",
+          category: data.category,
+          subCategory: data.sub_category || data.subCategory || "General",
+          severity: data.severity || "Medium",
+          priority: data.priority || "P3",
+          team: data.team || `${data.category} Support`,
+          confidence: data.confidence || 0.95,
+          slaHours: data.sla_hours || data.slaHours || (data.priority === "P1" ? 1 : data.priority === "P2" ? 4 : 24),
+          knowledgeSource: data.knowledge_source || data.knowledgeSource || "Enterprise Knowledge Store",
+          suggestedResolution: Array.isArray(data.suggested_resolution)
+            ? data.suggested_resolution
+            : Array.isArray(data.suggestedResolution)
+            ? data.suggestedResolution
+            : [],
+          classificationPath: data.classification_path || data.classificationPath || "AI Engine",
         };
 
         const aiResponse = {
@@ -61,12 +60,12 @@ const AiAssistantPage = () => {
         };
 
         setMessages((current) => [...current, aiResponse]);
-      } else if (response.data && response.data.category === null) {
+      } else {
         setMessages((current) => [
           ...current,
           {
             from: "ai",
-            text: `⚠️ ${response.data.reason || "No matching classification found in the current master data."}`,
+            text: `⚠️ ${data?.reason || "No matching classification found for this request."}`,
           },
         ]);
       }
@@ -83,7 +82,6 @@ const AiAssistantPage = () => {
     } finally {
       setLoading(false);
     }
-
   };
 
   const handleCreateTicketFromAI = (item) => {

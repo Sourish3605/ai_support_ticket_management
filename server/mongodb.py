@@ -12,7 +12,7 @@ except ImportError:
 DEFAULT_MONGO_URI = "mongodb+srv://support_admin:Support12345@cluster0.kzld13c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 raw_uri = config("MONGO_URI", default=os.environ.get("MONGO_URI", DEFAULT_MONGO_URI))
 MONGO_URI = raw_uri.strip().strip("'\"") if raw_uri else DEFAULT_MONGO_URI
-MONGO_TIMEOUT_MS = int(config("MONGO_TIMEOUT_MS", default="5000"))
+MONGO_TIMEOUT_MS = int(config("MONGO_TIMEOUT_MS", default="600"))
 
 _client = None
 _db = None
@@ -24,7 +24,7 @@ def is_mongo_available():
     return time.time() > _offline_until
 
 
-def mark_mongo_offline(seconds=30.0):
+def mark_mongo_offline(seconds=300.0):
     global _offline_until
     _offline_until = time.time() + seconds
 
@@ -54,7 +54,7 @@ def get_mongo_client():
             _client = MongoClient(MONGO_URI, **mongo_options)
         except Exception as err:
             print(f"[MongoDB Atlas Warning] Failed to initialize MongoClient: {err}")
-            mark_mongo_offline(30.0)
+            mark_mongo_offline(300.0)
             return None
     return _client
 
@@ -70,7 +70,7 @@ def get_mongo_db():
                 _db = client["support_ai_db"]
             except Exception as err:
                 print(f"[MongoDB Atlas Warning] Failed to get database: {err}")
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 return None
     return _db
 
@@ -88,7 +88,7 @@ class SafeCollection:
             try:
                 return db_instance[self.name]
             except Exception as err:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
         return None
 
     def insert_one(self, document, *args, **kwargs):
@@ -97,7 +97,7 @@ class SafeCollection:
             try:
                 return coll.insert_one(document, *args, **kwargs)
             except Exception as e:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 print(f"[MongoDB Atlas Notice] insert_one in '{self.name}': {e}")
         return None
 
@@ -107,7 +107,7 @@ class SafeCollection:
             try:
                 return coll.insert_many(documents, *args, **kwargs)
             except Exception as e:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 print(f"[MongoDB Atlas Notice] insert_many in '{self.name}': {e}")
         return None
 
@@ -118,7 +118,7 @@ class SafeCollection:
                 cursor = coll.find(*args, **kwargs)
                 return list(cursor)
             except Exception as e:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 print(f"[MongoDB Atlas Notice] find in '{self.name}': {e}")
         return []
 
@@ -128,7 +128,7 @@ class SafeCollection:
             try:
                 return coll.find_one(*args, **kwargs)
             except Exception as e:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 print(f"[MongoDB Atlas Notice] find_one in '{self.name}': {e}")
         return None
 
@@ -138,7 +138,7 @@ class SafeCollection:
             try:
                 return coll.update_one(*args, **kwargs)
             except Exception as e:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 print(f"[MongoDB Atlas Notice] update_one in '{self.name}': {e}")
         return None
 
@@ -148,7 +148,7 @@ class SafeCollection:
             try:
                 return coll.delete_one(*args, **kwargs)
             except Exception as e:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 print(f"[MongoDB Atlas Notice] delete_one in '{self.name}': {e}")
         return None
 
@@ -158,7 +158,7 @@ class SafeCollection:
             try:
                 return coll.count_documents(*args, **kwargs)
             except Exception as e:
-                mark_mongo_offline(30.0)
+                mark_mongo_offline(300.0)
                 print(f"[MongoDB Atlas Notice] count_documents in '{self.name}': {e}")
         return 0
 

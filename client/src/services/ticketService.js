@@ -128,16 +128,17 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
       description,
       scope,
       work_blocked: workBlocked,
-    }, { timeout: 4000 });
-    if (response?.data) return response.data;
+    }, { timeout: 8000 });
+    if (response?.data && response.data.category) return response.data;
   } catch (error) {
     console.warn("[TicketService] API classification notice, using fast engine:", error?.message);
   }
 
-  // Fast offline classification engine with critical security patterns
+  // Fast offline classification engine with comprehensive 7-domain coverage
   const rawText = `${subject || ""} ${description || ""}`;
   const text = normalizeSubject(rawText);
 
+  // 1. Critical Security
   const isCriticalSecurity = [
     "my account is hacked",
     "account hacked",
@@ -172,6 +173,8 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
       ? "Fraud"
       : text.includes("phishing")
       ? "Phishing"
+      : text.includes("ransomware") || text.includes("malware")
+      ? "Security Alert"
       : "Unauthorized Access";
 
     return {
@@ -182,31 +185,182 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
       priority: "P1",
       confidence: 0.98,
       sla_hours: 1,
+      response_minutes: 15,
+      coverage: "24/7",
       team: "Security Incident Response",
       knowledge_source: "Corporate Information Security SOP (KB-SEC-001)",
       suggested_resolution: [
         "Immediately terminate all active sessions across all devices.",
-        "Reset account password using a unique, strong password.",
-        "Revoke and re-generate Multi-Factor Authentication (MFA) credentials.",
+        "Reset account password using a unique, strong password (min 12 chars).",
+        "Revoke and re-generate Multi-Factor Authentication (MFA / 2FA) credentials.",
         "Review recent login history, authorized devices, and API access tokens.",
         "Contact IT Security Incident Response Team to initiate forensics."
+      ],
+      citations: [
+        {
+          citation_id: "CIT-SEC-001",
+          source_title: "Corporate Information Security SOP",
+          section: "Incident Response §1.0",
+          quote: "Immediately terminate all active sessions across all devices.",
+          score: 4.8
+        }
       ],
       classification_path: "AI Engine (Critical Security Fast-Path)",
       reason: "Classified as Security → Critical Priority (P1) based on critical account security keywords."
     };
   }
 
-  const isVPN = text.includes("vpn") || text.includes("anyconnect") || text.includes("globalprotect");
-  const isWifi = text.includes("wifi") || text.includes("internet") || text.includes("network") || text.includes("dns");
-  const isAuth = text.includes("password") || text.includes("login") || text.includes("signin") || text.includes("sso") || text.includes("mfa");
-  const isHardware = text.includes("laptop") || text.includes("keyboard") || text.includes("mouse") || text.includes("monitor") || text.includes("screen");
-  const isEmail = text.includes("email") || text.includes("outlook") || text.includes("mailbox");
+  // 2. Domain Categorization
+  const isPhishing = text.includes("phishing") || text.includes("scam") || text.includes("malware") || text.includes("suspicious email") || text.includes("virus");
+  const isVPN = text.includes("vpn") || text.includes("anyconnect") || text.includes("globalprotect") || text.includes("cisco vpn");
+  const isWifi = text.includes("wifi") || text.includes("wi-fi") || text.includes("internet") || text.includes("network") || text.includes("dns") || text.includes("broadband") || text.includes("ethernet") || text.includes("router");
+  const isPasswordReset = text.includes("reset password") || text.includes("forgot password") || text.includes("change password") || text.includes("password expired");
+  const isAuth = text.includes("password") || text.includes("login") || text.includes("signin") || text.includes("sso") || text.includes("mfa") || text.includes("authenticator") || text.includes("locked out");
+  const isMonitor = text.includes("monitor") || text.includes("screen") || text.includes("display") || text.includes("flicker") || text.includes("hdmi");
+  const isPeripherals = text.includes("keyboard") || text.includes("mouse") || text.includes("printer") || text.includes("headset") || text.includes("dock") || text.includes("webcam");
+  const isHardware = isMonitor || isPeripherals || text.includes("laptop") || text.includes("desktop") || text.includes("pc") || text.includes("macbook") || text.includes("battery") || text.includes("charger") || text.includes("overheating");
+  const isEmail = text.includes("email") || text.includes("outlook") || text.includes("mailbox") || text.includes("exchange") || text.includes("calendar") || text.includes("inbox") || text.includes("mail sync");
+  const isBilling = text.includes("billing") || text.includes("invoice") || text.includes("payment") || text.includes("credit card") || text.includes("refund") || text.includes("subscription") || text.includes("charge") || text.includes("receipt");
+  const isSoftware = text.includes("software") || text.includes("app") || text.includes("crash") || text.includes("crashing") || text.includes("bug") || text.includes("license") || text.includes("install") || text.includes("update failed") || text.includes("freeze") || text.includes("error message");
 
-  const category = isVPN ? "Network" : isWifi ? "Network" : isAuth ? "Authentication" : isHardware ? "Hardware" : isEmail ? "Email" : "General";
-  const subCategory = isVPN ? "VPN" : isWifi ? "Internet" : isAuth ? "Login Issue" : isHardware ? "Laptop" : isEmail ? "Outlook Sync" : "General";
-  const isUrgent = text.includes("urgent") || text.includes("emergency") || text.includes("cannot work") || workBlocked;
-  const priority = isUrgent ? "P2" : "P3";
-  const severity = isUrgent ? "High" : "Medium";
+  let category = "Software";
+  let subCategory = "Application Error";
+  let knowledgeSource = "Software Packaging & Application Support (KB-SFT-005)";
+  let suggestedSteps = [
+    "Force-close all instances of the application using Task Manager / Activity Monitor.",
+    "Clear local application cache files in %LOCALAPPDATA% or ~/Library/Caches.",
+    "Check Company Portal / Software Center for pending application updates.",
+    "Run the built-in application repair wizard from installed programs.",
+    "Reboot your computer and relaunch the application as Administrator."
+  ];
+
+  if (isPhishing) {
+    category = "Security";
+    subCategory = "Phishing";
+    knowledgeSource = "SecOps Security Guidelines v3.4 (KB-SEC-002)";
+    suggestedSteps = [
+      "Do NOT click any links or download attachments from the suspicious message.",
+      "Use the 'Report Phishing' button in Outlook to submit headers to SecOps.",
+      "If you entered credentials, change your corporate password immediately via SSO portal.",
+      "Disconnect your machine from Wi-Fi if unauthorized downloads occurred.",
+      "SecOps will review message telemetry and quarantine threat vectors."
+    ];
+  } else if (isVPN) {
+    category = "Network";
+    subCategory = "VPN";
+    knowledgeSource = "Corporate VPN Troubleshooting Guide (KB-NET-001)";
+    suggestedSteps = [
+      "Verify your local internet connection is active by loading a public webpage.",
+      "Confirm the VPN server address matches 'vpn.company.com' in your client profile.",
+      "Restart the Cisco AnyConnect / GlobalProtect VPN service.",
+      "Check that port 443 and UDP 500/4500 are not restricted on your network.",
+      "Clear cached VPN credentials and re-authenticate via company SSO."
+    ];
+  } else if (isWifi) {
+    category = "Network";
+    subCategory = "Internet";
+    knowledgeSource = "Network Operations Service Desk (KB-NET-002)";
+    suggestedSteps = [
+      "Verify router / modem power indicators and physical ethernet cable connections.",
+      "Toggle Wi-Fi adapter off and on or flush local DNS cache via 'ipconfig /flushdns'.",
+      "Verify DHCP default gateway assignment and DNS server responsiveness.",
+      "Check if the ISP or local broadband provider is experiencing an area-wide outage.",
+      "Contact the Network Operations Team if corporate gateway remains unreachable."
+    ];
+  } else if (isPasswordReset || (isAuth && text.includes("password"))) {
+    category = "Authentication";
+    subCategory = "Password Reset";
+    knowledgeSource = "SSO Login & Self-Service Password Reset (KB-AUTH-003)";
+    suggestedSteps = [
+      "Navigate to the self-service portal: sso.company.com/recovery.",
+      "Enter your corporate email address to receive an MFA verification push.",
+      "Follow the on-screen prompts to set a new 12+ character complex password.",
+      "Wait 2 minutes for directory synchronization across corporate services.",
+      "Log in to your workstation with the new password."
+    ];
+  } else if (isAuth) {
+    category = "Authentication";
+    subCategory = "Login Issue";
+    knowledgeSource = "SSO Login & Self-Service Password Reset (KB-AUTH-001)";
+    suggestedSteps = [
+      "Verify corporate username and email format (username@company.com).",
+      "Check authenticator app time-sync and approve pending MFA notifications.",
+      "Clear browser cookies, cache, and active sessions in incognito mode.",
+      "Contact IT Support Desk if your account is locked due to consecutive failed attempts."
+    ];
+  } else if (isMonitor) {
+    category = "Hardware";
+    subCategory = "Monitor";
+    knowledgeSource = "Hardware Lifecycle & Asset Support Desk (KB-HDW-004)";
+    suggestedSteps = [
+      "Inspect physical HDMI / DisplayPort / Thunderbolt cable connections.",
+      "Power cycle the external monitor and verify input source channel.",
+      "Check display resolution and refresh rate settings in system preferences.",
+      "Update graphics display drivers or test with an alternate cable/dock."
+    ];
+  } else if (isPeripherals) {
+    category = "Hardware";
+    subCategory = "Keyboard / Mouse";
+    knowledgeSource = "Hardware Lifecycle & Asset Support Desk (KB-HDW-004)";
+    suggestedSteps = [
+      "Disconnect and reconnect the USB peripheral device to an alternate port.",
+      "Check battery charge and Bluetooth pairing status if wireless.",
+      "Reinstall device drivers via Device Manager / System Information.",
+      "Test device on another workstation to isolate hardware failure."
+    ];
+  } else if (isHardware) {
+    category = "Hardware";
+    subCategory = "Laptop";
+    knowledgeSource = "Hardware Lifecycle & Asset Support Desk (KB-HDW-004)";
+    suggestedSteps = [
+      "Perform a full restart to flush system RAM and pending updates.",
+      "Check Task Manager for runaway background processes consuming > 80% CPU.",
+      "Verify the device has at least 15 GB free disk space on the primary drive.",
+      "Inspect charger cable, power brick, and battery health telemetry.",
+      "Run hardware diagnostics utility via Dell Command / Apple Diagnostics."
+    ];
+  } else if (isEmail) {
+    category = "Email";
+    subCategory = "Outlook Sync";
+    knowledgeSource = "Messaging & Collaboration Services (KB-EML-006)";
+    suggestedSteps = [
+      "Verify Outlook status shows 'Connected to Microsoft Exchange' in the status bar.",
+      "Toggle Outlook into Work Offline mode, wait 10 seconds, then reconnect.",
+      "Run Outlook in Safe Mode (outlook.exe /safe) to disable conflicting add-ins.",
+      "Rebuild the local Outlook data file (.OST) via Account Settings.",
+      "Check Office 365 webmail (outlook.office.com) to verify cloud mailbox health."
+    ];
+  } else if (isBilling) {
+    category = "Billing";
+    subCategory = "Invoice";
+    knowledgeSource = "Finance & Accounts Operations (KB-BIL-007)";
+    suggestedSteps = [
+      "Verify billing entity details and PO reference numbers on the disputed invoice.",
+      "Cross-reference billing statement with ERP purchase orders and payment gateways.",
+      "If payment failed, check credit card expiration date and bank merchant authorization.",
+      "Submit receipt and transaction reference to the Finance Accounts team."
+    ];
+  } else if (isSoftware) {
+    category = "Software";
+    subCategory = text.includes("crash") ? "Crash" : text.includes("license") ? "License Expired" : "Application Error";
+    knowledgeSource = "Software Packaging & Application Support (KB-SFT-005)";
+  } else {
+    // General fallback defaults to Network or Software based on connectivity words
+    if (text.includes("slow") || text.includes("down") || text.includes("cannot connect") || text.includes("unable to connect")) {
+      category = "Network";
+      subCategory = "Internet";
+    } else {
+      category = "Software";
+      subCategory = "Application Error";
+    }
+  }
+
+  const isCritical = text.includes("emergency") || text.includes("ransomware") || text.includes("outage") || text.includes("all users") || text.includes("production down");
+  const isUrgent = isCritical || text.includes("urgent") || text.includes("cannot work") || text.includes("completely blocked") || workBlocked;
+  
+  const priority = isCritical ? "P1" : isUrgent ? "P2" : "P3";
+  const severity = isCritical ? "Critical" : isUrgent ? "High" : "Medium";
+  const slaHours = priority === "P1" ? 1 : priority === "P2" ? 4 : 24;
 
   return {
     success: true,
@@ -215,14 +369,20 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
     severity,
     priority,
     confidence: 0.95,
-    sla_hours: priority === "P2" ? 4 : 24,
+    sla_hours: slaHours,
+    response_minutes: priority === "P1" ? 15 : priority === "P2" ? 30 : 60,
+    coverage: priority === "P1" || priority === "P2" ? "24/7" : "Business Hours",
     team: `${category} Support`,
-    knowledge_source: "Enterprise IT Knowledge Store",
-    suggested_resolution: [
-      "Review instructions in knowledge base documentation.",
-      "Check network and system connectivity status.",
-      "Restart affected application or hardware device.",
-      "Contact IT administrator if the issue persists."
+    knowledge_source: knowledgeSource,
+    suggested_resolution: suggestedSteps,
+    citations: [
+      {
+        citation_id: `CIT-${category.toUpperCase().slice(0, 3)}-001`,
+        source_title: knowledgeSource,
+        section: "Standard Troubleshooting §1.0",
+        quote: suggestedSteps[0] || "Follow standard troubleshooting guidelines.",
+        score: 4.2
+      }
     ],
     classification_path: "AI Engine (Standard Rules)",
     reason: `Classified as ${category} → ${subCategory} (${priority}).`
