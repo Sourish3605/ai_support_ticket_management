@@ -185,10 +185,19 @@ export default function NewTicketPage() {
     }
 
     setIsClassifying(true);
-    setStatusMessage("⚡ AI is analyzing ticket with Knowledge Base & Master Data...");
+    setStatusMessage("🔍 Step 1/3: Analyzing issue semantics & matching Master Data categories...");
 
     try {
-      const data = await classifyTicket(subj, desc, form.scope, form.workBlocked);
+      const classifyPromise = classifyTicket(subj, desc, form.scope, form.workBlocked);
+
+      await new Promise((r) => setTimeout(r, 400));
+      setStatusMessage("📚 Step 2/3: Searching Enterprise Knowledge Base & Grounded Articles...");
+
+      const data = await classifyPromise;
+
+      await new Promise((r) => setTimeout(r, 350));
+      setStatusMessage("✨ Step 3/3: Synthesizing SLA targets & grounded citations...");
+      await new Promise((r) => setTimeout(r, 200));
 
       const rawCategory = data?.category || "Software";
       const rawSubCategory = data?.sub_category || data?.subCategory || "";
