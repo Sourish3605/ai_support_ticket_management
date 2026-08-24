@@ -49,13 +49,13 @@ function Step({ number, title, subtitle, done = false }) {
 }
 
 const DEFAULT_CATEGORIES = [
-  { id: 1, name: "Security", sub_categories: [{ id: 101, name: "Unauthorized Access" }, { id: 102, name: "Fraud" }, { id: 103, name: "Phishing" }, { id: 104, name: "Security Alert" }] },
-  { id: 2, name: "Network", sub_categories: [{ id: 201, name: "VPN" }, { id: 202, name: "Internet" }, { id: 203, name: "DNS" }] },
-  { id: 3, name: "Authentication", sub_categories: [{ id: 301, name: "Login Issue" }, { id: 302, name: "MFA" }, { id: 303, name: "Password Reset" }] },
-  { id: 4, name: "Hardware", sub_categories: [{ id: 401, name: "Laptop" }, { id: 402, name: "Monitor" }, { id: 403, name: "Keyboard/Mouse" }] },
-  { id: 5, name: "Software", sub_categories: [{ id: 501, name: "Application Error" }, { id: 502, name: "License Issue" }, { id: 503, name: "Crash" }] },
-  { id: 6, name: "Email", sub_categories: [{ id: 601, name: "Outlook Sync" }, { id: 602, name: "Delivery Failure" }] },
-  { id: 7, name: "Billing", sub_categories: [{ id: 701, name: "Invoice" }, { id: 702, name: "Payment Failure" }, { id: 703, name: "Refund" }] },
+  { id: 1, name: "Network", sub_categories: [{ id: 101, name: "VPN" }, { id: 102, name: "Internet" }, { id: 103, name: "Wi-Fi" }, { id: 104, name: "DNS / Gateway" }, { id: 105, name: "Firewall" }] },
+  { id: 2, name: "Security", sub_categories: [{ id: 201, name: "Phishing" }, { id: 202, name: "Unauthorized Access" }, { id: 203, name: "Fraud" }, { id: 204, name: "Security Alert" }, { id: 205, name: "Malware" }] },
+  { id: 3, name: "Authentication", sub_categories: [{ id: 301, name: "Password Reset" }, { id: 302, name: "Login Issue" }, { id: 303, name: "MFA / SSO" }, { id: 304, name: "Account Locked" }] },
+  { id: 4, name: "Hardware", sub_categories: [{ id: 401, name: "Laptop" }, { id: 402, name: "Desktop" }, { id: 403, name: "Monitor" }, { id: 404, name: "Keyboard / Mouse" }, { id: 405, name: "Printer" }] },
+  { id: 5, name: "Software", sub_categories: [{ id: 501, name: "Application Error" }, { id: 502, name: "Crash" }, { id: 503, name: "License Expired" }, { id: 504, name: "Installation" }] },
+  { id: 6, name: "Email", sub_categories: [{ id: 601, name: "Outlook Sync" }, { id: 602, name: "Calendar Issue" }, { id: 603, name: "Spam" }, { id: 604, name: "Delivery Failure" }] },
+  { id: 7, name: "Billing", sub_categories: [{ id: 701, name: "Invoice" }, { id: 702, name: "Payment Failure" }, { id: 703, name: "Subscription" }] },
 ];
 
 const DEFAULT_PRIORITIES = [
@@ -190,23 +190,41 @@ export default function NewTicketPage() {
     try {
       const data = await classifyTicket(subj, desc, form.scope, form.workBlocked);
 
-      const predictedCategory = data?.category || "General";
-      const predictedSubCategory = data?.sub_category || "";
+      const rawCategory = data?.category || "Software";
+      const rawSubCategory = data?.sub_category || "";
       const predictedSeverity = data?.severity || "Medium";
       const predictedPriority = data?.priority || "P3";
+
+      // Match category against loaded Master Data categories
+      const matchedCat = categories.find(
+        (c) => (c?.name || "").toLowerCase() === rawCategory.toLowerCase()
+      );
+      const predictedCategory = matchedCat ? matchedCat.name : (categories[0]?.name || "Software");
+
+      // Match subcategory against available subcategories of the resolved category
+      let predictedSubCategory = rawSubCategory;
+      if (matchedCat && Array.isArray(matchedCat.sub_categories) && matchedCat.sub_categories.length > 0) {
+        const rawSubLower = (rawSubCategory || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const matchedSub = matchedCat.sub_categories.find((s) => {
+          const sNameLower = (s?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          return sNameLower === rawSubLower || sNameLower.includes(rawSubLower) || rawSubLower.includes(sNameLower);
+        });
+        predictedSubCategory = matchedSub ? matchedSub.name : matchedCat.sub_categories[0].name;
+      }
 
       const result = {
         category: predictedCategory,
         subCategory: predictedSubCategory,
         severity: predictedSeverity,
         priority: predictedPriority,
-        team: data?.team || "IT Support",
+        team: data?.team || `${predictedCategory} Support`,
         confidence: data?.confidence || 0.95,
-        slaHours: data?.sla_hours || 24,
+        slaHours: data?.sla_hours || (predictedPriority === "P1" ? 1 : predictedPriority === "P2" ? 4 : 24),
         classificationPath: data?.classification_path || "AI Engine",
         knowledgeSource: data?.knowledge_source || "Enterprise Knowledge Store",
         suggestedResolution: Array.isArray(data?.suggested_resolution) ? data.suggested_resolution : [],
-        reason: data?.reason || "",
+        citations: Array.isArray(data?.citations) ? data.citations : [],
+        reason: data?.reason || `Classified as ${predictedCategory} → ${predictedSubCategory} (${predictedPriority}).`,
       };
 
       setAiClassification(result);
@@ -215,7 +233,7 @@ export default function NewTicketPage() {
       setForm((prev) => ({
         ...prev,
         category: result.category,
-        subCategory: result.subCategory || prev.subCategory,
+        subCategory: result.subCategory,
         severity: result.severity,
         priority: result.priority,
       }));
@@ -225,9 +243,12 @@ export default function NewTicketPage() {
       );
     } catch (err) {
       console.warn("[AI Classification Notice]:", err);
+      const defaultCat = categories[0]?.name || "Software";
+      const defaultSub = categories[0]?.sub_categories?.[0]?.name || "Application Error";
       setForm((prev) => ({
         ...prev,
-        category: prev.category || "General",
+        category: prev.category || defaultCat,
+        subCategory: prev.subCategory || defaultSub,
         priority: prev.priority || "P3",
       }));
       setStatusMessage("✅ AI Classification applied with standard categories.");
@@ -408,7 +429,7 @@ export default function NewTicketPage() {
                   <button
                     type="button"
                     onClick={handleRunAiClassification}
-                    disabled={isClassifying || !form.subject.trim() || isSubmitting}
+                    disabled={isClassifying || (!form.subject.trim() && !form.description.trim()) || isSubmitting}
                     className="rounded-xl bg-[#0f2b1d] px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 transition disabled:opacity-50 flex items-center gap-2 shadow"
                   >
                     {isClassifying ? (

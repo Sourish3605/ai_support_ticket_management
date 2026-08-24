@@ -112,26 +112,8 @@ def hybrid_retrieve_chunks(query_text: str, category: str | None = None, sub_cat
     # Refresh chunk cache if expired
     if now - _CHUNK_CACHE["timestamp"] > _CACHE_TTL_SECONDS or not _CHUNK_CACHE["chunks"]:
         cached_chunks = list(DEFAULT_KNOWLEDGE_CHUNKS)
+        # 1. Fetch from PostgreSQL KnowledgeArticle (fast, persistent, reliable)
         try:
-            # 1. Quick fetch from MongoDB (with 800ms timeout)
-            mongo_chunks = list(article_chunks_collection.find({}))
-            if mongo_chunks:
-                for chunk in mongo_chunks:
-                    cached_chunks.append({
-                        "chunk_id": chunk.get("chunk_id", str(chunk.get("_id", ""))),
-                        "article_id": chunk.get("article_id", "KB-DOC-001"),
-                        "title": chunk.get("title", "Standard Operating Procedure"),
-                        "section": chunk.get("section", "Procedure §1.0"),
-                        "category": chunk.get("category", ""),
-                        "sub_category": chunk.get("sub_category", ""),
-                        "text": chunk.get("text", ""),
-                        "source": chunk.get("title", "Enterprise Knowledge Store"),
-                    })
-        except Exception:
-            pass
-
-        try:
-            # 2. Quick fetch from PostgreSQL KnowledgeArticle
             articles = list(KnowledgeArticle.objects.filter(is_active=True))
             for art in articles:
                 content_snippet = art.steps or art.content or art.title
@@ -145,6 +127,24 @@ def hybrid_retrieve_chunks(query_text: str, category: str | None = None, sub_cat
                     "text": content_snippet,
                     "source": art.source or "Enterprise IT Knowledge Base",
                 })
+        except Exception:
+            pass
+
+        # 2. Fetch from MongoDB article_chunks if available
+        try:
+            mongo_chunks = list(article_chunks_collection.find({}))
+            if mongo_chunks:
+                for chunk in mongo_chunks:
+                    cached_chunks.append({
+                        "chunk_id": chunk.get("chunk_id", str(chunk.get("_id", ""))),
+                        "article_id": chunk.get("article_id", "KB-DOC-001"),
+                        "title": chunk.get("title", "Standard Operating Procedure"),
+                        "section": chunk.get("section", "Procedure §1.0"),
+                        "category": chunk.get("category", ""),
+                        "sub_category": chunk.get("sub_category", ""),
+                        "text": chunk.get("text", ""),
+                        "source": chunk.get("title", "Enterprise Knowledge Store"),
+                    })
         except Exception:
             pass
 
@@ -283,6 +283,17 @@ def generate_grounded_resolution(
             "created_at": now_iso,
         }
         citations.append(citation_obj)
+
+    ticket_response_doc = {
+        "response_id": response_id,
+        "ticket_id": ticket_id,
+        "query_text": query_text,
+        "category": category,
+        "sub_category": sub_category,
+        "suggested_steps": suggested_steps,
+        "citations": [c.get("citation_id") for c in citations],
+        "created_at": now_iso,
+    }
 
     # Asynchronously persist to MongoDB in background without blocking response latency
     def _async_mongo_persist():

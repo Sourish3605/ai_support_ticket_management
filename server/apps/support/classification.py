@@ -95,7 +95,7 @@ def classify_ticket(subject, description):
         return "Security", sub_cat, "Critical", "P1"
 
     # -------------------------------------------------------------
-    # 2. General Category and Sub-category Rules
+    # 2. General Category and Sub-category Rules (All 7 Master Data Domains)
     # -------------------------------------------------------------
     rules = [
         (
@@ -108,7 +108,7 @@ def classify_ticket(subject, description):
                 "breach",
                 "unauthorized",
                 "unauthorised",
-                "suspicious",
+                "suspicious email",
                 "hacked",
                 "virus",
                 "trojan",
@@ -117,6 +117,27 @@ def classify_ticket(subject, description):
                 "scam",
                 "spyware",
                 "exploit",
+            ],
+        ),
+        (
+            "Security",
+            "Unauthorized Access",
+            [
+                "unauthorized access",
+                "unauthorised access",
+                "security breach",
+                "account takeover",
+                "suspicious activity",
+            ],
+        ),
+        (
+            "Security",
+            "Fraud",
+            [
+                "fraud",
+                "fraudulent",
+                "money stolen",
+                "funds stolen",
             ],
         ),
         (
@@ -131,6 +152,8 @@ def classify_ticket(subject, description):
                 "vpn tunnel",
                 "vpn client",
                 "vpn connection",
+                "vpn not working",
+                "vpn gateway",
             ],
         ),
         (
@@ -158,6 +181,19 @@ def classify_ticket(subject, description):
                 "offline",
                 "ip address",
                 "latency",
+                "disconnecting",
+                "cannot connect to network",
+            ],
+        ),
+        (
+            "Authentication",
+            "Password Reset",
+            [
+                "reset password",
+                "forgot password",
+                "change password",
+                "password expired",
+                "new password",
             ],
         ),
         (
@@ -181,8 +217,6 @@ def classify_ticket(subject, description):
                 "account locked",
                 "locked out",
                 "credentials",
-                "reset password",
-                "forgot password",
                 "expired password",
                 "session expired",
                 "access denied",
@@ -199,22 +233,39 @@ def classify_ticket(subject, description):
                 "pc",
                 "macbook",
                 "workstation",
-                "keyboard",
-                "mouse",
+                "battery",
+                "charger",
+                "overheating",
+                "fan",
+                "device",
+            ],
+        ),
+        (
+            "Hardware",
+            "Monitor",
+            [
                 "monitor",
                 "screen",
                 "display",
+                "flickering",
+                "external monitor",
+                "hdmi",
+            ],
+        ),
+        (
+            "Hardware",
+            "Keyboard / Mouse",
+            [
+                "keyboard",
+                "mouse",
+                "touchpad",
                 "printer",
-                "battery",
-                "charger",
                 "dock",
                 "headset",
                 "webcam",
                 "microphone",
+                "peripheral",
                 "hardware",
-                "device",
-                "overheating",
-                "fan",
             ],
         ),
         (
@@ -235,6 +286,7 @@ def classify_ticket(subject, description):
                 "imap",
                 "spam folder",
                 "teams invite",
+                "mail",
             ],
         ),
         (
@@ -258,6 +310,7 @@ def classify_ticket(subject, description):
                 "blue screen",
                 "bsod",
                 "unresponsive",
+                "error message",
             ],
         ),
         (
@@ -276,6 +329,7 @@ def classify_ticket(subject, description):
                 "charge",
                 "bill",
                 "plan upgrade",
+                "payment failure",
             ],
         ),
     ]
@@ -289,14 +343,23 @@ def classify_ticket(subject, description):
             sub_category = rule_sub_category
             break
 
-    # Fallback to general network/hardware defaults if not strictly matched
+    # Fallback to valid standard master data category if not strictly matched
     if not category:
-        if any(w in text for w in ["slow", "down", "not working", "unable", "cannot", "failed", "broken", "connect", "access"]):
+        if any(w in text for w in ["slow", "down", "not working", "unable", "cannot", "failed", "broken", "connect", "access", "wifi", "network"]):
             category = "Network"
             sub_category = "Internet"
+        elif any(w in text for w in ["pay", "money", "price", "card", "cost", "dollar"]):
+            category = "Billing"
+            sub_category = "Invoice"
+        elif any(w in text for w in ["screen", "device", "power", "plug", "cable"]):
+            category = "Hardware"
+            sub_category = "Laptop"
+        elif any(w in text for w in ["mail", "message", "send"]):
+            category = "Email"
+            sub_category = "Outlook Sync"
         else:
-            category = "General"
-            sub_category = "Other"
+            category = "Software"
+            sub_category = "Application Error"
 
     # -------------------------------------------------------------
     # 3. Severity & Priority Classification
