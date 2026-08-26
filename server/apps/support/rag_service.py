@@ -1,12 +1,3 @@
-"""
-SupportPilot Milestone 2 — Knowledge Retrieval & Grounded Resolution Generation (RAG Pipeline).
-Features:
-- Hybrid Retrieval (Keyword + Category + Semantic Token Match)
-- Reranking
-- Grounded Step-by-Step Resolution Generation with Mandatory Citations
-- MongoDB Collections: article_chunks, retrieval_logs, ticket_responses, citations, kb_gaps
-"""
-
 from datetime import datetime, timezone
 import time
 import uuid

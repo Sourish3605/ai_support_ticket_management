@@ -3,11 +3,12 @@ from rest_framework import generics, permissions, serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from .models import Ticket
+from .models import Ticket,AgentWorkflow
 from .serializers import TicketSerializer
 from .classification import classify_ticket
 from .preprocessing import preprocess_ticket
 from .knowledge_service import retrieve_knowledge_and_generate_resolution
+from.workflow_service import create_agent_workflow
 
 from mongodb import (
     tickets_collection,
@@ -90,6 +91,7 @@ class TicketListCreateView(generics.ListCreateAPIView):
             priority=priority,
             status="Classified"
         )
+        workflow=create_agent_workflow(ticket)
 
         # 5. Milestone 2 RAG Knowledge Retrieval & Grounded Resolution Generation
         rag_result = retrieve_knowledge_and_generate_resolution(

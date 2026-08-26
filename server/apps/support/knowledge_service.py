@@ -1,8 +1,3 @@
-"""
-Dynamic Knowledge Base Retrieval & Resolution Service.
-Integrates with Milestone 2 RAG Pipeline to return grounded resolution with mandatory citations.
-"""
-
 from .rag_service import generate_grounded_resolution
 
 
