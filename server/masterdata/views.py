@@ -283,3 +283,7 @@ class ProductListView(generics.ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
+    
+
+
