@@ -11,6 +11,16 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunSQL(
+            sql="""
+            DROP TABLE IF EXISTS support_agentexecution;
+            DROP TABLE IF EXISTS support_agentworkflow;
+            DROP TABLE IF EXISTS support_emaillog;
+            DROP TABLE IF EXISTS support_jiraticket;
+            DROP TABLE IF EXISTS support_activitylog;
+            """,
+            reverse_sql="",
+        ),
         migrations.AlterField(
             model_name='ticket',
             name='status',
