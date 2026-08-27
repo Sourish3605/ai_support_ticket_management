@@ -33,6 +33,9 @@ import UsersPage from "./pages/admin/UsersPage";
 import AdminConfigPage from "./pages/admin/AdminConfigPage";
 import KnowledgeBasePage from "./pages/admin/KnowledgeBasePage";
 import MasterDataPage from "./pages/admin/MasterDataPage";
+import IntegrationsPage from "./pages/admin/IntegrationsPage";
+import AiAgentWorkbench from "./pages/agent/AiAgentWorkbench";
+import JiraCloudPortal from "./pages/jira/JiraCloudPortal";
 
 
 function initials(name) {
@@ -103,14 +106,17 @@ function AgentLayout({ children }) {
     ? ["Overview", "Dashboard"]
     : location.pathname === "/tickets/queue"
       ? ["Tickets / Queue", "My queue"]
-      : location.pathname.startsWith("/tickets/")
-        ? [`Tickets / ${location.pathname.split("/").pop()}`, "Ticket detail"]
-        : ["Tickets", "All tickets"];
+      : location.pathname.startsWith("/ai-agent")
+        ? ["AI Operations", "AI Agent Workbench"]
+        : location.pathname.startsWith("/tickets/")
+          ? [`Tickets / ${location.pathname.split("/").pop()}`, "Ticket detail"]
+          : ["Tickets", "All tickets"];
 
   const navigation = [
     ["/dashboard", "▦", "Dashboard", null],
     ["/tickets", "▤", "All tickets", ticketCounts.all],
     ["/tickets/queue", "◉", "My queue", ticketCounts.open],
+    ["/ai-agent/workbench", "🤖", "AI Workbench", null],
   ];
 
   const userInitials = initials(user?.name);
@@ -178,6 +184,7 @@ function AdminLayout({ children }) {
 
   const adminNav = [
     { to: "/admin", icon: "▦", label: "Dashboard" },
+    { to: "/ai-agent/workbench", icon: "🤖", label: "AI Agent Ops" },
     { to: "/admin/master-data", icon: "🗂️", label: "Master Data" },
     { to: "/admin/users", icon: "👥", label: "Users" },
     { to: "/admin/routing", icon: "⇆", label: "Routing Rules" },
@@ -535,10 +542,37 @@ export default function App() {
             path="/tickets/:id"
             element={
               <ProtectedRoute
-                allowedRoles={["agent"]}
+                allowedRoles={["agent", "admin"]}
               >
                 <AgentLayout>
                   <AgentTicketDetails />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Milestone 3 AI Agent Operations Workbench */}
+          <Route
+            path="/ai-agent/workbench"
+            element={
+              <ProtectedRoute
+                allowedRoles={["agent", "admin"]}
+              >
+                <AgentLayout>
+                  <AiAgentWorkbench />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/ai-agent/runs/:id"
+            element={
+              <ProtectedRoute
+                allowedRoles={["agent", "admin"]}
+              >
+                <AgentLayout>
+                  <AiAgentWorkbench />
                 </AgentLayout>
               </ProtectedRoute>
             }
@@ -710,28 +744,26 @@ export default function App() {
           <Route
             path="/integrations"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["admin", "agent"]}>
                 <AdminLayout>
-                  <AdminConfigPage
-                    title="Integrations"
-                    description="Configure Jira, email, and other support integrations."
-                    storageKey="supportpilot_integrations"
-                    defaultValues={{
-                      jiraEnabled: "Enabled",
-                      emailSync: "Enabled",
-                      webhookUrl: "https://hooks.example.com/support",
-                      integrationOwner: "IT Ops",
-                    }}
-                    fields={[
-                      { name: "jiraEnabled", label: "Jira integration", type: "select", options: [{ value: "Enabled", label: "Enabled" }, { value: "Disabled", label: "Disabled" }] },
-                      { name: "emailSync", label: "Email sync", type: "select", options: [{ value: "Enabled", label: "Enabled" }, { value: "Disabled", label: "Disabled" }] },
-                      { name: "webhookUrl", label: "Webhook URL", type: "text" },
-                      { name: "integrationOwner", label: "Integration owner", type: "text" },
-                    ]}
-                  />
+                  <IntegrationsPage />
                 </AdminLayout>
               </ProtectedRoute>
             }
+          />
+
+          {/* Hosted Atlassian Jira Cloud Portal */}
+          <Route
+            path="/jira"
+            element={<JiraCloudPortal />}
+          />
+          <Route
+            path="/jira/:key"
+            element={<JiraCloudPortal />}
+          />
+          <Route
+            path="/jira/browse/:key"
+            element={<JiraCloudPortal />}
           />
 
           <Route

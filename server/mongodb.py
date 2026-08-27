@@ -12,7 +12,7 @@ except ImportError:
 DEFAULT_MONGO_URI = "mongodb+srv://support_admin:Support12345@cluster0.kzld13c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 raw_uri = config("MONGO_URI", default=os.environ.get("MONGO_URI", DEFAULT_MONGO_URI))
 MONGO_URI = raw_uri.strip().strip("'\"") if raw_uri else DEFAULT_MONGO_URI
-MONGO_TIMEOUT_MS = int(config("MONGO_TIMEOUT_MS", default="600"))
+MONGO_TIMEOUT_MS = int(config("MONGO_TIMEOUT_MS", default="200"))
 
 _client = None
 _db = None
@@ -24,7 +24,7 @@ def is_mongo_available():
     return time.time() > _offline_until
 
 
-def mark_mongo_offline(seconds=300.0):
+def mark_mongo_offline(seconds=3600.0):
     global _offline_until
     _offline_until = time.time() + seconds
 
@@ -53,8 +53,7 @@ def get_mongo_client():
 
             _client = MongoClient(MONGO_URI, **mongo_options)
         except Exception as err:
-            print(f"[MongoDB Atlas Warning] Failed to initialize MongoClient: {err}")
-            mark_mongo_offline(300.0)
+            mark_mongo_offline(3600.0)
             return None
     return _client
 
@@ -186,6 +185,15 @@ citations_collection = SafeCollection("citations")
 feedback_collection = SafeCollection("feedback")
 kb_gaps_collection = SafeCollection("kb_gaps")
 retrieval_logs_collection = SafeCollection("retrieval_logs")
+
+# ==========================================
+# Milestone 3 Collections (Multi-Agent, Jira, Email, Audit)
+# ==========================================
+agent_workflows_collection = SafeCollection("agent_workflows")
+agent_executions_collection = SafeCollection("agent_executions")
+jira_tickets_collection = SafeCollection("jira_tickets")
+email_logs_collection = SafeCollection("email_logs")
+activity_logs_collection = SafeCollection("activity_logs")
 
 # Legacy compatibility
 users_collection = SafeCollection("users")

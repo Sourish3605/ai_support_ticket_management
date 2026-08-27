@@ -1,453 +1,287 @@
 import re
+from typing import Tuple
+
+TYPO_CORRECTIONS = {
+    "interent": "internet",
+    "intenet": "internet",
+    "intrnet": "internet",
+    "conection": "connection",
+    "conecting": "connecting",
+    "conectivity": "connectivity",
+    "conect": "connect",
+    "disconected": "disconnected",
+    "pasword": "password",
+    "paswd": "password",
+    "log in": "login",
+    "sign in": "signin",
+    "wifii": "wifi",
+    "wiffi": "wifi",
+    "authetication": "authentication",
+    "authenticator": "authenticator",
+}
 
 
 def normalize_text(text: str) -> str:
-    """Normalize text by lowercasing, removing punctuation, and collapsing whitespaces."""
+    """Normalize text by lowercasing, correcting common typos, removing punctuation, and collapsing whitespaces."""
     if not text:
         return ""
-    # Convert to lowercase
     s = text.lower()
-    # Replace punctuation with spaces
+    for typo, correction in TYPO_CORRECTIONS.items():
+        s = re.sub(rf"\b{re.escape(typo)}\b", correction, s)
     s = re.sub(r"[^\w\s]", " ", s)
-    # Collapse multiple spaces into one and trim
     return " ".join(s.split())
 
 
-def classify_ticket(subject, description, scope: str = "Just me", work_blocked: bool = False):
-    raw_text = f"{subject or ''} {description or ''}"
-    text = normalize_text(raw_text)
+# ----------------------------------------------------------------------
+# 1. USER SPECIFIED CATEGORY KEYWORDS & PHRASES
+# ----------------------------------------------------------------------
+CATEGORY_TAXONOMY = {
+    "Billing": {
+        "keywords": [
+            "invoice", "charge", "payment", "receipt", "refund", "debited",
+            "subscription", "pricing", "overcharged", "card", "transaction",
+            "bank", "stripe", "paypal", "pay now", "checkout", "billing"
+        ],
+        "sub_rules": {
+            "Payment Failure": ["payment", "card", "transaction", "pay now", "checkout", "debited", "stripe", "paypal", "payment failed", "declined"],
+            "Subscription": ["subscription", "pricing", "plan", "upgrade", "renew", "renewal", "tier", "seats", "membership"],
+            "Invoice": ["invoice", "charge", "overcharged", "receipt", "refund", "bill", "billing", "tax invoice", "vat", "gst"]
+        }
+    },
+    "Software": {
+        "keywords": [
+            "bug", "error", "crash", "button", "freeze", "broken", "loading",
+            "failed to", "glitch", "feature", "dropdown",
+            "blank screen", "unexpected", "404", "500", "502", "503", "application", "app", "ui"
+        ],
+        "sub_rules": {
+            "Crash": ["crash", "crashing", "force close", "unexpected quit", "freeze", "blank screen"],
+            "Application Error": ["bug", "error", "404", "500", "502", "503", "button", "broken", "loading", "failed to", "glitch", "unexpected", "dropdown"],
+            "License Expired": ["license", "activation", "key", "expired", "unlicensed"],
+            "Installation": ["installation", "install", "update", "patch", "setup", "installer"]
+        }
+    },
+    "Authentication": {
+        "keywords": [
+            "login", "password", "signin", "2fa", "mfa", "otp", "account locked",
+            "credentials", "register", "sign up", "verification code", "access denied",
+            "authentication", "auth", "authenticator", "sso", "saml", "verify"
+        ],
+        "sub_rules": {
+            "Password Reset": ["password", "reset password", "forgot password", "change password", "password expired"],
+            "Account Locked": ["account locked", "locked out", "too many attempts", "account disabled"],
+            "MFA / SSO": ["2fa", "mfa", "otp", "verification code", "authenticator", "sso", "okta", "duo", "totp"],
+            "Login Issue": ["login", "signin", "credentials", "register", "sign up", "access denied", "authentication", "auth", "verify"]
+        }
+    },
+    "Network": {
+        "keywords": [
+            "internet", "interent", "intenet", "connectivity", "internet connection",
+            "slow", "timeout", "latency", "vpn", "wifi", "connection", "connecting",
+            "offline", "disconnected", "server down", "loading time", "gateway", "ping", "dns",
+            "ethernet", "broadband", "network", "firewall", "no internet"
+        ],
+        "sub_rules": {
+            "Internet": ["internet", "interent", "intenet", "connectivity", "internet connection", "no internet", "broadband", "ethernet", "internet down", "offline", "disconnected", "server down", "network down", "dsl outage"],
+            "VPN": ["vpn", "anyconnect", "globalprotect", "cisco vpn", "openvpn", "wireguard", "vpn tunnel", "vpn connection", "vpn gateway", "corporate vpn"],
+            "Wi-Fi": ["wifi", "wi-fi", "wireless", "ssid", "hotspot", "access point"],
+            "DNS / Gateway": ["dns", "gateway", "ping", "timeout", "latency", "dhcp", "ip conflict"],
+            "Firewall": ["firewall", "blocked port", "port", "rule", "udp 500"]
+        }
+    },
+    "Email": {
+        "keywords": [
+            "inbox", "outlook", "gmail", "spam", "not receiving", "bounce back",
+            "smtp", "imap", "mailbox", "newsletter", "verification email", "attachment",
+            "mail", "email", "calendar", "invite"
+        ],
+        "sub_rules": {
+            "Spam": ["spam", "newsletter", "junk", "filter"],
+            "Delivery Failure": ["not receiving", "bounce back", "smtp", "undeliverable", "rejected"],
+            "Calendar Issue": ["calendar", "invite", "meeting", "schedule"],
+            "Outlook Sync": ["inbox", "outlook", "gmail", "imap", "mailbox", "verification email", "attachment", "mail", "email"]
+        }
+    },
+    "Security": {
+        "keywords": [
+            "hack", "phishing", "compromised", "virus", "malware", "suspicious",
+            "leak", "unauthorized", "breach", "spam link", "vulnerability",
+            "ransomware", "trojan", "spyware", "identity theft"
+        ],
+        "sub_rules": {
+            "Phishing": ["phishing", "suspicious", "spam link", "fake email", "scam"],
+            "Malware": ["virus", "malware", "ransomware", "trojan", "spyware"],
+            "Unauthorized Access": ["hack", "compromised", "unauthorized", "breach", "identity theft", "takeover"],
+            "Security Alert": ["leak", "vulnerability", "cve", "security alert", "audit"]
+        }
+    },
+    "Hardware": {
+        "keywords": [
+            "laptop", "monitor", "mouse", "keyboard", "printer", "cable",
+            "broken screen", "battery", "charger", "headset", "physical device",
+            "hdmi", "displayport", "dock", "desktop"
+        ],
+        "sub_rules": {
+            "Monitor": ["monitor", "broken screen", "hdmi", "displayport", "external display", "second screen", "flicker", "resolution"],
+            "Laptop": ["laptop", "battery", "charger", "desktop", "overheating", "fan noise", "hardware"],
+            "Keyboard / Mouse": ["mouse", "keyboard", "trackpad", "touchpad"],
+            "Printer": ["printer", "scanner", "toner", "cartridge", "paper jam"]
+        }
+    }
+}
+
+# ----------------------------------------------------------------------
+# 2. USER SPECIFIED PRIORITY KEYWORDS
+# ----------------------------------------------------------------------
+P1_CRITICAL_PHRASES = [
+    "down for everyone", "broken for everyone", "cannot access at all",
+    "stopping work", "global outage", "all users", "completely down",
+    "emergency", "ransomware", "data breach", "production down", "system down"
+]
+P1_CRITICAL_WORDS = ["down", "completely", "global", "crashing", "urgent", "asap", "emergency"]
+
+P2_HIGH_PHRASES = [
+    "cannot login", "payment failed", "unable to", "cannot connect",
+    "unable to connect", "connection failing", "failing to connect",
+    "important feature", "multiple users", "pay now", "checkout page",
+    "error 404", "error 500", "locked out"
+]
+P2_HIGH_WORDS = ["major", "broken", "stuck", "failed", "failing", "regression", "blocked"]
+
+P3_MEDIUM_WORDS = [
+    "slow", "lagging", "delay", "annoying", "sometimes", "intermittent",
+    "workaround", "minor", "incorrectly", "not showing", "glitch", "bug"
+]
+
+P4_LOW_WORDS = [
+    "typo", "spelling", "color", "font", "alignment", "update text",
+    "question", "how do i", "request", "suggestion", "future update"
+]
+
+
+def classify_ticket(subject: str, description: str, scope: str = "Just me", work_blocked: bool = False) -> Tuple[str, str, str, str]:
+    subj_norm = normalize_text(subject or "")
+    desc_norm = normalize_text(description or "")
+    full_text = f"{subj_norm} {desc_norm}".strip()
+
+    subj_words = set(subj_norm.split())
+    desc_words = set(desc_norm.split())
+    all_words = subj_words.union(desc_words)
 
     # -------------------------------------------------------------
-    # 1. Critical Security & Account Compromise Patterns (Highest Priority)
+    # Step 1: Category & SubCategory Prediction
     # -------------------------------------------------------------
-    critical_security_phrases = [
-        "my account is hacked",
-        "account hacked",
-        "someone hacked my account",
-        "somebody hacked my account",
-        "account has been hacked",
-        "account was hacked",
-        "account got hacked",
-        "hacked my account",
-        "hacked account",
-        "account compromised",
-        "account has been compromised",
-        "account was compromised",
-        "account is compromised",
-        "account takeover",
-        "someone accessed my account",
-        "somebody accessed my account",
-        "unauthorized access",
-        "unauthorized login",
-        "unauthorised access",
-        "unauthorised login",
-        "suspicious login",
-        "unknown login",
-        "identity theft",
-        "fraud",
-        "fraudulent transaction",
-        "unauthorized transaction",
-        "unauthorised transaction",
-        "money stolen",
-        "money was stolen",
-        "funds stolen",
-        "funds were stolen",
-        "password changed without my permission",
-        "password changed without permission",
-        "password was changed without permission",
-        "otp stolen",
-        "otp compromised",
-        "otp intercepted",
-        "security breach",
-        "data breach",
-        "ransomware",
-        "compromised account",
-    ]
+    cat_scores = {}
+    best_sub_for_cat = {}
 
-    critical_security_regexes = [
-        r"\bhack(ed|ing)?\b.*\b(account|profile|portal|login|password)\b",
-        r"\b(account|profile|portal|login|password)\b.*\bhack(ed|ing)?\b",
-        r"\b(someone|somebody|attacker|hacker)\b.*\b(accessed|logged\s+into|stole|takeover)\b",
-        r"\bunauthori[zs]ed\b.*\b(access|login|entry|activity|transaction|charge|transfer)\b",
-        r"\b(suspicious|unknown|unrecognized|unrecognised)\b.*\b(login|sign\s*in|activity|device|ip|location)\b",
-        r"\b(money|funds|cash|balance|savings)\b.*\b(stolen|lost|taken|drained|transferred)\b",
-        r"\b(stolen|intercepted|leaked)\b.*\b(otp|code|pin|password|credential)\b",
-        r"\bpassword\b.*\b(changed|reset)\b.*\b(without|no)\b.*\b(permission|consent|knowledge|me)\b",
-        r"\b(identity\s+theft|account\s+takeover|data\s+breach|security\s+breach|ransomware)\b",
-        r"\b(fraud|fraudulent|scam|scammed|phishing)\b",
-    ]
+    for cat_name, cat_config in CATEGORY_TAXONOMY.items():
+        score = 0.0
+        kw_list = cat_config["keywords"]
 
-    is_critical_security = any(phrase in text for phrase in critical_security_phrases) or any(
-        re.search(rgx, text) for rgx in critical_security_regexes
+        # Subject matches have 3.0x multiplier
+        for kw in kw_list:
+            if kw in subj_norm or kw in subj_words:
+                score += 15.0 * 3.0
+            elif kw in desc_norm or kw in desc_words:
+                score += 10.0
+
+        # Disambiguation penalty:
+        if cat_name == "Hardware":
+            if "screen" in full_text and not any(h in full_text for h in ["broken screen", "monitor", "hdmi", "displayport", "cable", "flicker"]):
+                score -= 30.0
+
+        cat_scores[cat_name] = max(0.0, score)
+
+        # Predict best SubCategory for this Category
+        sub_scores = {}
+        for sub_name, sub_kws in cat_config["sub_rules"].items():
+            s_score = 0.0
+            for skw in sub_kws:
+                if skw in subj_norm:
+                    s_score += 12.0 * 3.0
+                elif skw in desc_norm:
+                    s_score += 8.0
+            sub_scores[sub_name] = s_score
+
+        if sub_scores:
+            sorted_subs = sorted(sub_scores.items(), key=lambda x: x[1], reverse=True)
+            best_sub_for_cat[cat_name] = sorted_subs[0][0]
+        else:
+            best_sub_for_cat[cat_name] = list(cat_config["sub_rules"].keys())[0]
+
+    # Select winning Category
+    sorted_categories = sorted(cat_scores.items(), key=lambda x: x[1], reverse=True)
+    if sorted_categories and sorted_categories[0][1] > 0:
+        predicted_category = sorted_categories[0][0]
+        predicted_subcategory = best_sub_for_cat.get(predicted_category, "General")
+    else:
+        predicted_category = "Software"
+        predicted_subcategory = "Application Error"
+
+    # Map to MasterData models in database if available
+    try:
+        from masterdata.models import Category, SubCategory
+        matched_cat = Category.objects.filter(name__iexact=predicted_category).first()
+        if matched_cat:
+            predicted_category = matched_cat.name
+            subs = list(SubCategory.objects.filter(category=matched_cat))
+            if subs:
+                matched_sub = None
+                for s in subs:
+                    if s.name.lower() == predicted_subcategory.lower() or s.name.lower() in predicted_subcategory.lower() or predicted_subcategory.lower() in s.name.lower():
+                        matched_sub = s.name
+                        break
+                predicted_subcategory = matched_sub or subs[0].name
+    except Exception:
+        pass
+
+    # -------------------------------------------------------------
+    # Step 2: Priority & Severity Prediction (Exact User Keywords)
+    # -------------------------------------------------------------
+    # 1. P1 - Critical (Outage / Global Impact / Emergency / Security)
+    is_p1 = (
+        predicted_category == "Security" or
+        any(phrase in full_text for phrase in P1_CRITICAL_PHRASES) or
+        (any(w in all_words for w in P1_CRITICAL_WORDS) and (scope == "Entire department" or "all users" in full_text or "global" in full_text)) or
+        (work_blocked and scope == "Entire department")
     )
 
-    if is_critical_security:
-        # Determine specific subcategory
-        if any(w in text for w in ["fraud", "transaction", "money", "funds", "stolen"]):
-            sub_cat = "Fraud"
-        elif any(w in text for w in ["phishing", "scam"]):
-            sub_cat = "Phishing"
-        elif any(w in text for w in ["breach", "ransomware", "malware"]):
-            sub_cat = "Security Alert"
-        else:
-            sub_cat = "Unauthorized Access"
+    # 2. P3 - Medium Indicators (Minor issues, slowness, delays, workarounds)
+    has_p3_indicators = any(w in full_text for w in [
+        "slow", "slowness", "lagging", "delay", "annoying", "sometimes",
+        "intermittent", "workaround", "minor", "incorrectly", "not showing", "latency", "loading slowly"
+    ])
 
-        return "Security", sub_cat, "Critical", "P1"
+    # 3. P4 - Low Indicators (Cosmetic / Simple requests / UI tweaks)
+    has_p4_indicators = any(w in all_words for w in P4_LOW_WORDS) or any(w in full_text for w in ["how do i", "future update", "ui suggestion"])
 
-    # -------------------------------------------------------------
-    # 2. General Category and Sub-category Rules (All 7 Master Data Domains)
-    # -------------------------------------------------------------
-    rules = [
-        (
-            "Security",
-            "Phishing",
-            [
-                "phishing",
-                "malware",
-                "ransomware",
-                "breach",
-                "unauthorized",
-                "unauthorised",
-                "suspicious email",
-                "hacked",
-                "virus",
-                "trojan",
-                "compromised",
-                "security alert",
-                "scam",
-                "spyware",
-                "exploit",
-            ],
-        ),
-        (
-            "Security",
-            "Unauthorized Access",
-            [
-                "unauthorized access",
-                "unauthorised access",
-                "security breach",
-                "account takeover",
-                "suspicious activity",
-            ],
-        ),
-        (
-            "Security",
-            "Fraud",
-            [
-                "fraud",
-                "fraudulent",
-                "money stolen",
-                "funds stolen",
-            ],
-        ),
-        (
-            "Network",
-            "VPN",
-            [
-                "vpn",
-                "virtual private network",
-                "anyconnect",
-                "globalprotect",
-                "cisco vpn",
-                "vpn tunnel",
-                "vpn client",
-                "vpn connection",
-                "vpn not working",
-                "vpn gateway",
-            ],
-        ),
-        (
-            "Network",
-            "Internet",
-            [
-                "internet",
-                "interent",
-                "intenet",
-                "wifi",
-                "wi fi",
-                "wi-fi",
-                "wifie",
-                "network",
-                "netowrk",
-                "netwrok",
-                "connectivity",
-                "broadband",
-                "ethernet",
-                "dns",
-                "gateway",
-                "router",
-                "switch",
-                "packet loss",
-                "offline",
-                "ip address",
-                "latency",
-                "disconnecting",
-                "cannot connect to network",
-                "no internet",
-            ],
-        ),
-        (
-            "Authentication",
-            "Password Reset",
-            [
-                "reset password",
-                "forgot password",
-                "change password",
-                "password expired",
-                "new password",
-            ],
-        ),
-        (
-            "Authentication",
-            "Login Issue",
-            [
-                "login",
-                "log in",
-                "signin",
-                "sign in",
-                "password",
-                "pasword",
-                "pssword",
-                "passcode",
-                "authentication",
-                "authenticator",
-                "mfa",
-                "2fa",
-                "sso",
-                "single sign on",
-                "account locked",
-                "locked out",
-                "credentials",
-                "expired password",
-                "session expired",
-                "access denied",
-                "permission denied",
-            ],
-        ),
-        (
-            "Hardware",
-            "Laptop",
-            [
-                "laptop",
-                "laptp",
-                "desktop",
-                "pc",
-                "macbook",
-                "workstation",
-                "battery",
-                "charger",
-                "overheating",
-                "fan",
-                "device",
-            ],
-        ),
-        (
-            "Hardware",
-            "Monitor",
-            [
-                "monitor",
-                "screen",
-                "display",
-                "flickering",
-                "external monitor",
-                "hdmi",
-            ],
-        ),
-        (
-            "Hardware",
-            "Keyboard / Mouse",
-            [
-                "keyboard",
-                "mouse",
-                "touchpad",
-                "printer",
-                "dock",
-                "headset",
-                "webcam",
-                "microphone",
-                "peripheral",
-                "hardware",
-            ],
-        ),
-        (
-            "Email",
-            "Outlook Sync",
-            [
-                "email",
-                "outlook",
-                "oulook",
-                "mailbox",
-                "exchange",
-                "inbox",
-                "mail sync",
-                "delivery failure",
-                "calendar",
-                "undelivered",
-                "smtp",
-                "imap",
-                "spam folder",
-                "teams invite",
-                "mail",
-            ],
-        ),
-        (
-            "Software",
-            "Application Error",
-            [
-                "application",
-                "app",
-                "software",
-                "softwre",
-                "program",
-                "crash",
-                "crashing",
-                "bug",
-                "license",
-                "installation",
-                "install",
-                "update failed",
-                "freeze",
-                "freezing",
-                "blue screen",
-                "bsod",
-                "unresponsive",
-                "error message",
-            ],
-        ),
-        (
-            "Billing",
-            "Invoice",
-            [
-                "billing",
-                "invoice",
-                "invoce",
-                "payment",
-                "subscription",
-                "credit card",
-                "receipt",
-                "refund",
-                "pricing",
-                "charge",
-                "bill",
-                "plan upgrade",
-                "payment failure",
-            ],
-        ),
-    ]
+    # 4. P2 - High (Major Blockers / Hard Failures)
+    has_p2_blockers = (
+        work_blocked or
+        any(phrase in full_text for phrase in P2_HIGH_PHRASES) or
+        any(w in all_words for w in P2_HIGH_WORDS) or
+        (predicted_category == "Billing" and any(w in full_text for w in ["pay now", "payment failed", "checkout", "declined", "error 404"])) or
+        (predicted_category == "Network" and any(w in full_text for w in ["server down", "gateway down", "vpn down", "no connection", "offline"]))
+    )
 
-    category = None
-    sub_category = None
-
-    for rule_category, rule_sub_category, keywords in rules:
-        if any(keyword in text for keyword in keywords):
-            category = rule_category
-            sub_category = rule_sub_category
-            break
-
-    # Dynamic fallback check against MasterData Category / SubCategory if available
-    if not category:
-        try:
-            from masterdata.models import Category, SubCategory
-            for cat in Category.objects.all():
-                if cat.name.lower() in text:
-                    category = cat.name
-                    first_sub = cat.sub_categories.first()
-                    sub_category = first_sub.name if first_sub else "General"
-                    break
-        except Exception:
-            pass
-
-    # Standard fallback defaults if no match
-    if not category:
-        if any(w in text for w in ["slow", "down", "not working", "unable", "cannot", "failed", "broken", "connect", "access", "wifi", "network", "internet"]):
-            category = "Network"
-            sub_category = "Internet"
-        elif any(w in text for w in ["pay", "money", "price", "card", "cost", "dollar"]):
-            category = "Billing"
-            sub_category = "Invoice"
-        elif any(w in text for w in ["screen", "device", "power", "plug", "cable"]):
-            category = "Hardware"
-            sub_category = "Laptop"
-        elif any(w in text for w in ["mail", "message", "send"]):
-            category = "Email"
-            sub_category = "Outlook Sync"
-        else:
-            category = "Software"
-            sub_category = "Application Error"
-
-    # -------------------------------------------------------------
-    # 3. Severity & Priority Classification (Impact-Aware)
-    # -------------------------------------------------------------
-    critical_keywords = [
-        "emergency",
-        "ransomware",
-        "breach",
-        "data breach",
-        "security incident",
-        "system down",
-        "server down",
-        "major outage",
-        "all users",
-        "entire office",
-        "entire company",
-        "production down",
-        "critical emergency",
-    ]
-
-    high_keywords = [
-        "urgent",
-        "critical",
-        "work is blocked",
-        "cannot work",
-        "completely blocked",
-        "outage",
-        "cannot connect",
-        "unable to connect",
-        "vpn is not working",
-        "vpn not working",
-        "internet is not working",
-        "down",
-        "escalate",
-        "asap",
-        "immediately",
-    ]
-
-    medium_keywords = [
-        "error",
-        "crash",
-        "not working",
-        "unable",
-        "cannot",
-        "failed",
-        "failure",
-        "disconnecting",
-        "slow",
-        "intermittent",
-        "issue",
-        "problem",
-        "glitch",
-    ]
-
-    is_org_wide = str(scope).strip().lower() in ["whole org", "my department"]
-
-    if any(keyword in text for keyword in critical_keywords) or (work_blocked and is_org_wide):
+    if is_p1:
+        priority = "P1"
         severity = "Critical"
-    elif any(keyword in text for keyword in high_keywords) or work_blocked or is_org_wide:
+    elif has_p2_blockers and not (has_p3_indicators and not work_blocked):
+        priority = "P2"
         severity = "High"
-    elif any(keyword in text for keyword in medium_keywords):
+    elif has_p4_indicators and not has_p2_blockers and not is_p1:
+        priority = "P4"
+        severity = "Low"
+    elif has_p3_indicators:
+        priority = "P3"
         severity = "Medium"
     else:
-        severity = "Low"
+        if predicted_category in ["Billing", "Network"] and work_blocked:
+            priority = "P2"
+            severity = "High"
+        else:
+            priority = "P3"
+            severity = "Medium"
 
-    # Priority mapping
-    if severity == "Critical":
-        priority = "P1"
-    elif severity == "High":
-        priority = "P2"
-    elif severity == "Medium":
-        priority = "P3"
-    else:
-        priority = "P4"
-
-    return category, sub_category, severity, priority
-
+    return predicted_category, predicted_subcategory, severity, priority

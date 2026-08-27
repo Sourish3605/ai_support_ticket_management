@@ -14,10 +14,61 @@ from mongodb import (
 
 
 # In-memory chunk cache with TTL to eliminate database latency
-_CHUNK_CACHE = {"timestamp": 0.0, "chunks": []}
-_CACHE_TTL_SECONDS = 60.0
+_CHUNK_CACHE_TIMESTAMP: float = 0.0
+_CHUNK_CACHE_DATA: list = []
+_CACHE_TTL_SECONDS: float = 60.0
 
 DEFAULT_KNOWLEDGE_CHUNKS = [
+    {
+        "chunk_id": "KB-BIL-008-c1",
+        "article_id": "KB-BIL-008",
+        "title": "Subscription Checkout & Payment Gateway Error Troubleshooting",
+        "section": "Checkout & Payment §1.0",
+        "category": "Billing",
+        "sub_category": "Payment Failure",
+        "text": (
+            "1. Verify payment method details and ensure the card supports recurring online subscriptions.\n"
+            "2. Try completing checkout in an Incognito / Private browsing window to eliminate stale checkout session tokens.\n"
+            "3. Ensure ad-blockers, tracking blockers, or browser privacy extensions are temporarily disabled on the checkout page.\n"
+            "4. If 'Error Code 404' or endpoint freeze occurs upon clicking 'Pay Now', capture the session URL and network payload.\n"
+            "5. Contact Billing & Checkout Support with your account ID and invoice/order reference for immediate manual activation."
+        ),
+        "score": 4.8,
+        "source": "Subscription Checkout & Payment Gateway Protocol (KB-BIL-008)",
+    },
+    {
+        "chunk_id": "KB-BIL-009-c1",
+        "article_id": "KB-BIL-009",
+        "title": "Premium Subscription Purchase & Plan Upgrade Guide",
+        "section": "Subscription Upgrades §1.0",
+        "category": "Billing",
+        "sub_category": "Subscription",
+        "text": (
+            "1. Navigate to Billing & Subscription settings to review available plan tiers.\n"
+            "2. Select your desired subscription tier (Pro, Enterprise, or Custom Seats).\n"
+            "3. Enter valid payment card details or select corporate invoice purchase order billing.\n"
+            "4. Upon successful authorization, subscription licenses are provisioned instantly."
+        ),
+        "score": 4.6,
+        "source": "Subscription Lifecycle & Plan Provisioning Guide (KB-BIL-009)",
+    },
+    {
+        "chunk_id": "KB-SFT-006-c1",
+        "article_id": "KB-SFT-006",
+        "title": "Web Application HTTP 404 / 500 Errors & Browser Cache Troubleshooting",
+        "section": "Web Application Errors §1.0",
+        "category": "Software",
+        "sub_category": "Application Error",
+        "text": (
+            "1. Perform a hard refresh in your browser (Ctrl+Shift+R or Cmd+Shift+R) to bypass cached scripts.\n"
+            "2. Clear browser cache, cookies, and active session storage for the affected domain.\n"
+            "3. Test accessing the page across alternate supported browsers (Google Chrome, Safari, Firefox, Edge).\n"
+            "4. Open Browser Developer Tools (F12) -> Console/Network tab to inspect failing HTTP request endpoints.\n"
+            "5. Report persistent 404/500 API endpoint failures to the Web Application Operations team."
+        ),
+        "score": 4.5,
+        "source": "Enterprise Web Portal & Application Error Guide (KB-SFT-006)",
+    },
     {
         "chunk_id": "KB-SEC-001-c1",
         "article_id": "KB-SEC-001",
@@ -85,6 +136,22 @@ DEFAULT_KNOWLEDGE_CHUNKS = [
         "score": 4.0,
         "source": "SSO Login & Self-Service Password Reset (KB-AUTH-001)",
     },
+    {
+        "chunk_id": "KB-HDW-004-c1",
+        "article_id": "KB-HDW-004",
+        "title": "External Monitor, Display & Peripheral Diagnostics Guide",
+        "section": "Monitor Protocol §1.1",
+        "category": "Hardware",
+        "sub_category": "Monitor",
+        "text": (
+            "1. Inspect physical HDMI, DisplayPort, or Thunderbolt cables for loose connections.\n"
+            "2. Power cycle external monitor and verify power LED is solid white / green.\n"
+            "3. Lower display refresh rate to 60Hz in Display Settings to resolve flicker.\n"
+            "4. Update Thunderbolt dock firmware and graphics driver to latest OEM version."
+        ),
+        "score": 4.0,
+        "source": "Workstation & Monitor Diagnostics Guide (KB-HDW-004)",
+    },
 ]
 
 
@@ -93,7 +160,7 @@ def hybrid_retrieve_chunks(query_text: str, category: str | None = None, sub_cat
     Perform high-speed hybrid retrieval across Knowledge Base chunks.
     Uses in-memory cache + pre-seeded standard SOPs + fast database fallback.
     """
-    global _CHUNK_CACHE
+    global _CHUNK_CACHE_TIMESTAMP, _CHUNK_CACHE_DATA
     now = time.time()
 
     query_tokens = [w.lower() for w in (query_text or "").split() if len(w) > 2]
@@ -101,7 +168,7 @@ def hybrid_retrieve_chunks(query_text: str, category: str | None = None, sub_cat
     sub_lower = (sub_category or "").lower()
 
     # Refresh chunk cache if expired
-    if now - _CHUNK_CACHE["timestamp"] > _CACHE_TTL_SECONDS or not _CHUNK_CACHE["chunks"]:
+    if now - _CHUNK_CACHE_TIMESTAMP > _CACHE_TTL_SECONDS or not _CHUNK_CACHE_DATA:
         cached_chunks = list(DEFAULT_KNOWLEDGE_CHUNKS)
         # 1. Fetch from PostgreSQL KnowledgeArticle (fast, persistent, reliable)
         try:
@@ -139,15 +206,18 @@ def hybrid_retrieve_chunks(query_text: str, category: str | None = None, sub_cat
         except Exception:
             pass
 
-        _CHUNK_CACHE = {"timestamp": now, "chunks": cached_chunks}
+        _CHUNK_CACHE_TIMESTAMP = now
+        _CHUNK_CACHE_DATA = cached_chunks
 
     candidates = []
-    for chunk in _CHUNK_CACHE["chunks"]:
+    for chunk in _CHUNK_CACHE_DATA:
+        if not isinstance(chunk, dict):
+            continue
         score = 0.0
-        text_lower = (chunk.get("text", "")).lower()
-        title_lower = (chunk.get("title", "")).lower()
-        chunk_cat = (chunk.get("category", "")).lower()
-        chunk_sub = (chunk.get("sub_category", "")).lower()
+        text_lower = str(chunk.get("text", "")).lower()
+        title_lower = str(chunk.get("title", "")).lower()
+        chunk_cat = str(chunk.get("category", "")).lower()
+        chunk_sub = str(chunk.get("sub_category", "")).lower()
 
         if cat_lower and chunk_cat == cat_lower:
             score += 3.5
