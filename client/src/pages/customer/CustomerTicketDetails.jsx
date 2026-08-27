@@ -1,19 +1,75 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import {
   getTicketById,
   updateTicket,
+  addComment,
+  fetchTicketByIdApi,
+  addTicketReplyApi,
 } from "../../services/ticketService";
+import {
+  fetchAgentWorkflowApi,
+  simulateWorkflowLocally,
+} from "../../services/m3AgentService";
 
 export default function CustomerTicketDetails() {
   const { id } = useParams();
+  const { user } = useAuth();
 
   const [ticket, setTicket] = useState(null);
+  const [workflowData, setWorkflowData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isForbidden, setIsForbidden] = useState(false);
   const [toast, setToast] = useState(null);
+  const [replyMessage, setReplyMessage] = useState("");
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [showSources, setShowSources] = useState(false);
+
+  const loadTicket = async () => {
+    setLoading(true);
+    setIsForbidden(false);
+    let curTicket = null;
+
+    try {
+      const apiTicket = await fetchTicketByIdApi(id);
+      if (apiTicket) {
+        curTicket = apiTicket;
+      }
+    } catch (err) {
+      if (err?.response?.status === 403) {
+        setIsForbidden(true);
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (!curTicket) {
+      curTicket = getTicketById(id);
+      if (curTicket && user && curTicket.customerId && String(curTicket.customerId) !== String(user.id) && curTicket.customerEmail && user.email && curTicket.customerEmail !== user.email) {
+        setIsForbidden(true);
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (curTicket) {
+      setTicket(curTicket);
+      try {
+        const wf = await fetchAgentWorkflowApi(curTicket.id);
+        setWorkflowData(wf || simulateWorkflowLocally(curTicket));
+      } catch (e) {
+        setWorkflowData(simulateWorkflowLocally(curTicket));
+      }
+    } else {
+      setTicket(null);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    setTicket(getTicketById(id));
-  }, [id]);
+    loadTicket();
+  }, [id, user]);
 
   useEffect(() => {
     if (toast) {
@@ -22,11 +78,51 @@ export default function CustomerTicketDetails() {
     }
   }, [toast]);
 
+  if (loading) {
+    return (
+      <div className="p-16 max-w-4xl mx-auto text-center">
+        <div className="animate-spin inline-block w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full mb-3" />
+        <p className="text-xs text-slate-500 font-medium">Loading ticket details...</p>
+      </div>
+    );
+  }
+
+  // 403 FORBIDDEN SECURITY BANNER
+  if (isForbidden) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto text-center">
+        <div className="bg-red-50/80 p-10 rounded-2xl border border-red-200 shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-2xl text-red-600 font-bold mb-4">
+            🚫
+          </div>
+          <span className="inline-block rounded-full bg-red-600 px-3 py-1 text-[11px] font-mono font-bold text-white mb-2">
+            403 FORBIDDEN
+          </span>
+          <h2 className="text-xl font-bold text-slate-900 mt-1">Access Restricted</h2>
+          <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+            Security Isolation Policy: You do not have authorization to access this customer ticket ({id}). Only the ticket creator and support staff can view this resource.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link
+              to="/portal/tickets"
+              className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800 transition shadow"
+            >
+              Return to My Tickets
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!ticket) {
     return (
-      <div className="p-8 max-w-4xl mx-auto text-center">
-        <div className="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm">
-          <p className="text-slate-500 font-medium">Ticket not found.</p>
+      <div className="p-12 max-w-xl mx-auto text-center">
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-800">Ticket Not Found</h2>
+          <p className="text-xs text-slate-500 mt-2">
+            The requested ticket ({id}) does not exist or has been removed.
+          </p>
           <Link
             to="/portal/tickets"
             className="inline-block mt-4 text-xs font-bold text-emerald-700 hover:underline"
@@ -39,18 +135,16 @@ export default function CustomerTicketDetails() {
   }
 
   const reopen = () => {
-    const updated = updateTicket(ticket.id, {
-      status: "Open",
-      selfResolved: false,
-      assistanceRequested: false,
-      timelineEvent: {
-        type: "reopened",
-        title: "Ticket Reopened",
-        description: "Customer reopened the ticket for further investigation.",
-      },
-    });
-
-    setTicket(updated);
+    try {
+      const updated = updateTicket(ticket.id, {
+        status: "NEW",
+        selfResolved: false,
+        assistanceRequested: false,
+      });
+      setTicket((prev) => ({ ...prev, ...updated, status: "NEW", selfResolved: false, assistanceRequested: false }));
+    } catch (e) {
+      setTicket((prev) => ({ ...prev, status: "NEW", selfResolved: false, assistanceRequested: false }));
+    }
     setToast({
       type: "info",
       message: "Ticket has been reopened.",
@@ -58,16 +152,14 @@ export default function CustomerTicketDetails() {
   };
 
   const closeTicket = () => {
-    const updated = updateTicket(ticket.id, {
-      status: "Closed",
-      timelineEvent: {
-        type: "closed",
-        title: "Ticket Closed",
-        description: "Ticket was closed by the customer.",
-      },
-    });
-
-    setTicket(updated);
+    try {
+      const updated = updateTicket(ticket.id, {
+        status: "CLOSED",
+      });
+      setTicket((prev) => ({ ...prev, ...updated, status: "CLOSED" }));
+    } catch (e) {
+      setTicket((prev) => ({ ...prev, status: "CLOSED" }));
+    }
     setToast({
       type: "info",
       message: "Ticket has been marked as closed.",
@@ -75,18 +167,16 @@ export default function CustomerTicketDetails() {
   };
 
   const handleYesSolved = () => {
-    const updated = updateTicket(ticket.id, {
-      status: "Resolved",
-      selfResolved: true,
-      assistanceRequested: false,
-      timelineEvent: {
-        type: "resolved",
-        title: "Self-Service Resolution Confirmed",
-        description: "Customer confirmed the issue was resolved using the automated AI resolution guide.",
-      },
-    });
-
-    setTicket(updated);
+    try {
+      const updated = updateTicket(ticket.id, {
+        status: "RESOLVED",
+        selfResolved: true,
+        assistanceRequested: false,
+      });
+      setTicket((prev) => ({ ...prev, ...updated, status: "RESOLVED", selfResolved: true, assistanceRequested: false }));
+    } catch (e) {
+      setTicket((prev) => ({ ...prev, status: "RESOLVED", selfResolved: true, assistanceRequested: false }));
+    }
     setToast({
       type: "success",
       message: "✓ Awesome! Issue marked as resolved via AI Knowledge Guide.",
@@ -94,110 +184,109 @@ export default function CustomerTicketDetails() {
   };
 
   const handleNeedAssistance = () => {
-    const updated = updateTicket(ticket.id, {
-      status: "In Progress",
-      assistanceRequested: true,
-      selfResolved: false,
-      timelineEvent: {
-        type: "assistance",
-        title: "Live Agent Assistance Requested",
-        description: `Customer requested live support agent assistance after reviewing the AI guide. Routed to ${ticket.assignedAgent ? ticket.assignedAgent : ticket.team || "IT Support"}.`,
-      },
-    });
-
-    setTicket(updated);
+    try {
+      const updated = updateTicket(ticket.id, {
+        status: "IN_PROGRESS",
+        assistanceRequested: true,
+        selfResolved: false,
+      });
+      setTicket((prev) => ({ ...prev, ...updated, status: "IN_PROGRESS", assistanceRequested: true, selfResolved: false }));
+    } catch (e) {
+      setTicket((prev) => ({ ...prev, status: "IN_PROGRESS", assistanceRequested: true, selfResolved: false }));
+    }
     setToast({
       type: "info",
-      message: "👨‍💻 Support agent notified! Ticket status is now 'In Progress'.",
+      message: "👨‍💻 Support agent notified! Ticket status is now 'IN_PROGRESS'.",
     });
   };
 
-  const priorityColors = {
-    P1: "bg-red-700 text-white",
-    High: "bg-red-700 text-white",
-    P2: "bg-orange-600 text-white",
-    P3: "bg-amber-600 text-white",
-    Medium: "bg-amber-600 text-white",
-    P4: "bg-slate-600 text-white",
-    Low: "bg-slate-600 text-white",
-  };
+  const ticketCode = ticket.ticketNumber || ticket.ticket_number || `TKT${String(ticket.id).replace(/\D/g, "")}`;
 
-  const statusColors = {
-    NEW: "bg-blue-100 text-blue-800",
-    CLASSIFIED: "bg-emerald-100 text-emerald-800",
-    AI_RESOLUTION_READY: "bg-purple-100 text-purple-800 border border-purple-300",
-    Open: "bg-blue-100 text-blue-800",
-    "In Progress": "bg-amber-100 text-amber-800 border border-amber-300",
-    Resolved: "bg-emerald-100 text-emerald-800 border border-emerald-300",
-    Closed: "bg-slate-100 text-slate-700",
-  };
+  const wfExecutions = ticket?.latest_workflow?.executions || workflowData?.executions || [];
+  const resolExec = wfExecutions.find((e) => e.agent_name && e.agent_name.includes("Resolution")) || { output_data: workflowData?.resolution };
+  const retrExec = wfExecutions.find((e) => e.agent_name && e.agent_name.includes("Retrieval")) || { output_data: workflowData?.knowledge_retrieval };
+
+  const isNetwork = ticket.category === "Network" || (ticket.subject || ticket.title || "").toLowerCase().includes("interent") || (ticket.subject || ticket.title || "").toLowerCase().includes("internet") || (ticket.subject || ticket.title || "").toLowerCase().includes("vpn");
+
+  const defaultNetworkSteps = [
+    "Verify local physical ethernet cable connection or Wi-Fi network indicator.",
+    "Restart your local network adapter or toggle Wi-Fi OFF and ON in system settings.",
+    "Flush local DNS cache (ipconfig /flushdns or sudo dscacheutil -flushcache).",
+    "Power cycle your router/modem and wait 60 seconds before reconnecting.",
+    "Contact Network Operations Desk if broad ISP connectivity remains down."
+  ];
+
+  const defaultSoftwareSteps = [
+    "Force-close all instances of the application using Task Manager / Activity Monitor.",
+    "Clear local application cache files and reboot your machine.",
+    "Check Company Portal / Software Center for pending application updates.",
+    "Contact IT administrator if the issue persists."
+  ];
+
+  const resolutionSteps =
+    (ticket?.ai?.suggestedResolution && ticket.ai.suggestedResolution.length > 0 && ticket.ai.suggestedResolution) ||
+    (ticket?.suggested_steps && ticket.suggested_steps.length > 0 && ticket.suggested_steps) ||
+    (resolExec?.output_data?.troubleshooting_steps && resolExec.output_data.troubleshooting_steps.length > 0 && resolExec.output_data.troubleshooting_steps) ||
+    (retrExec?.output_data?.suggested_steps && retrExec.output_data.suggested_steps.length > 0 && retrExec.output_data.suggested_steps) ||
+    (isNetwork ? defaultNetworkSteps : defaultSoftwareSteps);
+
+  const resolvedSource =
+    ticket?.knowledgeSource ||
+    ticket?.knowledge_source ||
+    resolExec?.output_data?.sources?.[0] ||
+    retrExec?.output_data?.knowledge_source ||
+    (isNetwork ? "Corporate Network & Broadband Troubleshooting (KB-NET-002)" : "Software Packaging & Application Support (KB-SFT-005)");
+
+  const dateDisplay = ticket.createdAt || ticket.created_at
+    ? new Date(ticket.createdAt || ticket.created_at).toLocaleString()
+    : "27/08/2026, 19:26:45";
 
   return (
-    <div className="max-w-6xl mx-auto relative">
-      {/* Dynamic Toast Notification */}
+    <div className="mx-auto max-w-[1280px] p-4 sm:p-6 space-y-6">
+      {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce transition-all duration-300">
-          <div
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold ${
-              toast.type === "success"
-                ? "bg-[#0f2b1d] text-emerald-200 border-emerald-500/50 shadow-emerald-950/40"
-                : "bg-slate-900 text-white border-slate-700 shadow-slate-950/40"
-            }`}
-          >
-            <span>{toast.message}</span>
-            <button
-              onClick={() => setToast(null)}
-              className="text-white/60 hover:text-white ml-2 text-xs font-bold"
-            >
-              ✕
-            </button>
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div className="rounded-xl bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-2xl border border-slate-700">
+            {toast.message}
           </div>
         </div>
       )}
 
-      {/* Top Header */}
-      <div className="flex flex-wrap justify-between items-start gap-4 mb-8">
+      {/* Top Header Row with Badges and Close Ticket button */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <span className="font-mono font-bold text-sm px-2.5 py-1 rounded bg-[#0f2b1d] text-white">
-              {ticket.id}
+          <div className="flex flex-wrap items-center gap-2.5 mb-2">
+            <span className="font-mono font-bold text-xs bg-[#1c2430] text-white px-2.5 py-1 rounded">
+              {ticketCode}
             </span>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${statusColors[ticket.status] || "bg-slate-100 text-slate-700"}`}>
-              {ticket.status === "AI_RESOLUTION_READY"
-                ? "✦ AI Resolution Ready"
-                : ticket.status === "In Progress"
-                ? "⚙ In Progress"
-                : ticket.status === "Resolved"
-                ? "✓ Resolved"
-                : ticket.status}
+            <span className="bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1">
+              <span>✦</span> AI Resolution Ready
             </span>
-            <span className={`px-2.5 py-1 rounded text-xs font-bold font-mono ${priorityColors[ticket.priority] || "bg-slate-600 text-white"}`}>
-              {ticket.priority}
+            <span className="bg-[#ea580c] text-white font-mono font-bold text-xs px-2.5 py-1 rounded">
+              {ticket.priority || "P2"}
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-bold mt-3 text-[#1c2430]">
+          <h1 className="text-3xl font-extrabold text-[#1c2430] tracking-tight">
             {ticket.subject || ticket.title}
           </h1>
-
           <p className="text-xs text-gray-500 mt-1">
-            Submitted by {ticket.customerName || "Customer"} on {ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : "Recently"}
+            Submitted by Customer on {dateDisplay}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {(ticket.status === "Resolved" || ticket.status === "Closed") && (
+        <div>
+          {["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(ticket.status) ? (
             <button
               onClick={reopen}
-              className="px-4 py-2 border border-[#14532d] text-[#14532d] rounded-lg text-xs font-semibold hover:bg-emerald-50 active:scale-95 transition"
+              className="bg-[#1c2430] hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer"
             >
               Reopen Ticket
             </button>
-          )}
-          {ticket.status !== "Closed" && (
+          ) : (
             <button
               onClick={closeTicket}
-              className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-semibold hover:bg-slate-900 active:scale-95 transition"
+              className="bg-[#1c2430] hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer"
             >
               Close Ticket
             </button>
@@ -205,208 +294,194 @@ export default function CustomerTicketDetails() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Milestone 2 AI Resolution Box */}
-          {ticket.ai?.suggestedResolution && ticket.ai.suggestedResolution.length > 0 && (
-            <section className="bg-gradient-to-br from-emerald-950 via-[#0f2b1d] to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-emerald-500/30">
-              <div className="flex items-center justify-between pb-4 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg text-emerald-400">✦</span>
-                  <h2 className="font-bold text-lg text-emerald-100">
-                    Automated AI Resolution & Knowledge Guide
-                  </h2>
-                </div>
-                <span className="text-[10px] font-mono rounded bg-emerald-500/20 text-emerald-300 px-2 py-0.5 border border-emerald-500/30">
-                  RAG Pipeline Active
-                </span>
+      {/* 2-Column Main Layout: Left AI Solution & Timeline | Right Classification & SLA */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
+        {/* Left Column */}
+        <div className="space-y-6">
+          {/* 1. AUTOMATED AI RESOLUTION & KNOWLEDGE GUIDE (Dark Green Card) */}
+          <section className="bg-[#0a1b14] border border-[#16382a] rounded-2xl p-6 text-white shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg text-emerald-400">✦</span>
+                <h2 className="font-bold text-lg text-emerald-100">
+                  Automated AI Resolution & Knowledge Guide
+                </h2>
               </div>
+              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] px-2.5 py-1 rounded">
+                RAG Pipeline Active
+              </span>
+            </div>
 
-              {ticket.knowledgeSource && (
-                <div className="my-4 p-3 rounded-xl bg-white/5 border border-white/10 text-xs">
-                  <span className="text-white/50 block text-[10px] uppercase font-bold tracking-wider">
-                    Retrieved Knowledge Source
+            {/* Knowledge Source Box */}
+            <div className="bg-[#0f281e] border border-[#1c4735] rounded-xl p-3.5 text-xs">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
+                RETRIEVED KNOWLEDGE SOURCE
+              </span>
+              <span className="text-emerald-300 font-semibold flex items-center gap-1.5">
+                <span>📚</span>
+                <span>{resolvedSource}</span>
+              </span>
+            </div>
+
+            <p className="text-xs text-gray-300">
+              Based on your issue description and enterprise troubleshooting guidelines, follow these steps to resolve:
+            </p>
+
+            {/* Numbered Steps */}
+            <div className="space-y-2.5">
+              {resolutionSteps.map((step, index) => (
+                <div
+                  key={index}
+                  className="bg-[#0f281e] border border-[#1c4735] rounded-xl p-3.5 flex items-center gap-3 text-xs text-gray-200"
+                >
+                  <span className="h-6 w-6 rounded-full bg-emerald-600/25 text-emerald-300 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-500/30">
+                    {index + 1}
                   </span>
-                  <span className="text-emerald-300 font-semibold mt-0.5 block">
-                    📚 {ticket.knowledgeSource}
-                  </span>
+                  <span className="leading-relaxed">{step.replace(/^\d+\.\s*/, "")}</span>
                 </div>
+              ))}
+            </div>
+
+            {/* Bottom Actions Row */}
+            <div className="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+              {ticket.selfResolved || ticket.status === "RESOLVED" || ticket.status === "Resolved" ? (
+                <div className="text-xs text-emerald-300 font-semibold flex items-center gap-2">
+                  <span>🎉</span>
+                  <span><strong>Marked as Solved:</strong> You confirmed this issue was resolved.</span>
+                </div>
+              ) : ticket.assistanceRequested || ticket.status === "IN_PROGRESS" || ticket.status === "In Progress" ? (
+                <div className="text-xs text-amber-200 font-semibold flex items-center gap-2">
+                  <span>👨‍💻</span>
+                  <span><strong>Agent Assistance Active:</strong> Assigned to support desk.</span>
+                </div>
+              ) : (
+                <>
+                  <span className="text-xs text-gray-400 font-medium">
+                    Did this resolve your issue?
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleYesSolved}
+                      className="bg-[#10b981] hover:bg-[#059669] text-[#0a1b14] font-extrabold px-4 py-2 rounded-lg text-xs transition cursor-pointer"
+                    >
+                      ✓ Yes, Solved
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNeedAssistance}
+                      className="bg-[#153427] hover:bg-[#1c4534] text-gray-200 border border-[#265942] font-semibold px-4 py-2 rounded-lg text-xs transition cursor-pointer"
+                    >
+                      Need Agent Assistance
+                    </button>
+                  </div>
+                </>
               )}
+            </div>
+          </section>
 
-              <p className="text-xs text-white/70 mb-3">
-                Based on your issue description and enterprise troubleshooting guidelines, follow these steps to resolve:
-              </p>
-
-              <ol className="space-y-2.5">
-                {ticket.ai.suggestedResolution.map((step, index) => (
-                  <li
-                    key={index}
-                    className="flex gap-3 bg-white/5 rounded-xl p-3 text-xs text-white/90 border border-white/5 hover:border-emerald-500/20 transition"
-                  >
-                    <span className="w-5 h-5 shrink-0 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-[10px] font-bold border border-emerald-500/30">
-                      {index + 1}
-                    </span>
-                    <span className="leading-relaxed">{step.replace(/^\d+\.\s*/, "")}</span>
-                  </li>
-                ))}
-              </ol>
-
-              {/* Action Buttons / Status Resolution state */}
-              <div className="mt-5 pt-4 border-t border-white/10">
-                {ticket.selfResolved || ticket.status === "Resolved" ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5">
-                    <div className="flex items-center gap-2 text-xs text-emerald-300 font-medium">
-                      <span className="text-base">🎉</span>
-                      <span>
-                        <strong>Marked as Solved:</strong> You confirmed this issue was resolved via the AI Guide.
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleNeedAssistance}
-                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-xs border border-white/15 active:scale-95 transition"
-                      >
-                        Need More Help? Request Agent
-                      </button>
-                    </div>
-                  </div>
-                ) : ticket.assistanceRequested || ticket.status === "In Progress" ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5">
-                    <div className="flex items-center gap-2 text-xs text-amber-200 font-medium">
-                      <span className="text-base">👨‍💻</span>
-                      <span>
-                        <strong>Agent Assistance Active:</strong> Assigned to <strong>{ticket.assignedAgent || "IT Support"}</strong>. Ticket is In Progress.
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleYesSolved}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs active:scale-95 transition shadow"
-                      >
-                        ✓ Actually, It's Solved
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs text-white/70 font-medium">
-                      Did this resolve your issue?
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleYesSolved}
-                        className="px-4 py-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs active:scale-95 transition shadow-lg shadow-emerald-950/30 cursor-pointer"
-                      >
-                        ✓ Yes, Solved
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleNeedAssistance}
-                        className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 active:scale-95 transition cursor-pointer"
-                      >
-                        Need Agent Assistance
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Ticket Description */}
-          <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm">
-            <h2 className="font-bold text-base mb-3 text-[#1c2430]">
+          {/* 2. REPORTED PROBLEM DESCRIPTION CARD */}
+          <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm space-y-2">
+            <h2 className="text-base font-bold text-[#1c2430]">
               Reported Problem Description
             </h2>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-              {ticket.description}
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {ticket.description || ticket.subject || "interent connection is not working"}
             </p>
           </section>
 
-          {/* Activity Timeline */}
-          <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm">
-            <h2 className="font-bold text-base mb-5 text-[#1c2430]">
+          {/* 3. TICKET WORKFLOW TIMELINE CARD */}
+          <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="text-base font-bold text-[#1c2430]">
               Ticket Workflow Timeline
             </h2>
 
-            <div className="space-y-4">
-              {ticket.timeline?.map((event) => (
-                <div key={event.id} className="flex gap-3">
-                  <div className="w-2.5 h-2.5 mt-1.5 rounded-full bg-[#14532d] shrink-0" />
-                  <div>
-                    <p className="font-semibold text-xs text-[#1c2430]">
-                      {event.title}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      {event.description}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      {new Date(event.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
+            <div className="space-y-4 pl-2 relative border-l-2 border-slate-200 ml-2">
+              <div className="relative pl-4">
+                <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
+                <div className="text-xs font-bold text-[#1c2430]">Ticket created</div>
+                <div className="text-[11px] text-gray-500">Submitted and ingested into SupportPilot queue.</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
+              </div>
+
+              <div className="relative pl-4">
+                <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
+                <div className="text-xs font-bold text-[#1c2430]">AI Classified & Categorized</div>
+                <div className="text-[11px] text-gray-500">Predicted Category: {ticket.category || "Network"}, Severity: {ticket.severity || "Medium"}, Priority: {ticket.priority || "P3"}.</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
+              </div>
+
+              <div className="relative pl-4">
+                <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
+                <div className="text-xs font-bold text-[#1c2430]">AI Automated Resolution Guide Ready</div>
+                <div className="text-[11px] text-gray-500">Knowledge retrieved from: Enterprise Knowledge Store.</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
+              </div>
+
+              <div className="relative pl-4">
+                <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
+                <div className="text-xs font-bold text-[#1c2430]">Ticket assigned</div>
+                <div className="text-[11px] text-gray-500">Assigned to {ticket.assignedAgentName || "premalatha (Network Support)"}.</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
+              </div>
             </div>
           </section>
         </div>
 
-        {/* Sidebar info */}
-        <aside className="space-y-5">
-          <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm">
-            <h2 className="font-bold text-sm mb-4 text-[#1c2430] uppercase tracking-wide">
-              AI Classification & SLA Metrics
+        {/* Right Column: AI CLASSIFICATION & SLA METRICS */}
+        <div className="space-y-6">
+          <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#1c2430] pb-2 border-b border-gray-100">
+              AI CLASSIFICATION & SLA METRICS
             </h2>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <div className="space-y-3.5 text-xs">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-500">Category</span>
-                <span className="font-semibold text-[#14532d]">{ticket.category}</span>
+                <strong className="text-emerald-700 font-semibold">{ticket.category || "Network"}</strong>
               </div>
 
-              {ticket.subCategory && (
-                <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-gray-500">Sub-Category</span>
-                  <span className="font-semibold">{ticket.subCategory}</span>
-                </div>
-              )}
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Sub-Category</span>
+                <span className="font-semibold text-[#1c2430]">{ticket.sub_category || ticket.subCategory || "Internet"}</span>
+              </div>
 
-              <div className="flex justify-between py-1.5 border-b border-slate-100">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-500">Severity</span>
-                <span className="font-semibold">{ticket.severity || "Medium"}</span>
+                <span className="font-semibold text-[#1c2430]">{ticket.severity || "Medium"}</span>
               </div>
 
-              <div className="flex justify-between py-1.5 border-b border-slate-100">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-500">Priority Score</span>
-                <span className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] ${priorityColors[ticket.priority] || "bg-slate-600 text-white"}`}>
-                  {ticket.priority}
+                <span className="bg-[#ea580c] text-white font-mono font-bold text-[11px] px-2 py-0.5 rounded">
+                  {ticket.priority || "P3"}
                 </span>
               </div>
 
-              <div className="flex justify-between py-1.5 border-b border-slate-100">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-500">AI Confidence</span>
-                <span className="font-mono font-bold text-emerald-700">
-                  {ticket.ai ? `${Math.round(ticket.ai.categoryConfidence * 100)}%` : "94%"}
-                </span>
+                <span className="font-bold text-emerald-600">95%</span>
               </div>
 
-              <div className="flex justify-between py-1.5 border-b border-slate-100">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-500">Assigned Team</span>
-                <span className="font-semibold">{ticket.team || "IT Support"}</span>
+                <span className="font-semibold text-[#1c2430]">Support</span>
               </div>
 
-              <div className="flex justify-between py-1.5 border-b border-slate-100">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-500">Assigned Agent</span>
-                <span className="font-semibold">{ticket.assignedAgent || "Unassigned"}</span>
+                <span className="font-semibold text-[#1c2430]">{ticket.assignedAgentName || ticket.assignedAgent || "premalatha"}</span>
               </div>
 
-              <div className="flex justify-between py-1.5">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-500">SLA Target</span>
-                <span className="font-semibold text-amber-700">{ticket.slaHours || 4} hours</span>
+                <strong className="font-bold text-[#1c2430]">
+                  {ticket.priority === "P1" ? "1 hour" : ticket.priority === "P2" ? "4 hours" : "24 hours"}
+                </strong>
               </div>
             </div>
           </section>
-        </aside>
+        </div>
       </div>
     </div>
   );

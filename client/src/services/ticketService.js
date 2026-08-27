@@ -39,9 +39,21 @@ export const getTicketById = (id) => {
   if (!id || id === "undefined" || id === "null") return null;
   const tickets = getTickets();
   const searchId = String(id).trim().toLowerCase();
-  return tickets.find(
-    (ticket) => String(ticket.id || "").trim().toLowerCase() === searchId
-  ) || null;
+  const cleanDigits = searchId.replace(/\D/g, "");
+
+  return tickets.find((ticket) => {
+    if (!ticket) return false;
+    const tId = String(ticket.id || "").trim().toLowerCase();
+    const tNum = String(ticket.ticketNumber || ticket.ticket_number || "").trim().toLowerCase();
+    const tDigits = tId.replace(/\D/g, "") || tNum.replace(/\D/g, "");
+
+    return (
+      tId === searchId ||
+      tNum === searchId ||
+      (cleanDigits && tDigits === cleanDigits) ||
+      (tId && searchId.includes(tId))
+    );
+  }) || null;
 };
 
 export const getCustomerTickets = (userOrId) => {
@@ -210,33 +222,49 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
     };
   }
 
-  // 2. Domain Categorization
-  const isPhishing = text.includes("phishing") || text.includes("scam") || text.includes("malware") || text.includes("suspicious email") || text.includes("virus");
-  const isVPN = text.includes("vpn") || text.includes("anyconnect") || text.includes("globalprotect") || text.includes("cisco vpn");
-  const isWifi = text.includes("wifi") || text.includes("wi-fi") || text.includes("internet") || text.includes("network") || text.includes("dns") || text.includes("broadband") || text.includes("ethernet") || text.includes("router");
-  const isPasswordReset = text.includes("reset password") || text.includes("forgot password") || text.includes("change password") || text.includes("password expired");
-  const isAuth = text.includes("password") || text.includes("login") || text.includes("signin") || text.includes("sso") || text.includes("mfa") || text.includes("authenticator") || text.includes("locked out");
-  const isMonitor = text.includes("monitor") || text.includes("screen") || text.includes("display") || text.includes("flicker") || text.includes("hdmi");
-  const isPeripherals = text.includes("keyboard") || text.includes("mouse") || text.includes("printer") || text.includes("headset") || text.includes("dock") || text.includes("webcam");
-  const isHardware = isMonitor || isPeripherals || text.includes("laptop") || text.includes("desktop") || text.includes("pc") || text.includes("macbook") || text.includes("battery") || text.includes("charger") || text.includes("overheating");
-  const isEmail = text.includes("email") || text.includes("outlook") || text.includes("mailbox") || text.includes("exchange") || text.includes("calendar") || text.includes("inbox") || text.includes("mail sync");
-  const isBilling = text.includes("billing") || text.includes("invoice") || text.includes("payment") || text.includes("credit card") || text.includes("refund") || text.includes("subscription") || text.includes("charge") || text.includes("receipt");
-  const isSoftware = text.includes("software") || text.includes("app") || text.includes("crash") || text.includes("crashing") || text.includes("bug") || text.includes("license") || text.includes("install") || text.includes("update failed") || text.includes("freeze") || text.includes("error message");
+  // 2. User Specified Keywords for Predicting the "Category" with typo normalization
+  const normalizedText = text
+    .replace(/\binterent\b/g, "internet")
+    .replace(/\bintenet\b/g, "internet")
+    .replace(/\bintrnet\b/g, "internet")
+    .replace(/\bconection\b/g, "connection")
+    .replace(/\bconecting\b/g, "connecting")
+    .replace(/\bpasword\b/g, "password")
+    .replace(/\bwifii\b/g, "wifi");
+
+  const isNetwork = ["internet", "interent", "intenet", "connectivity", "slow", "timeout", "latency", "vpn", "wifi", "connection", "connecting", "offline", "disconnected", "server down", "loading time", "gateway", "ping", "dns", "ethernet", "broadband", "network", "firewall", "no internet"].some((k) => normalizedText.includes(k));
+  const isSecurity = ["hack", "phishing", "compromised", "virus", "malware", "suspicious", "leak", "unauthorized", "breach", "spam link", "vulnerability", "ransomware"].some((k) => normalizedText.includes(k));
+  const isBilling = ["invoice", "charge", "payment", "receipt", "refund", "debited", "subscription", "pricing", "overcharged", "card", "transaction", "bank", "stripe", "paypal", "pay now", "checkout", "billing"].some((k) => normalizedText.includes(k));
+  const isAuthentication = ["login", "password", "signin", "2fa", "mfa", "otp", "account locked", "credentials", "register", "sign up", "verification code", "access denied", "authentication", "auth", "authenticator", "sso", "verify"].some((k) => normalizedText.includes(k));
+  const isEmail = ["inbox", "outlook", "gmail", "spam", "not receiving", "bounce back", "smtp", "imap", "mailbox", "newsletter", "verification email", "attachment", "mail", "email", "calendar"].some((k) => normalizedText.includes(k));
+  const isHardware = ["laptop", "monitor", "mouse", "keyboard", "printer", "cable", "broken screen", "battery", "charger", "headset", "physical device", "hdmi", "displayport"].some((k) => normalizedText.includes(k));
+  const isSoftware = ["bug", "error", "crash", "button", "freeze", "broken", "loading", "failed to", "glitch", "feature", "dropdown", "blank screen", "unexpected", "404", "500", "502", "503", "application", "app", "ui"].some((k) => normalizedText.includes(k));
 
   let category = "Software";
   let subCategory = "Application Error";
-  let knowledgeSource = "Software Packaging & Application Support (KB-SFT-005)";
+  let knowledgeSource = "Enterprise Web Portal & Application Error Guide (KB-SFT-006)";
   let suggestedSteps = [
-    "Force-close all instances of the application using Task Manager / Activity Monitor.",
-    "Clear local application cache files in %LOCALAPPDATA% or ~/Library/Caches.",
-    "Check Company Portal / Software Center for pending application updates.",
-    "Run the built-in application repair wizard from installed programs.",
-    "Reboot your computer and relaunch the application as Administrator."
+    "Perform a hard refresh in your browser (Ctrl+Shift+R or Cmd+Shift+R) to bypass cached scripts.",
+    "Clear browser cache, cookies, and active session storage for the affected domain.",
+    "Test accessing the page across alternate supported browsers (Google Chrome, Safari, Firefox, Edge).",
+    "Open Browser Developer Tools (F12) -> Console/Network tab to inspect failing HTTP request endpoints.",
+    "Report persistent 404/500 API endpoint failures to the Web Application Operations team."
   ];
 
-  if (isPhishing) {
+  if (isNetwork) {
+    category = "Network";
+    subCategory = normalizedText.includes("vpn") ? "VPN" : normalizedText.includes("wifi") ? "Wi-Fi" : normalizedText.includes("dns") || normalizedText.includes("gateway") ? "DNS / Gateway" : normalizedText.includes("firewall") ? "Firewall" : "Internet";
+    knowledgeSource = subCategory === "VPN" ? "Corporate VPN Troubleshooting Guide (KB-NET-001)" : "Network Infrastructure & Gateway Troubleshooting (KB-NET-002)";
+    suggestedSteps = [
+      "Check your physical network cable (Ethernet) or verify Wi-Fi signal indicator.",
+      "Restart your local network adapter or toggle Wi-Fi OFF and ON.",
+      "Flush local DNS cache (ipconfig /flushdns or sudo dscacheutil -flushcache).",
+      "Power cycle your router/modem and wait 60 seconds before reconnecting.",
+      "Contact Network Operations Desk if wide-area ISP connectivity remains down."
+    ];
+  } else if (isSecurity) {
     category = "Security";
-    subCategory = "Phishing";
+    subCategory = text.includes("phish") ? "Phishing" : text.includes("virus") || text.includes("malware") ? "Malware" : "Unauthorized Access";
     knowledgeSource = "SecOps Security Guidelines v3.4 (KB-SEC-002)";
     suggestedSteps = [
       "Do NOT click any links or download attachments from the suspicious message.",
@@ -245,9 +273,30 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
       "Disconnect your machine from Wi-Fi if unauthorized downloads occurred.",
       "SecOps will review message telemetry and quarantine threat vectors."
     ];
-  } else if (isVPN) {
+  } else if (isBilling) {
+    category = "Billing";
+    subCategory = text.includes("subscription") || text.includes("pricing") ? "Subscription" : text.includes("invoice") || text.includes("refund") || text.includes("overcharged") ? "Invoice" : "Payment Failure";
+    knowledgeSource = "Subscription Checkout & Payment Gateway Protocol (KB-BIL-008)";
+    suggestedSteps = [
+      "Verify payment method details and ensure the card supports recurring online subscriptions.",
+      "Try completing checkout in an Incognito / Private browsing window to eliminate stale session tokens.",
+      "Ensure ad-blockers or browser privacy extensions are temporarily disabled on the checkout domain.",
+      "If 'Error Code 404' occurs upon clicking 'Pay Now', capture the session URL and network payload.",
+      "Contact Billing & Checkout Support with your account ID and invoice/order reference for immediate activation."
+    ];
+  } else if (isAuthentication) {
+    category = "Authentication";
+    subCategory = text.includes("password") || text.includes("reset password") ? "Password Reset" : text.includes("account locked") || text.includes("locked") ? "Account Locked" : text.includes("2fa") || text.includes("mfa") || text.includes("otp") ? "MFA / SSO" : "Login Issue";
+    knowledgeSource = "SSO Login & Self-Service Password Reset (KB-AUTH-001)";
+    suggestedSteps = [
+      "Verify corporate username and email format (username@company.com).",
+      "Check authenticator app time-sync and approve pending MFA notifications.",
+      "Clear browser cookies, cache, and active sessions in incognito mode.",
+      "Contact IT Support Desk if your account is locked due to consecutive failed attempts."
+    ];
+  } else if (isNetwork) {
     category = "Network";
-    subCategory = "VPN";
+    subCategory = text.includes("vpn") ? "VPN" : text.includes("wifi") ? "Wi-Fi" : text.includes("dns") || text.includes("gateway") ? "DNS / Gateway" : "Internet";
     knowledgeSource = "Corporate VPN Troubleshooting Guide (KB-NET-001)";
     suggestedSteps = [
       "Verify your local internet connection is active by loading a public webpage.",
@@ -256,41 +305,19 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
       "Check that port 443 and UDP 500/4500 are not restricted on your network.",
       "Clear cached VPN credentials and re-authenticate via company SSO."
     ];
-  } else if (isWifi) {
-    category = "Network";
-    subCategory = "Internet";
-    knowledgeSource = "Network Operations Service Desk (KB-NET-002)";
+  } else if (isEmail) {
+    category = "Email";
+    subCategory = text.includes("spam") ? "Spam" : text.includes("bounce") || text.includes("not receiving") ? "Delivery Failure" : text.includes("calendar") ? "Calendar Issue" : "Outlook Sync";
+    knowledgeSource = "Outlook Sync & Mailbox Recovery Guide (KB-EML-006)";
     suggestedSteps = [
-      "Verify router / modem power indicators and physical ethernet cable connections.",
-      "Toggle Wi-Fi adapter off and on or flush local DNS cache via 'ipconfig /flushdns'.",
-      "Verify DHCP default gateway assignment and DNS server responsiveness.",
-      "Check if the ISP or local broadband provider is experiencing an area-wide outage.",
-      "Contact the Network Operations Team if corporate gateway remains unreachable."
+      "Verify Outlook connection status shows 'Connected to Microsoft Exchange'.",
+      "Perform Send/Receive All Folders (F9) to force mailbox synchronization.",
+      "Disable third-party COM add-ins and restart Outlook in Safe Mode.",
+      "Re-build Outlook cached OST profile if synchronization errors persist."
     ];
-  } else if (isPasswordReset || (isAuth && text.includes("password"))) {
-    category = "Authentication";
-    subCategory = "Password Reset";
-    knowledgeSource = "SSO Login & Self-Service Password Reset (KB-AUTH-003)";
-    suggestedSteps = [
-      "Navigate to the self-service portal: sso.company.com/recovery.",
-      "Enter your corporate email address to receive an MFA verification push.",
-      "Follow the on-screen prompts to set a new 12+ character complex password.",
-      "Wait 2 minutes for directory synchronization across corporate services.",
-      "Log in to your workstation with the new password."
-    ];
-  } else if (isAuth) {
-    category = "Authentication";
-    subCategory = "Login Issue";
-    knowledgeSource = "SSO Login & Self-Service Password Reset (KB-AUTH-001)";
-    suggestedSteps = [
-      "Verify corporate username and email format (username@company.com).",
-      "Check authenticator app time-sync and approve pending MFA notifications.",
-      "Clear browser cookies, cache, and active sessions in incognito mode.",
-      "Contact IT Support Desk if your account is locked due to consecutive failed attempts."
-    ];
-  } else if (isMonitor) {
+  } else if (isHardware) {
     category = "Hardware";
-    subCategory = "Monitor";
+    subCategory = text.includes("monitor") || text.includes("broken screen") ? "Monitor" : text.includes("mouse") || text.includes("keyboard") ? "Keyboard / Mouse" : text.includes("printer") ? "Printer" : "Laptop";
     knowledgeSource = "Hardware Lifecycle & Asset Support Desk (KB-HDW-004)";
     suggestedSteps = [
       "Inspect physical HDMI / DisplayPort / Thunderbolt cable connections.",
@@ -298,69 +325,57 @@ export const classifyTicket = async (subject = "", description = "", scope = "Ju
       "Check display resolution and refresh rate settings in system preferences.",
       "Update graphics display drivers or test with an alternate cable/dock."
     ];
-  } else if (isPeripherals) {
-    category = "Hardware";
-    subCategory = "Keyboard / Mouse";
-    knowledgeSource = "Hardware Lifecycle & Asset Support Desk (KB-HDW-004)";
-    suggestedSteps = [
-      "Disconnect and reconnect the USB peripheral device to an alternate port.",
-      "Check battery charge and Bluetooth pairing status if wireless.",
-      "Reinstall device drivers via Device Manager / System Information.",
-      "Test device on another workstation to isolate hardware failure."
-    ];
-  } else if (isHardware) {
-    category = "Hardware";
-    subCategory = "Laptop";
-    knowledgeSource = "Hardware Lifecycle & Asset Support Desk (KB-HDW-004)";
-    suggestedSteps = [
-      "Perform a full restart to flush system RAM and pending updates.",
-      "Check Task Manager for runaway background processes consuming > 80% CPU.",
-      "Verify the device has at least 15 GB free disk space on the primary drive.",
-      "Inspect charger cable, power brick, and battery health telemetry.",
-      "Run hardware diagnostics utility via Dell Command / Apple Diagnostics."
-    ];
-  } else if (isEmail) {
-    category = "Email";
-    subCategory = "Outlook Sync";
-    knowledgeSource = "Messaging & Collaboration Services (KB-EML-006)";
-    suggestedSteps = [
-      "Verify Outlook status shows 'Connected to Microsoft Exchange' in the status bar.",
-      "Toggle Outlook into Work Offline mode, wait 10 seconds, then reconnect.",
-      "Run Outlook in Safe Mode (outlook.exe /safe) to disable conflicting add-ins.",
-      "Rebuild the local Outlook data file (.OST) via Account Settings.",
-      "Check Office 365 webmail (outlook.office.com) to verify cloud mailbox health."
-    ];
-  } else if (isBilling) {
-    category = "Billing";
-    subCategory = "Invoice";
-    knowledgeSource = "Finance & Accounts Operations (KB-BIL-007)";
-    suggestedSteps = [
-      "Verify billing entity details and PO reference numbers on the disputed invoice.",
-      "Cross-reference billing statement with ERP purchase orders and payment gateways.",
-      "If payment failed, check credit card expiration date and bank merchant authorization.",
-      "Submit receipt and transaction reference to the Finance Accounts team."
-    ];
   } else if (isSoftware) {
     category = "Software";
-    subCategory = text.includes("crash") ? "Crash" : text.includes("license") ? "License Expired" : "Application Error";
-    knowledgeSource = "Software Packaging & Application Support (KB-SFT-005)";
-  } else {
-    // General fallback defaults to Network or Software based on connectivity words
-    if (text.includes("slow") || text.includes("down") || text.includes("cannot connect") || text.includes("unable to connect")) {
-      category = "Network";
-      subCategory = "Internet";
-    } else {
-      category = "Software";
-      subCategory = "Application Error";
-    }
+    subCategory = text.includes("crash") ? "Crash" : text.includes("license") ? "License Expired" : text.includes("install") ? "Installation" : "Application Error";
   }
 
-  const isCritical = text.includes("emergency") || text.includes("ransomware") || text.includes("outage") || text.includes("all users") || text.includes("production down");
-  const isUrgent = isCritical || text.includes("urgent") || text.includes("cannot work") || text.includes("completely blocked") || workBlocked;
-  
-  const priority = isCritical ? "P1" : isUrgent ? "P2" : "P3";
-  const severity = isCritical ? "Critical" : isUrgent ? "High" : "Medium";
-  const slaHours = priority === "P1" ? 1 : priority === "P2" ? 4 : 24;
+  // -------------------------------------------------------------
+  // 3. User Specified Keywords for Predicting the "Priority"
+  // -------------------------------------------------------------
+  const isP1 = [
+    "down for everyone", "broken for everyone", "cannot access at all",
+    "stopping work", "global outage", "all users", "completely down",
+    "emergency", "ransomware", "data breach", "production down", "system down"
+  ].some((k) => text.includes(k)) || (workBlocked && scope === "Entire department") || category === "Security";
+
+  const hasP3Indicators = [
+    "slow", "slowness", "lagging", "delay", "annoying", "sometimes",
+    "intermittent", "workaround", "minor", "incorrectly", "not showing", "latency", "loading slowly"
+  ].some((k) => text.includes(k));
+
+  const hasP4Indicators = [
+    "typo", "spelling", "color", "font", "alignment", "ui",
+    "update text", "question", "how do i", "request", "suggestion", "future update"
+  ].some((k) => text.includes(k));
+
+  const hasP2Blockers = workBlocked || [
+    "cannot login", "payment failed", "unable to", "important feature",
+    "multiple users", "pay now", "checkout page", "error 404", "error 500", "locked out",
+    "major", "broken", "stuck", "failed", "regression"
+  ].some((k) => text.includes(k));
+
+  let priority = "P3";
+  let severity = "Medium";
+
+  if (isP1) {
+    priority = "P1";
+    severity = "Critical";
+  } else if (hasP2Blockers && !(hasP3Indicators && !workBlocked)) {
+    priority = "P2";
+    severity = "High";
+  } else if (hasP4Indicators && !hasP2Blockers && !isP1) {
+    priority = "P4";
+    severity = "Low";
+  } else if (hasP3Indicators) {
+    priority = "P3";
+    severity = "Medium";
+  } else {
+    priority = "P3";
+    severity = "Medium";
+  }
+
+  const slaHours = priority === "P1" ? 1 : priority === "P2" ? 4 : priority === "P3" ? 24 : 48;
 
   return {
     success: true,
@@ -615,16 +630,23 @@ export const updateTicket = (
   updates
 ) => {
   const tickets = getTickets();
+  const searchId = String(ticketId).trim().toLowerCase();
+  const cleanDigits = searchId.replace(/\D/g, "");
 
-  const index = tickets.findIndex(
-    (ticket) => ticket.id === ticketId
-  );
+  let index = tickets.findIndex((t) => {
+    if (!t) return false;
+    const tId = String(t.id || "").trim().toLowerCase();
+    const tNum = String(t.ticketNumber || t.ticket_number || "").trim().toLowerCase();
+    const tDigits = tId.replace(/\D/g, "") || tNum.replace(/\D/g, "");
+    return (
+      tId === searchId ||
+      tNum === searchId ||
+      (cleanDigits && tDigits === cleanDigits) ||
+      (tId && searchId.includes(tId))
+    );
+  });
 
-  if (index === -1) {
-    throw new Error("Ticket not found");
-  }
-
-  const ticket = tickets[index];
+  const ticket = index !== -1 ? tickets[index] : { id: ticketId, status: "NEW", ...updates };
 
   const newTimeline = [...(ticket.timeline || [])];
 
@@ -656,8 +678,19 @@ export const updateTicket = (
 
   delete updatedTicket.timelineEvent;
 
-  tickets[index] = updatedTicket;
+  if (index !== -1) {
+    tickets[index] = updatedTicket;
+  } else {
+    tickets.unshift(updatedTicket);
+  }
   saveTickets(tickets);
+
+  // Sync status to backend API safely
+  if (updates.status) {
+    updateTicketStatusApi(ticketId, updates.status).catch((e) => {
+      console.warn("[ticketService] updateTicketStatusApi notice:", e?.message);
+    });
+  }
 
   return updatedTicket;
 };
@@ -703,7 +736,111 @@ export const addComment = (
     },
   ];
 
+  // Also push to backend if available
+  try {
+    api.post(`/tickets/${ticketId}/reply/`, {
+      message: comment.message || comment.text || "",
+      attachment: comment.attachment || null,
+      is_internal: Boolean(comment.is_internal || comment.isInternal),
+    }).catch(() => {
+      // Fallback endpoint
+      api.post(`/support/tickets/${ticketId}/reply/`, {
+        message: comment.message || comment.text || "",
+      }).catch(() => {});
+    });
+  } catch (e) {}
+
   return updateTicket(ticketId, {
     comments,
   });
 };
+
+/* =====================================================
+   REST API DIRECT CLIENT METHODS
+===================================================== */
+
+export const createTicketApi = async (formData) => {
+  try {
+    const res = await api.post("/tickets/", {
+      subject: formData.subject || formData.title,
+      title: formData.subject || formData.title,
+      description: formData.description,
+      category: formData.category,
+      priority: formData.priority,
+      severity: formData.severity,
+      attachment: formData.attachment || null,
+    });
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.warn("[ticketService] Direct API create error, using offline store:", err.message);
+  }
+  return null;
+};
+
+export const fetchMyTicketsApi = async () => {
+  try {
+    const res = await api.get("/tickets/my/");
+    if (res?.data && Array.isArray(res.data)) return res.data;
+  } catch (err) {
+    console.warn("[ticketService] fetchMyTicketsApi notice:", err.message);
+  }
+  return null;
+};
+
+export const fetchAgentTicketsApi = async (params = {}) => {
+  try {
+    const res = await api.get("/agent/tickets/", { params });
+    if (res?.data && Array.isArray(res.data)) return res.data;
+  } catch (err) {
+    console.warn("[ticketService] fetchAgentTicketsApi notice:", err.message);
+  }
+  return null;
+};
+
+export const fetchTicketByIdApi = async (id) => {
+  try {
+    const res = await api.get(`/tickets/${id}/`);
+    if (res?.data) return res.data;
+  } catch (err) {
+    if (err?.response?.status === 403) {
+      throw err;
+    }
+    console.warn("[ticketService] fetchTicketByIdApi notice:", err.message);
+  }
+  return null;
+};
+
+export const updateTicketStatusApi = async (id, newStatus) => {
+  try {
+    const res = await api.patch(`/tickets/${id}/status/`, { status: newStatus });
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.warn("[ticketService] updateTicketStatusApi notice:", err.message);
+  }
+  return null;
+};
+
+export const addTicketReplyApi = async (id, message, attachment = null, isInternal = false) => {
+  try {
+    const res = await api.post(`/tickets/${id}/reply/`, {
+      message,
+      attachment,
+      is_internal: isInternal,
+    });
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.warn("[ticketService] addTicketReplyApi notice:", err.message);
+  }
+  return null;
+};
+
+export const assignTicketApi = async (id, agentId = null) => {
+  try {
+    const res = await api.patch(`/tickets/${id}/assign/`, { agent_id: agentId });
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.warn("[ticketService] assignTicketApi notice:", err.message);
+  }
+  return null;
+};
+
