@@ -1,4 +1,3 @@
-
 from apps.support.models import AgentWorkflow, AgentExecution
 
 from apps.support.agent_execution_service import (
@@ -7,9 +6,9 @@ from apps.support.agent_execution_service import (
     fail_agent_execution,
 )
 
-from apps.support.diagnosis_agent import run_diagnosis
+from apps.support.diagnosis_agent import run_diagnosis_agent
 from apps.support.knowledge_retrieval_agent import run_knowledge_retrieval
-from apps.support.resolution_agent import run_resolution
+from apps.support.resolution_agent import run_resolution_agent
 
 
 def create_agent_workflow(ticket):
@@ -123,7 +122,7 @@ def run_m3_workflow(ticket):
         # 2. DIAGNOSIS
         # --------------------------------------------------
 
-        run_diagnosis(
+        run_diagnosis_agent(
             workflow=workflow,
             ticket=ticket,
         )
@@ -145,7 +144,7 @@ def run_m3_workflow(ticket):
         # 4. RESOLUTION
         # --------------------------------------------------
 
-        run_resolution(
+        run_resolution_agent(
             workflow=workflow,
             ticket=ticket,
         )
@@ -164,4 +163,5 @@ def run_m3_workflow(ticket):
         )
 
         raise
+    
     
