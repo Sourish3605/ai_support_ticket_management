@@ -12,6 +12,8 @@ import {
   fetchAgentWorkflowApi,
   simulateWorkflowLocally,
 } from "../../services/m3AgentService";
+import GmailComposeButton from "../../components/GmailComposeButton";
+
 
 export default function CustomerTicketDetails() {
   const { id } = useParams();
@@ -275,7 +277,15 @@ export default function CustomerTicketDetails() {
           </p>
         </div>
 
-        <div>
+        <div className="flex items-center gap-2">
+          <GmailComposeButton
+            recipient="support@company.com"
+            subject={`[SupportPilot Ticket #${ticketCode}] Inquiry on ${ticket.subject || ticket.title}`}
+            body={`Hello Support Team,\n\nI am contacting you regarding my support ticket #${ticketCode} (${ticket.subject || ticket.title}).\n\nProblem Details:\n${ticket.description || ""}\n\nThank you,\n${user?.name || user?.username || "Customer"}`}
+            label="Email Support via Gmail"
+            variant="secondary"
+          />
+
           {["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(ticket.status) ? (
             <button
               onClick={reopen}
@@ -293,6 +303,7 @@ export default function CustomerTicketDetails() {
           )}
         </div>
       </div>
+
 
       {/* 2-Column Main Layout: Left AI Solution & Timeline | Right Classification & SLA */}
       <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">

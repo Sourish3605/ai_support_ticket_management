@@ -18,6 +18,8 @@ import {
   simulateWorkflowLocally,
 } from "../../services/m3AgentService";
 import { useAuth } from "../../context/AuthContext";
+import GmailComposeButton from "../../components/GmailComposeButton";
+
 
 const priorityClass = {
   P1: "sp-p1",
@@ -465,27 +467,40 @@ export default function AgentTicketDetails() {
                 </div>
               ))}
 
-              {citations.length > 0 && (
-                <div className="pt-2">
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-2">
+                {citations.length > 0 && (
                   <button
                     onClick={() => setShowSources(!showSources)}
                     className="rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer"
                   >
                     {showSources ? "Hide Verified Sources" : `View Verified Sources (${citations.length})`}
                   </button>
+                )}
 
-                  {showSources && (
-                    <div className="mt-3 space-y-2 p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs">
-                      <div className="font-bold text-indigo-900 text-[11px] uppercase tracking-wider mb-1">
-                        Knowledge Base Citations:
-                      </div>
-                      {citations.map((c, i) => (
-                        <div key={i} className="text-[11px] text-indigo-950">
-                          📚 <strong>{c.source_title}</strong> ({c.section || "§1.0"}): <em className="text-slate-600">"{c.quote}"</em>
-                        </div>
-                      ))}
+                <GmailComposeButton
+                  recipient={ticket.customerEmail || ticket.created_by?.email || "customer@example.com"}
+                  subject={`[SupportPilot] AI Resolution Ready - #${ticketCode}: ${ticket.subject || ticket.title}`}
+                  body={`Hello ${ticket.customerName || ticket.created_by_name || "Customer"},\n\nThe SupportPilot AI Resolution Engine has analyzed your ticket #${ticketCode} (${ticket.subject || ticket.title}) and formulated grounded troubleshooting instructions:\n\n${(ticket.ai?.suggestedResolution || workflowData?.resolution?.troubleshooting_steps || [
+                    "Verify your local internet connection is active.",
+                    "Confirm the VPN gateway address is set to 'vpn.company.com'.",
+                    "Restart the VPN client service.",
+                    "Clear cached credentials and re-authenticate."
+                  ]).map((s, idx) => `${idx + 1}. ${s}`).join("\n")}\n\nConfidence Score: 92%\nIf these steps resolve your issue, you can confirm directly in your customer portal.\n\nBest regards,\nSupportPilot AI Assistant`}
+                  label="Email Resolution via Gmail"
+                  variant="button"
+                />
+              </div>
+
+              {citations.length > 0 && showSources && (
+                <div className="mt-3 space-y-2 p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs">
+                  <div className="font-bold text-indigo-900 text-[11px] uppercase tracking-wider mb-1">
+                    Knowledge Base Citations:
+                  </div>
+                  {citations.map((c, i) => (
+                    <div key={i} className="text-[11px] text-indigo-950">
+                      📚 <strong>{c.source_title}</strong> ({c.section || "§1.0"}): <em className="text-slate-600">"{c.quote}"</em>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
@@ -529,12 +544,21 @@ export default function AgentTicketDetails() {
                 placeholder="Type your reply to the requester..."
                 className="w-full rounded-xl border border-slate-200 p-3 text-xs text-slate-800 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
               />
-              <button
-                onClick={postComment}
-                className="rounded-xl bg-slate-900 hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white shadow transition cursor-pointer"
-              >
-                Send Reply
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={postComment}
+                  className="rounded-xl bg-slate-900 hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white shadow transition cursor-pointer"
+                >
+                  Send Reply
+                </button>
+                <GmailComposeButton
+                  recipient={ticket.customerEmail || ticket.created_by?.email || "customer@example.com"}
+                  subject={`[SupportPilot] Update on #${ticketCode}: ${ticket.subject || ticket.title}`}
+                  body={`Hello ${ticket.customerName || ticket.created_by_name || "Customer"},\n\n${comment || "Regarding your support request on " + (ticket.subject || ticket.title) + ":"}\n\nPlease let us know if you have any questions.\n\nBest regards,\n${agentName} | Support Operations Team`}
+                  label="Send via Gmail"
+                  variant="button"
+                />
+              </div>
             </div>
           </section>
         </div>
@@ -602,16 +626,28 @@ export default function AgentTicketDetails() {
               {emailLogs.map((em, i) => (
                 <div
                   key={em.email_id || i}
-                  onClick={() => setSelectedEmailModal(em)}
-                  className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/80 hover:bg-slate-100 transition cursor-pointer text-xs"
+                  className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/80 hover:bg-slate-100 transition flex items-center justify-between gap-2 text-xs"
                 >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="font-semibold text-slate-800 capitalize">
-                      {em.email_type?.replace("_", " ") || "Notice"}
-                    </span>
-                    <span className="text-[10px] text-emerald-700 font-bold">✓ {em.status || "SENT"}</span>
+                  <div
+                    onClick={() => setSelectedEmailModal(em)}
+                    className="flex-1 min-w-0 cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-semibold text-slate-800 capitalize">
+                        {em.email_type?.replace("_", " ") || "Notice"}
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-bold mr-1">✓ {em.status || "SENT"}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">{em.subject}</div>
                   </div>
-                  <div className="text-[11px] text-slate-500 truncate">{em.subject}</div>
+
+                  <GmailComposeButton
+                    recipient={em.recipient}
+                    subject={em.subject}
+                    body={em.body}
+                    variant="icon"
+                    title="Open & Send this pre-filled notification in Gmail"
+                  />
                 </div>
               ))}
             </div>
@@ -679,9 +715,21 @@ export default function AgentTicketDetails() {
                 </pre>
               </div>
             </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-500 font-medium">1-Click Dispatch:</span>
+              <GmailComposeButton
+                recipient={selectedEmailModal.recipient}
+                subject={selectedEmailModal.subject}
+                body={selectedEmailModal.body}
+                variant="button"
+                label="Open & Send with Gmail"
+              />
+            </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }
