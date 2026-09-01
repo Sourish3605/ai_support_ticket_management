@@ -8,6 +8,8 @@ import {
   fetchJiraConfigApi,
 } from "../../services/m3AgentService";
 import { getAllTickets } from "../../services/ticketService";
+import GmailComposeButton from "../../components/GmailComposeButton";
+
 
 export default function AiAgentWorkbench() {
   const { id: runIdParam } = useParams();
@@ -516,18 +518,30 @@ export default function AiAgentWorkbench() {
                         </div>
                       </div>
 
-                      <div>
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 mb-1">
-                          <span>✉️</span>
-                          <span>Automated Email Notification</span>
-                        </div>
-                        <div className="text-xs text-slate-700">
-                          Type: <strong className="text-slate-900">{isEscalated ? "Escalation Notice" : "AI Resolution Ready"}</strong>
-                        </div>
-                        <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                          ✓ Delivered to requester
+                      <div className="flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                              <span>✉️</span>
+                              <span>Automated Email Notification</span>
+                            </div>
+                            <GmailComposeButton
+                              recipient={selectedRun.email?.recipient || "customer@example.com"}
+                              subject={`[SupportPilot] ${isEscalated ? "Escalation Notice" : "AI Resolution Ready"} - #${selectedRun.ticket_number || selectedRun.ticket_id || 1001}`}
+                              body={`Hello Customer,\n\n${isEscalated ? "Your ticket has been escalated to specialized Tier-2 engineering support." : "The SupportPilot AI Engine has formulated your resolution troubleshooting steps."}\n\nTicket: #${selectedRun.ticket_number || selectedRun.ticket_id || 1001}\nStatus: ${isEscalated ? "ESCALATED" : "AI_RESOLUTION_READY"}\n\nBest regards,\nSupportPilot AI Operations`}
+                              variant="badge"
+                              label="Send via Gmail"
+                            />
+                          </div>
+                          <div className="text-xs text-slate-700">
+                            Type: <strong className="text-slate-900">{isEscalated ? "Escalation Notice" : "AI Resolution Ready"}</strong>
+                          </div>
+                          <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                            ✓ Ready for dispatch to requester
+                          </div>
                         </div>
                       </div>
+
                     </div>
                   </div>
                 </div>

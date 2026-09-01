@@ -6,6 +6,8 @@ import {
   fetchEmailLogsApi,
 } from "../../services/m3AgentService";
 import { getAllTickets, updateTicket } from "../../services/ticketService";
+import GmailComposeButton from "../../components/GmailComposeButton";
+
 
 export default function IntegrationsPage() {
   const [activeTab, setActiveTab] = useState("jira"); // jira | email
@@ -403,31 +405,46 @@ export default function IntegrationsPage() {
             </div>
           </div>
 
+
           {/* Interactive Template Previewer */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Email Template Inspector
-              </h3>
-              <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
-                {[
-                  { id: "ticket_created", label: "Ticket Created" },
-                  { id: "resolution", label: "Resolution" },
-                  { id: "escalation", label: "Escalation" },
-                  { id: "resolved", label: "Resolved" },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedTemplate(t.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      selectedTemplate === t.id
-                        ? "bg-white text-slate-900 shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Email Template Inspector & 1-Click Dispatch
+                </h3>
+                <p className="text-xs text-slate-500">Preview automated lifecycle emails or dispatch directly via Google Gmail</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+                  {[
+                    { id: "ticket_created", label: "Ticket Created" },
+                    { id: "resolution", label: "Resolution" },
+                    { id: "escalation", label: "Escalation" },
+                    { id: "resolved", label: "Resolved" },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedTemplate(t.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        selectedTemplate === t.id
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                <GmailComposeButton
+                  recipient={templatePreviews[selectedTemplate]?.recipient || "customer@example.com"}
+                  subject={templatePreviews[selectedTemplate]?.subject || "[SupportPilot] Notification"}
+                  body={templatePreviews[selectedTemplate]?.body || ""}
+                  label="Open in Gmail"
+                  variant="button"
+                />
               </div>
             </div>
 
@@ -465,34 +482,61 @@ export default function IntegrationsPage() {
                     <th className="p-3">Recipient</th>
                     <th className="p-3">Subject</th>
                     <th className="p-3">Status</th>
-                    <th className="p-3">Dispatched At</th>
+                    <th className="p-3">Gmail Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {emailLogs.map((log, idx) => (
                     <tr
                       key={log.id || idx}
-                      onClick={() => setSelectedEmailModal(log)}
-                      className="hover:bg-slate-50/50 cursor-pointer"
+                      className="hover:bg-slate-50/50"
                     >
-                      <td className="p-3 font-mono font-bold text-indigo-600">
+                      <td
+                        onClick={() => setSelectedEmailModal(log)}
+                        className="p-3 font-mono font-bold text-indigo-600 cursor-pointer hover:underline"
+                      >
                         {log.email_id || `EML-${log.id || 101}`}
                       </td>
-                      <td className="p-3 font-mono text-slate-800 font-semibold">
-                        #{log.ticket_number || log.ticket || 1001}
+                      <td
+                        onClick={() => setSelectedEmailModal(log)}
+                        className="p-3 font-mono text-slate-800 font-semibold cursor-pointer"
+                      >
+                        #{log.ticket_number || log.ticketNumber || `TKT-${log.ticket || 1001}`}
                       </td>
-                      <td className="p-3 uppercase font-bold text-[10px] text-slate-700">
-                        {log.email_type}
+                      <td
+                        onClick={() => setSelectedEmailModal(log)}
+                        className="p-3 cursor-pointer capitalize font-medium text-slate-700"
+                      >
+                        {log.email_type?.replace("_", " ")}
                       </td>
-                      <td className="p-3 text-slate-600">{log.recipient}</td>
-                      <td className="p-3 text-slate-800 max-w-xs truncate font-medium">{log.subject}</td>
-                      <td className="p-3">
+                      <td
+                        onClick={() => setSelectedEmailModal(log)}
+                        className="p-3 cursor-pointer text-slate-700"
+                      >
+                        {log.recipient}
+                      </td>
+                      <td
+                        onClick={() => setSelectedEmailModal(log)}
+                        className="p-3 cursor-pointer font-medium text-slate-900 max-w-xs truncate"
+                      >
+                        {log.subject}
+                      </td>
+                      <td
+                        onClick={() => setSelectedEmailModal(log)}
+                        className="p-3 cursor-pointer"
+                      >
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                          {log.status || "SENT"}
+                          ✓ {log.status || "SENT"}
                         </span>
                       </td>
-                      <td className="p-3 text-slate-400 text-[11px]">
-                        {log.sent_at ? new Date(log.sent_at).toLocaleString() : "Recently"}
+                      <td className="p-3">
+                        <GmailComposeButton
+                          recipient={log.recipient}
+                          subject={log.subject}
+                          body={log.body}
+                          variant="badge"
+                          label="Send via Gmail"
+                        />
                       </td>
                     </tr>
                   ))}
@@ -886,10 +930,17 @@ export default function IntegrationsPage() {
               {selectedEmailModal.body}
             </pre>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+              <GmailComposeButton
+                recipient={selectedEmailModal.recipient}
+                subject={selectedEmailModal.subject}
+                body={selectedEmailModal.body}
+                variant="button"
+                label="Open & Send in Gmail"
+              />
               <button
                 onClick={() => setSelectedEmailModal(null)}
-                className="rounded-xl bg-slate-900 text-white px-4 py-2 text-xs font-bold"
+                className="rounded-xl bg-slate-900 text-white px-4 py-2 text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
               >
                 Close
               </button>
@@ -900,3 +951,4 @@ export default function IntegrationsPage() {
     </div>
   );
 }
+
