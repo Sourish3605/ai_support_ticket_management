@@ -9,6 +9,11 @@ from .views import (
     TicketReplyCreateView,
     TicketAssignView,
     TicketClassificationView,
+    ConfirmResolutionView,
+    ReopenTicketView,
+    NotificationListView,
+    NotificationMarkReadView,
+    NotificationMarkAllReadView,
 )
 from .views_m3 import (
     AgentWorkflowStartView,
@@ -45,8 +50,17 @@ urlpatterns = [
     # Individual Ticket Operations (by numeric ID or string ticket_number like TKT-1001)
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/status/?$", TicketStatusUpdateView.as_view(), name="ticket-status-update"),
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/reply/?$", TicketReplyCreateView.as_view(), name="ticket-reply-create"),
+    re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/confirm-resolution/?$", ConfirmResolutionView.as_view(), name="ticket-confirm-resolution"),
+    re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/reopen/?$", ReopenTicketView.as_view(), name="ticket-reopen"),
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/assign/?$", TicketAssignView.as_view(), name="ticket-assign"),
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/?$", TicketDetailView.as_view(), name="ticket-detail"),
+
+    # Notification Routes
+    path("notifications", NotificationListView.as_view(), name="notifications-list-no-slash"),
+    path("notifications/", NotificationListView.as_view(), name="notifications-list"),
+    path("notifications/mark-all-read", NotificationMarkAllReadView.as_view(), name="notifications-mark-all-read-no-slash"),
+    path("notifications/mark-all-read/", NotificationMarkAllReadView.as_view(), name="notifications-mark-all-read"),
+    re_path(r"^notifications/(?P<pk>[A-Za-z0-9_-]+)/read/?$", NotificationMarkReadView.as_view(), name="notification-mark-read"),
 
     # Classification & Knowledge Routes (M1 / M2)
     path("classify", TicketClassificationView.as_view(), name="ticket-classify-no-slash"),

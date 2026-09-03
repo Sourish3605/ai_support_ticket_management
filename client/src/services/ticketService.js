@@ -6,7 +6,12 @@ import { api } from "./api.js";
 
 export const getTickets = () => {
   try {
-    return storage.get(STORAGE_KEYS.tickets, seedTickets) || seedTickets;
+    const stored = storage.get(STORAGE_KEYS.tickets, null);
+    if (!stored || !Array.isArray(stored) || stored.length === 0) {
+      storage.set(STORAGE_KEYS.tickets, seedTickets);
+      return seedTickets;
+    }
+    return stored;
   } catch {
     return seedTickets;
   }

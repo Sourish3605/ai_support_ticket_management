@@ -19,6 +19,15 @@ class IsAgent(BasePermission):
         )
 
 
+class IsManager(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and hasattr(request.user, "profile")
+            and request.user.profile.role in ["Manager", "Support Manager"]
+        )
+
+
 class IsCustomer(BasePermission):
     def has_permission(self, request, view):
         return (
@@ -33,5 +42,5 @@ class IsAdminOrAgent(BasePermission):
         return (
             request.user.is_authenticated
             and hasattr(request.user, "profile")
-            and request.user.profile.role in ["Admin", "Agent"]
+            and request.user.profile.role in ["Admin", "Agent", "Manager", "Support Manager"]
         )

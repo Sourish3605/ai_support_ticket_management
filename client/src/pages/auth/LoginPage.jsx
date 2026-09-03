@@ -106,6 +106,36 @@ const portalThemes = {
       "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:ring-emerald-400/50",
     linkClass: "text-emerald-700 hover:text-emerald-800",
   },
+  manager: {
+    portalKey: "manager",
+    portalLabel: "Support Manager Portal",
+    eyebrow: "Operations & Escalations",
+    headline: "Supervise queues. Safeguard SLAs.",
+    subText: "Monitor workload, balance agent queues, manage critical escalations, and track AI performance.",
+    pageBg: "bg-gradient-to-br from-[#090e1a] via-[#0f172a] to-slate-900",
+    frameBg: "bg-white",
+    shellBorder: "border border-amber-200/80 shadow-2xl",
+    leftPanel: "bg-gradient-to-br from-[#090e1a] via-[#111c35] to-[#0f172a]",
+    glowA: "bg-amber-500/20",
+    glowB: "bg-orange-500/20",
+    brandChip: "bg-amber-400/20 text-amber-300",
+    statCard: "border border-white/10 bg-white/5",
+    statMuted: "text-amber-200/70",
+    rightPanel: "bg-white",
+    mobileLogo: "bg-amber-500 text-slate-950 font-black",
+    titleAccent: "text-amber-600",
+    titleText: "text-slate-900",
+    copyText: "text-slate-500",
+    tabWrap: "bg-slate-100",
+    tabIdle: "text-slate-600 hover:text-slate-900",
+    tabActive: "bg-amber-500 text-slate-950 font-black shadow-xs",
+    inputClass:
+      "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:ring-amber-500/10",
+    iconClass: "text-slate-400",
+    signInButton:
+      "bg-amber-500 text-slate-950 font-black hover:bg-amber-400 focus-visible:ring-amber-500/50 shadow-md shadow-amber-500/25",
+    linkClass: "text-amber-700 hover:text-amber-800",
+  },
 };
 
 const roleDetails = {
@@ -131,6 +161,14 @@ const roleDetails = {
       ["24/7", "Support"],
       ["AI", "Powered"],
       ["Fast", "Updates"],
+    ],
+  },
+  manager: {
+    idLabel: "Manager email",
+    stats: [
+      ["SLA", "Watch"],
+      ["Queue", "Lead"],
+      ["Team", "Ops"],
     ],
   },
 };
@@ -215,7 +253,8 @@ const LoginPage = () => {
     let isPermittedForFrom = false;
     if (isSafePath) {
       if (fromPath.startsWith("/admin") && canonicalRole === "admin") isPermittedForFrom = true;
-      else if ((fromPath.startsWith("/dashboard") || fromPath.startsWith("/tickets")) && canonicalRole === "agent") isPermittedForFrom = true;
+      else if (fromPath.startsWith("/manager") && (canonicalRole === "manager" || canonicalRole === "admin")) isPermittedForFrom = true;
+      else if ((fromPath.startsWith("/dashboard") || fromPath.startsWith("/tickets")) && (canonicalRole === "agent" || canonicalRole === "manager")) isPermittedForFrom = true;
       else if (fromPath.startsWith("/portal") && canonicalRole === "customer") isPermittedForFrom = true;
     }
 
@@ -403,6 +442,8 @@ const LoginPage = () => {
                         className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${
                           selectedRole === "admin"
                             ? "bg-slate-900 text-cyan-300"
+                            : selectedRole === "manager"
+                            ? "bg-indigo-900 text-purple-200"
                             : selectedRole === "agent"
                             ? "bg-blue-700 text-white"
                             : "bg-emerald-700 text-white"
@@ -410,6 +451,8 @@ const LoginPage = () => {
                       >
                         {selectedRole === "admin" ? (
                           <FiShield />
+                        ) : selectedRole === "manager" ? (
+                          <span className="text-base">💼</span>
                         ) : selectedRole === "agent" ? (
                           <FiHeadphones />
                         ) : (
@@ -421,6 +464,8 @@ const LoginPage = () => {
                         <p className="font-bold text-xs text-slate-900 leading-none">
                           {selectedRole === "admin"
                             ? "System Administrator"
+                            : selectedRole === "manager"
+                            ? "Support Manager"
                             : selectedRole === "agent"
                             ? "Support Agent"
                             : "Customer Portal"}
@@ -428,6 +473,8 @@ const LoginPage = () => {
                         <p className="text-[11px] text-slate-500 truncate mt-1">
                           {selectedRole === "admin"
                             ? "Executive governance, policies & system health"
+                            : selectedRole === "manager"
+                            ? "Queues, SLA governance, workload & escalations"
                             : selectedRole === "agent"
                             ? "Incident triage, AI routing & SLAs"
                             : "Raise tickets, track status & AI self-service"}
@@ -459,6 +506,15 @@ const LoginPage = () => {
                           Icon: FiShield,
                           activeIcon: "bg-slate-900 text-cyan-300",
                           tagColor: "bg-cyan-50 text-cyan-800 border-cyan-200",
+                        },
+                        {
+                          id: "manager",
+                          title: "Support Manager",
+                          subtitle: "Queues, SLA governance, workload & escalations",
+                          tag: "Supervisor",
+                          Icon: FiCheck,
+                          activeIcon: "bg-indigo-900 text-purple-200",
+                          tagColor: "bg-purple-50 text-purple-800 border-purple-200",
                         },
                         {
                           id: "agent",
@@ -728,7 +784,7 @@ const LoginPage = () => {
                   Quick Demo Credentials
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -743,7 +799,24 @@ const LoginPage = () => {
                     }`}
                   >
                     <span className="text-sm">👑</span>
-                    <span>Admin</span>
+                    <span className="text-[11px]">Admin</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole("manager");
+                      setForm({ email: "manager@gmail.com", password: "password123" });
+                      setError("");
+                    }}
+                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
+                      selectedRole === "manager"
+                        ? "border-indigo-900 bg-indigo-900 text-purple-200 ring-2 ring-purple-400/20"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-sm">💼</span>
+                    <span className="text-[11px]">Manager</span>
                   </button>
 
                   <button
@@ -760,7 +833,7 @@ const LoginPage = () => {
                     }`}
                   >
                     <span className="text-sm">🛡️</span>
-                    <span>Agent</span>
+                    <span className="text-[11px]">Agent</span>
                   </button>
 
                   <button
@@ -777,7 +850,7 @@ const LoginPage = () => {
                     }`}
                   >
                     <span className="text-sm">👤</span>
-                    <span>Customer</span>
+                    <span className="text-[11px]">Customer</span>
                   </button>
                 </div>
               </div>

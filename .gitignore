@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+dist/
+build/
+
+# Python / Django
+*.pyc
+__pycache__/
+*.sqlite3
+*.db
+*.log
+.env
+.venv
+venv/
+env/
+.DS_Store

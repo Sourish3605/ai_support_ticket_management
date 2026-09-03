@@ -25,24 +25,37 @@ def run_escalation_agent(
     description = str(ticket_data.get("description") or "").strip()
     full_text = f"{title} {description}".lower()
 
-    # Determine optimal Support Team Routing
+    # Determine optimal Support Team Routing matching PDF specifications
     if "security" in cat_lower or "hack" in full_text or "phishing" in full_text:
-        target_team = "Security Incident Response Team (SecOps)"
+        target_team = "Security Incident Response (SecOps)"
         sla_tier = "Tier-3 SecOps"
-    elif "billing" in cat_lower or "payment" in full_text or "invoice" in full_text:
-        target_team = "Billing & Financial Operations"
-        sla_tier = "Tier-2 Finance"
+    elif "billing" in cat_lower or "payment" in full_text or "invoice" in full_text or "deducted" in full_text:
+        target_team = "Billing Support"
+        sla_tier = "Tier-2 Billing"
+    elif "product" in cat_lower or "feature request" in full_text or "suggestion" in full_text:
+        target_team = "Product Support"
+        sla_tier = "Product Queue"
+    elif "data missing" in full_text or "outage" in full_text or "crash" in full_text or "technical" in cat_lower or "software" in cat_lower:
+        if "data missing" in full_text or "outage" in full_text:
+            target_team = "Site Reliability Engineering (SRE)"
+            sla_tier = "Critical Incident SRE"
+        else:
+            target_team = "Technical Support"
+            sla_tier = "Technical Agent Queue"
     elif "network" in cat_lower or "vpn" in full_text or "wifi" in full_text or "dns" in full_text:
-        target_team = "Network Operations Engineering"
+        target_team = "Network Support"
         sla_tier = "Tier-2 Network"
-    elif "authentication" in cat_lower or "login" in full_text or "password" in full_text or "2fa" in full_text:
-        target_team = "Identity & Access Management (IAM)"
-        sla_tier = "Tier-1 Helpdesk"
+    elif "account" in cat_lower or "authentication" in cat_lower or "login" in full_text or "password" in full_text:
+        target_team = "Account Support"
+        sla_tier = "Tier-1 Account"
     elif "hardware" in cat_lower or "laptop" in full_text or "monitor" in full_text:
-        target_team = "Desktop & Hardware Support"
+        target_team = "Hardware Support"
         sla_tier = "Tier-1 Desktop"
+    elif "other" in cat_lower:
+        target_team = "General Support"
+        sla_tier = "Tier-1 General"
     else:
-        target_team = "Tier-2 Technical Support Team"
+        target_team = "Technical Support"
         sla_tier = "Tier-2 Technical"
 
     # Formulate Escalation Reason

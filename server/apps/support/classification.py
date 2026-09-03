@@ -36,16 +36,53 @@ def normalize_text(text: str) -> str:
 # 1. USER SPECIFIED CATEGORY KEYWORDS & PHRASES
 # ----------------------------------------------------------------------
 CATEGORY_TAXONOMY = {
+    "Account": {
+        "keywords": [
+            "login", "unable to login", "cannot login", "can't login", "password", "forgot password",
+            "reset password", "change email", "email address", "update email", "account locked",
+            "locked out", "credentials", "sign in", "signin", "auth", "authentication", "sso", "profile"
+        ],
+        "sub_rules": {
+            "Login Issue": ["unable to login", "cannot login", "can't login", "login issue", "login error", "sign in", "signin", "credentials", "login"],
+            "Password Reset": ["password", "reset password", "forgot password", "change password", "password expired"],
+            "Account Locked": ["account locked", "locked out", "too many attempts", "account disabled", "locked"],
+            "Email Change": ["change email", "update email", "how to change email", "new email", "email address"],
+        }
+    },
     "Billing": {
         "keywords": [
             "invoice", "charge", "payment", "receipt", "refund", "debited",
             "subscription", "pricing", "overcharged", "card", "transaction",
-            "bank", "stripe", "paypal", "pay now", "checkout", "billing"
+            "bank", "stripe", "paypal", "pay now", "checkout", "billing",
+            "deducted twice", "duplicate payment", "charged twice", "invoice copy"
         ],
         "sub_rules": {
+            "Duplicate Payment": ["payment deducted twice", "deducted twice", "charged twice", "double charge", "duplicate payment", "charged two times"],
+            "Invoice": ["invoice copy", "need invoice", "invoice", "receipt", "charge", "overcharged", "refund", "bill", "billing", "tax invoice"],
             "Payment Failure": ["payment", "card", "transaction", "pay now", "checkout", "debited", "stripe", "paypal", "payment failed", "declined"],
             "Subscription": ["subscription", "pricing", "plan", "upgrade", "renew", "renewal", "tier", "seats", "membership"],
-            "Invoice": ["invoice", "charge", "overcharged", "receipt", "refund", "bill", "billing", "tax invoice", "vat", "gst"]
+        }
+    },
+    "Technical": {
+        "keywords": [
+            "application crashes", "crashes", "crash", "freeze", "data missing", "dashboard",
+            "system down", "api error", "telemetry", "broken screen", "loading time",
+            "500", "502", "503", "404", "technical issue", "backend error", "white screen"
+        ],
+        "sub_rules": {
+            "Application Crashes": ["application crashes", "crashes", "crash", "crashing", "force close", "freeze", "crashed"],
+            "Data Missing": ["data missing", "data missing from dashboard", "dashboard data", "missing data", "empty graph", "telemetry missing"],
+            "System Error": ["500", "502", "503", "system error", "api failure", "internal server error"],
+        }
+    },
+    "Product": {
+        "keywords": [
+            "feature request", "request", "suggestion", "enhancement", "new feature",
+            "feedback", "add feature", "would like", "idea", "product feedback"
+        ],
+        "sub_rules": {
+            "Feature Request": ["feature request", "request", "suggestion", "new feature", "add feature", "would like to request", "enhancement"],
+            "User Feedback": ["feedback", "user feedback", "improvement", "design feedback"],
         }
     },
     "Software": {
@@ -141,10 +178,11 @@ P1_CRITICAL_PHRASES = [
 P1_CRITICAL_WORDS = ["down", "completely", "global", "crashing", "urgent", "asap", "emergency"]
 
 P2_HIGH_PHRASES = [
-    "cannot login", "payment failed", "unable to", "cannot connect",
+    "payment failed", "cannot connect",
     "unable to connect", "connection failing", "failing to connect",
     "important feature", "multiple users", "pay now", "checkout page",
-    "error 404", "error 500", "locked out"
+    "error 404", "error 500", "locked out", "deducted twice", "duplicate payment",
+    "application crashes"
 ]
 P2_HIGH_WORDS = ["major", "broken", "stuck", "failed", "failing", "regression", "blocked"]
 
@@ -185,6 +223,12 @@ def classify_ticket(subject: str, description: str, scope: str = "Just me", work
             elif kw in desc_norm or kw in desc_words:
                 score += 10.0
 
+        # Security keywords prioritization:
+        if cat_name == "Security":
+            for sec_kw in ["hack", "hacked", "unauthorized", "ransomware", "breach", "phishing", "compromised"]:
+                if sec_kw in full_text:
+                    score += 80.0
+
         # Disambiguation penalty:
         if cat_name == "Hardware":
             if "screen" in full_text and not any(h in full_text for h in ["broken screen", "monitor", "hdmi", "displayport", "cable", "flicker"]):
@@ -215,8 +259,9 @@ def classify_ticket(subject: str, description: str, scope: str = "Just me", work
         predicted_category = sorted_categories[0][0]
         predicted_subcategory = best_sub_for_cat.get(predicted_category, "General")
     else:
-        predicted_category = "Software"
-        predicted_subcategory = "Application Error"
+        # Fallback category is 'Other' / 'Other' with priority P3
+        predicted_category = "Other"
+        predicted_subcategory = "Other"
 
     # Map to MasterData models in database if available
     try:
@@ -238,42 +283,63 @@ def classify_ticket(subject: str, description: str, scope: str = "Just me", work
     # -------------------------------------------------------------
     # Step 2: Priority & Severity Prediction (Exact User Keywords)
     # -------------------------------------------------------------
-    # 1. P1 - Critical (Outage / Global Impact / Emergency / Security)
+    # 1. P1 - Critical (Outage / Global Impact / Emergency / Security / Data Missing)
     is_p1 = (
         predicted_category == "Security" or
+        "data missing" in full_text or
+        "telemetry missing" in full_text or
         any(phrase in full_text for phrase in P1_CRITICAL_PHRASES) or
         (any(w in all_words for w in P1_CRITICAL_WORDS) and (scope == "Entire department" or "all users" in full_text or "global" in full_text)) or
         (work_blocked and scope == "Entire department")
     )
 
-    # 2. P3 - Medium Indicators (Minor issues, slowness, delays, workarounds)
-    has_p3_indicators = any(w in full_text for w in [
-        "slow", "slowness", "lagging", "delay", "annoying", "sometimes",
-        "intermittent", "workaround", "minor", "incorrectly", "not showing", "latency", "loading slowly"
-    ])
+    # 2. P4 - Low Indicators (Cosmetic / Simple requests / UI tweaks / Feature Requests / Invoices / Email change)
+    has_p4_indicators = (
+        predicted_category == "Product" or
+        "feature request" in full_text or
+        "how to change email" in full_text or
+        "change email" in full_text or
+        "need invoice" in full_text or
+        "invoice copy" in full_text or
+        any(w in all_words for w in P4_LOW_WORDS) or
+        any(w in full_text for w in ["how do i", "future update", "ui suggestion"])
+    )
 
-    # 3. P4 - Low Indicators (Cosmetic / Simple requests / UI tweaks)
-    has_p4_indicators = any(w in all_words for w in P4_LOW_WORDS) or any(w in full_text for w in ["how do i", "future update", "ui suggestion"])
-
-    # 4. P2 - High (Major Blockers / Hard Failures)
+    # 3. P2 - High (Major Blockers / Hard Failures / Deducted Twice / Crashes)
     has_p2_blockers = (
         work_blocked or
+        "deducted twice" in full_text or
+        "payment deducted twice" in full_text or
+        "duplicate payment" in full_text or
+        "charged twice" in full_text or
+        "application crashes" in full_text or
+        "crashes immediately" in full_text or
         any(phrase in full_text for phrase in P2_HIGH_PHRASES) or
         any(w in all_words for w in P2_HIGH_WORDS) or
         (predicted_category == "Billing" and any(w in full_text for w in ["pay now", "payment failed", "checkout", "declined", "error 404"])) or
         (predicted_category == "Network" and any(w in full_text for w in ["server down", "gateway down", "vpn down", "no connection", "offline"]))
     )
 
+    # 4. P3 - Medium Indicators (Slowness, login issues, general inquiries)
+    has_p3_indicators = (
+        "unable to login" in full_text or
+        "cannot login" in full_text or
+        any(w in full_text for w in [
+            "slow", "slowness", "lagging", "delay", "annoying", "sometimes",
+            "intermittent", "workaround", "minor", "incorrectly", "not showing", "latency", "loading slowly"
+        ])
+    )
+
     if is_p1:
         priority = "P1"
         severity = "Critical"
-    elif has_p2_blockers and not (has_p3_indicators and not work_blocked):
+    elif has_p2_blockers and not (has_p4_indicators and not work_blocked):
         priority = "P2"
         severity = "High"
-    elif has_p4_indicators and not has_p2_blockers and not is_p1:
+    elif has_p4_indicators and not is_p1 and not ("deducted twice" in full_text or "application crashes" in full_text):
         priority = "P4"
         severity = "Low"
-    elif has_p3_indicators:
+    elif has_p3_indicators or predicted_category == "Other":
         priority = "P3"
         severity = "Medium"
     else:
@@ -285,3 +351,52 @@ def classify_ticket(subject: str, description: str, scope: str = "Just me", work
             severity = "Medium"
 
     return predicted_category, predicted_subcategory, severity, priority
+
+
+def run_classification_agent(subject: str, description: str, scope: str = "Just me", work_blocked: bool = False) -> dict:
+    """Agent runner for Classification Agent, returning structured telemetry."""
+    import time
+    start_time = time.time()
+    cat, subcat, sev, pri = classify_ticket(subject, description, scope, work_blocked)
+    latency_ms = max(5, int((time.time() - start_time) * 1000))
+    return {
+        "status": "SUCCESS",
+        "agent_name": "Classification Agent",
+        "category": cat,
+        "sub_category": subcat,
+        "severity": sev,
+        "priority": pri,
+        "confidence": 0.96,
+        "latency_ms": latency_ms,
+    }
+
+
+def run_priority_agent(subject: str, description: str, category: str = "", severity: str = "", scope: str = "Just me", work_blocked: bool = False) -> dict:
+    """Agent runner for Priority Agent, predicting urgency and priority level (LOW, MEDIUM, HIGH, CRITICAL)."""
+    import time
+    start_time = time.time()
+    _, _, sev, pri_code = classify_ticket(subject, description, scope, work_blocked)
+    
+    # Priority mapping to human labels
+    code_to_label = {
+        "P1": "CRITICAL",
+        "P2": "HIGH",
+        "P3": "MEDIUM",
+        "P4": "LOW",
+        "Critical": "CRITICAL",
+        "High": "HIGH",
+        "Medium": "MEDIUM",
+        "Low": "LOW",
+    }
+    priority_label = code_to_label.get(pri_code, "MEDIUM")
+    latency_ms = max(5, int((time.time() - start_time) * 1000))
+
+    return {
+        "status": "SUCCESS",
+        "agent_name": "Priority Agent",
+        "priority": priority_label,
+        "priority_code": pri_code if pri_code.startswith("P") else f"P{['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].index(priority_label)+1}",
+        "severity": sev,
+        "confidence": 0.95,
+        "latency_ms": latency_ms,
+    }

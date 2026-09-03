@@ -353,6 +353,138 @@ button, a {
 }
 
 
+/* =====================================================
+   4. SUPPORT MANAGER THEME (Warm Amber & Deep Navy)
+===================================================== */
+.sp-manager-shell {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.sp-manager-sidebar {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: #090e1a;
+  border-right: 1px solid #1e293b;
+  padding: 18px 0 0;
+}
+
+.sp-manager-sidebar .sp-logo-mark {
+  background: #f59e0b;
+  color: #000;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-weight: 900;
+}
+
+.sp-manager-sidebar .sp-sidebar-sub {
+  color: #fbbf24;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 7.5px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+}
+
+.sp-manager-sidebar .sp-sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 18px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+}
+
+.sp-manager-sidebar .sp-nav-heading {
+  padding: 14px 18px 7px;
+  color: #94a3b8;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 8px 18px;
+  border-left: 3px solid transparent;
+  color: #94a3b8;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav a:hover {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fde68a;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav a.active {
+  background: rgba(245, 158, 11, 0.18);
+  border-left-color: #f59e0b;
+  color: #fef3c7;
+  font-weight: 700;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav a.active .sp-sidebar-count {
+  background: #f59e0b;
+  color: #0f172a;
+}
+
+.sp-manager-sidebar .sp-sidebar-count {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 10px;
+  font-weight: 700;
+  color: #fde68a;
+}
+
+.sp-manager-sidebar .sp-sidebar-footer {
+  margin-top: auto;
+  padding: 14px 18px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sp-manager-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.sp-manager-topbar .sp-breadcrumb {
+  color: #d97706;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sp-manager-topbar h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sp-manager-avatar {
+  background: #f59e0b;
+  color: #000;
+  font-weight: 800;
+}
+
+
 
 /* =====================================================
    COMMON UI COMPONENTS
@@ -465,9 +597,9 @@ button, a {
 .sp-p4 { background: #475569; }
 
 @media (max-width: 640px) {
-  .sp-agent-shell, .sp-admin-shell { display: block; }
-  .sp-agent-sidebar, .sp-admin-sidebar { display: none; }
-  .sp-agent-topbar, .sp-admin-topbar { align-items: flex-start; flex-direction: column; }
+  .sp-agent-shell, .sp-admin-shell, .sp-manager-shell { display: block; }
+  .sp-agent-sidebar, .sp-admin-sidebar, .sp-manager-sidebar { display: none; }
+  .sp-agent-topbar, .sp-admin-topbar, .sp-manager-topbar { align-items: flex-start; flex-direction: column; }
   .sp-portal-links { gap: 14px; }
 }
 

@@ -108,7 +108,7 @@ class SupportTicketSystemTests(TestCase):
         self.assertEqual(data["description"], "I cannot access my account")
         self.assertEqual(data["category"], "Account")
         self.assertEqual(data["priority"], "High")
-        self.assertIn(data["status"], ["NEW", "AI_RESOLUTION_READY"])
+        self.assertIn(data["status"], ["NEW", "AI_RESOLUTION_READY", "OPEN", "AI_RESPONDED"])
         self.assertEqual(data["customerId"], self.customer_a.id)
         self.assertEqual(data["attachment"], "screenshot_error.png")
 

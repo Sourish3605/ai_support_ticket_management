@@ -78,11 +78,13 @@ export const AuthProvider = ({ children }) => {
         if (parsedRole !== canonicalExpected) {
           const roleNames = {
             admin: "Administrator",
+            manager: "Support Manager",
             agent: "Support Agent",
             customer: "Customer",
           };
           const targetPortals = {
             admin: "Admin Portal",
+            manager: "Manager Portal",
             agent: "Agent Workspace",
             customer: "Customer Portal",
           };
@@ -134,11 +136,13 @@ export const AuthProvider = ({ children }) => {
             if (seedRole !== canonicalExpected) {
               const roleNames = {
                 admin: "Administrator",
+                manager: "Support Manager",
                 agent: "Support Agent",
                 customer: "Customer",
               };
               const targetPortals = {
                 admin: "Admin Portal",
+                manager: "Manager Portal",
                 agent: "Agent Workspace",
                 customer: "Customer Portal",
               };
