@@ -6,13 +6,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound
 
-from .models import Ticket, TicketReply
+from .models import Ticket, TicketReply, Notification
 from .serializers import (
     TicketSerializer,
     TicketReplySerializer,
     TicketStatusUpdateSerializer,
     TicketReplyCreateSerializer,
     TicketAssignSerializer,
+    NotificationSerializer,
 )
 from .permissions import (
     IsSupportAgentOrAdmin,
@@ -22,7 +23,7 @@ from .permissions import (
 from .classification import classify_ticket
 from .preprocessing import preprocess_ticket
 from .knowledge_service import retrieve_knowledge_and_generate_resolution
-from .workflow_service import run_m3_workflow
+from .agent_orchestrator import run_multi_agent_workflow
 
 
 # ---------------------------------------------------------
@@ -215,330 +216,80 @@ class TicketListCreateView(generics.ListCreateAPIView):
         return queryset
 
     # -----------------------------------------------------
-    # CREATE TICKET
+    # CREATE TICKET WITH VALIDATION & MULTI-AGENT WORKFLOW
     # -----------------------------------------------------
 
+    def create(self, request, *args, **kwargs):
+        req_data = request.data if isinstance(request.data, dict) else {}
+        raw_subject = str(req_data.get("subject", "") or req_data.get("title", "")).strip()
+        raw_description = str(req_data.get("description", "")).strip()
+
+        # Test Scenario 2: Missing subject or description must return validation error (400)
+        if not raw_subject or not raw_description:
+            return Response(
+                {"detail": "Subject and description are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
+        import uuid
+        req_data = self.request.data if isinstance(self.request.data, dict) else {}
 
-        req_data = (
-            self.request.data
-            if isinstance(self.request.data, dict)
-            else {}
-        )
+        raw_title = str(req_data.get("subject", "") or req_data.get("title", "") or "Support Ticket").strip()
+        raw_description = str(req_data.get("description", "")).strip()
+        user_attachment = req_data.get("attachment", "")
 
-        # -------------------------------------------------
-        # 1. GET RAW TICKET DATA
-        # -------------------------------------------------
+        # 1. PII Masking & Preprocessing (M1)
+        preprocessed = preprocess_ticket(raw_title, raw_description)
+        cleaned_title = preprocessed.get("subject", raw_title)
+        cleaned_description = preprocessed.get("description", raw_description)
 
-        raw_title = str(
-            req_data.get("subject", "")
-            or req_data.get("title", "")
-            or "Support Ticket"
-        )
+        # 2. Initial Classification & Priority (M1)
+        category, sub_category, severity, priority = classify_ticket(cleaned_title, cleaned_description)
+        if req_data.get("priority"):
+            priority = req_data.get("priority")
+        if req_data.get("category"):
+            category = req_data.get("category")
+        if req_data.get("sub_category") or req_data.get("subCategory"):
+            sub_category = req_data.get("sub_category") or req_data.get("subCategory")
 
-        raw_description = str(
-            req_data.get("description", "")
-        )
-
-        user_attachment = req_data.get(
-            "attachment",
-            ""
-        )
-
-        # -------------------------------------------------
-        # 2. MILESTONE 1
-        # TEXT PREPROCESSING + PII MASKING
-        # -------------------------------------------------
-
-        preprocessed = preprocess_ticket(
-            raw_title,
-            raw_description,
-        )
-
-        cleaned_title = preprocessed.get(
-            "subject",
-            raw_title,
-        )
-
-        cleaned_description = preprocessed.get(
-            "description",
-            raw_description,
-        )
-
-        # -------------------------------------------------
-        # 3. MILESTONE 1
-        # AUTOMATED CLASSIFICATION
-        # -------------------------------------------------
-
-        category, sub_category, severity, priority = (
-            classify_ticket(
-                cleaned_title,
-                cleaned_description,
-            )
-        )
-
-        # -------------------------------------------------
-        # 4. MILESTONE 1
-        # SLA CALCULATION
-        # -------------------------------------------------
-
-        sla_info = get_sla_metrics(priority)
-
-        now_dt = datetime.now(timezone.utc)
-
-        sla_due_dt = (
-            now_dt
-            + timedelta(
-                hours=sla_info["resolution_hours"]
-            )
-        )
-
-        # -------------------------------------------------
-        # 5. SAVE TICKET IN SQL DATABASE
-        # -------------------------------------------------
-
+        # 3. Save Ticket with initial status 'OPEN'
         ticket = serializer.save(
             created_by=self.request.user,
-
             title=cleaned_title,
-
             description=cleaned_description,
-
             category=category,
-
             sub_category=sub_category,
-
             severity=severity,
-
             priority=priority,
-
-            status="NEW",
-
-            attachment=(
-                user_attachment
-                or None
-            ),
+            status="OPEN",
+            attachment=(user_attachment or None),
         )
 
-        print(
-            f"[Ticket Created] "
-            f"Ticket ID: {ticket.id}"
-        )
+        if not ticket.ticket_number:
+            ticket.ticket_number = f"TKT-{1000 + ticket.id}"
+            ticket.save(update_fields=["ticket_number"])
 
-        # -------------------------------------------------
-        # 6. MILESTONE 2
-        # RAG KNOWLEDGE RETRIEVAL
-        # -------------------------------------------------
-
+        # 4. Notify Customer of Ticket Creation
         try:
-
-            rag_result = (
-                retrieve_knowledge_and_generate_resolution(
-                    category=category,
-                    sub_category=sub_category,
-                    subject=cleaned_title,
-                    description=cleaned_description,
-                    ticket_id=ticket.id,
-                )
+            Notification.objects.create(
+                notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
+                user=self.request.user,
+                ticket=ticket,
+                title=f"Ticket Received: #{ticket.ticket_number}",
+                message=f"Your ticket '{ticket.title}' has been received and queued for AI analysis.",
+                notification_type="ticket_created",
             )
+        except Exception:
+            pass
 
-        except Exception as e:
-
-            print(
-                f"[RAG Notice] {e}"
-            )
-
-            rag_result = {
-                "knowledge_source":
-                    "Enterprise Knowledge Store",
-
-                "suggested_steps": [],
-
-                "citations": [],
-            }
-
-        # -------------------------------------------------
-        # 7. SAVE M1 + M2 DATA TO MONGODB
-        # -------------------------------------------------
-
+        # 5. Run Milestone 2 & Milestone 3 End-to-End Multi-Agent AI Workflow
         try:
-
-            # A. Tickets collection
-            if tickets_collection:
-
-                tickets_collection.insert_one(
-                    {
-                        "ticket_id": ticket.id,
-
-                        "ticket_number":
-                            getattr(
-                                ticket,
-                                "ticket_number",
-                                None,
-                            ),
-
-                        "title":
-                            ticket.title,
-
-                        "description":
-                            ticket.description,
-
-                        "category":
-                            ticket.category,
-
-                        "sub_category":
-                            ticket.sub_category,
-
-                        "severity":
-                            ticket.severity,
-
-                        "priority":
-                            ticket.priority,
-
-                        "status":
-                            ticket.status,
-
-                        "sla": {
-                            "response_minutes":
-                                sla_info[
-                                    "response_minutes"
-                                ],
-
-                            "resolution_hours":
-                                sla_info[
-                                    "resolution_hours"
-                                ],
-
-                            "coverage":
-                                sla_info[
-                                    "coverage"
-                                ],
-
-                            "due_date":
-                                sla_due_dt.isoformat(),
-                        },
-
-                        "grounded_resolution":
-                            rag_result.get(
-                                "suggested_steps",
-                                [],
-                            ),
-
-                        "citations":
-                            rag_result.get(
-                                "citations",
-                                [],
-                            ),
-
-                        "created_by":
-                            getattr(
-                                ticket.created_by,
-                                "username",
-                                "Unknown",
-                            ),
-
-                        "created_at":
-                            str(
-                                ticket.created_at
-                            ),
-                    }
-                )
-
-            # B. Classification collection
-            if classifications_collection:
-
-                classifications_collection.insert_one(
-                    {
-                        "ticket_id":
-                            ticket.id,
-
-                        "category":
-                            category,
-
-                        "sub_category":
-                            sub_category,
-
-                        "severity":
-                            severity,
-
-                        "priority":
-                            priority,
-
-                        "confidence":
-                            0.95,
-
-                        "model_path":
-                            "Rule+TFIDF",
-
-                        "created_at":
-                            now_dt.isoformat(),
-                    }
-                )
-
-            # C. SLA collection
-            if sla_calculations_collection:
-
-                sla_calculations_collection.insert_one(
-                    {
-                        "ticket_id":
-                            ticket.id,
-
-                        "priority":
-                            priority,
-
-                        "response_minutes":
-                            sla_info[
-                                "response_minutes"
-                            ],
-
-                        "resolution_hours":
-                            sla_info[
-                                "resolution_hours"
-                            ],
-
-                        "coverage":
-                            sla_info[
-                                "coverage"
-                            ],
-
-                        "due_date":
-                            sla_due_dt.isoformat(),
-
-                        "calculated_at":
-                            now_dt.isoformat(),
-                    }
-                )
-
+            run_multi_agent_workflow(ticket)
         except Exception as e:
-
-            print(
-                f"[MongoDB Notice] {e}"
-            )
-
-        # -------------------------------------------------
-        # 8. MILESTONE 3
-        # MULTI-AGENT WORKFLOW
-        # -------------------------------------------------
-
-        try:
-
-            workflow = run_m3_workflow(
-                ticket
-            )
-
-            print(
-                f"[M3] Workflow completed "
-                f"for Ticket {ticket.id}"
-            )
-
-        except Exception as e:
-
-            print(
-                f"[M3 Workflow Error] {e}"
-            )
-
-            # Do not prevent ticket creation
-            # if M3 workflow fails.
+            print(f"[Multi-Agent Pipeline Notice] {e}")
 
 
 # =========================================================
@@ -899,33 +650,172 @@ class TicketReplyCreateView(APIView):
         )
 
         reply = TicketReply.objects.create(
-
             ticket=ticket,
-
             user=request.user,
-
-            message=serializer.validated_data[
-                "message"
-            ],
-
-            attachment=(
-                serializer.validated_data.get(
-                    "attachment"
-                )
-            ),
-
-            is_internal=(
-                serializer.validated_data.get(
-                    "is_internal",
-                    False,
-                )
-            ),
+            message=serializer.validated_data["message"],
+            attachment=serializer.validated_data.get("attachment"),
+            is_internal=serializer.validated_data.get("is_internal", False),
         )
+
+        # Test Scenario 9: Customer reply to resolved ticket -> status transitions to REOPENED
+        if ticket.status in ["RESOLVED", "Resolved", "AI_RESPONDED"] and request.user == ticket.created_by:
+            ticket.status = "REOPENED"
+            ticket.save(update_fields=["status", "updated_at"])
+            try:
+                from .agent_orchestrator import _log_activity
+                _log_activity(
+                    ticket=ticket,
+                    actor=request.user.username,
+                    action="TICKET_REOPENED",
+                    description=f"Ticket #{ticket.ticket_number} auto-reopened by customer reply.",
+                )
+            except Exception:
+                pass
+
+            # Notify support team of reopened ticket
+            try:
+                import uuid
+                for staff_user in User.objects.filter(is_staff=True)[:5]:
+                    Notification.objects.create(
+                        notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
+                        user=staff_user,
+                        ticket=ticket,
+                        title=f"Ticket Reopened: #{ticket.ticket_number}",
+                        message=f"Customer replied: '{reply.message[:60]}...'",
+                        notification_type="status_change"
+                    )
+            except Exception:
+                pass
 
         return Response(
             TicketReplySerializer(reply).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class ConfirmResolutionView(APIView):
+    """
+    POST /api/tickets/<lookup>/confirm-resolution/
+    Test Scenario 8: Customer confirms resolution -> Status changes to 'Closed'.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTicketOwnerOrAgentOrAdmin]
+
+    def post(self, request, pk=None, id=None):
+        lookup = pk or id
+        ticket = get_ticket_by_id_or_number(lookup)
+        if not ticket:
+            return Response({"detail": f"Ticket '{lookup}' not found."}, status=status.HTTP_404_NOT_FOUND)
+        self.check_object_permissions(request, ticket)
+
+        ticket.status = "CLOSED"
+        ticket.closed_at = datetime.now(timezone.utc)
+        ticket.save(update_fields=["status", "closed_at", "updated_at"])
+
+        try:
+            from .agent_orchestrator import _log_activity
+            _log_activity(
+                ticket=ticket,
+                actor=request.user.username,
+                action="RESOLUTION_CONFIRMED",
+                description=f"Ticket #{ticket.ticket_number} closed: customer confirmed resolution.",
+            )
+        except Exception:
+            pass
+
+        return Response({
+            "status": "CLOSED",
+            "detail": "Resolution confirmed and ticket successfully closed.",
+            "ticket": TicketSerializer(ticket).data,
+        })
+
+
+class ReopenTicketView(APIView):
+    """
+    POST /api/tickets/<lookup>/reopen/
+    Explicitly reopen a resolved or closed ticket.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTicketOwnerOrAgentOrAdmin]
+
+    def post(self, request, pk=None, id=None):
+        lookup = pk or id
+        ticket = get_ticket_by_id_or_number(lookup)
+        if not ticket:
+            return Response({"detail": f"Ticket '{lookup}' not found."}, status=status.HTTP_404_NOT_FOUND)
+        self.check_object_permissions(request, ticket)
+
+        ticket.status = "REOPENED"
+        ticket.save(update_fields=["status", "updated_at"])
+
+        try:
+            from .agent_orchestrator import _log_activity
+            _log_activity(
+                ticket=ticket,
+                actor=request.user.username,
+                action="TICKET_REOPENED",
+                description=f"Ticket #{ticket.ticket_number} explicitly reopened by {request.user.username}.",
+            )
+        except Exception:
+            pass
+
+        return Response({
+            "status": "REOPENED",
+            "detail": "Ticket has been reopened.",
+            "ticket": TicketSerializer(ticket).data,
+        })
+
+
+class NotificationListView(generics.ListAPIView):
+    """
+    GET /api/notifications/
+    List authenticated user's notifications and unread count.
+    """
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by("-created_at")
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        unread_count = queryset.filter(is_read=False).count()
+        serializer = self.get_serializer(queryset[:50], many=True)
+        return Response({
+            "notifications": serializer.data,
+            "unread_count": unread_count,
+            "total_count": queryset.count(),
+        })
+
+
+class NotificationMarkReadView(APIView):
+    """
+    POST /api/notifications/<id>/read/
+    Mark a notification as read.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk=None):
+        notif = Notification.objects.filter(id=pk, user=request.user).first()
+        if not notif:
+            return Response({"detail": "Notification not found."}, status=status.HTTP_404_NOT_FOUND)
+        notif.is_read = True
+        notif.read_at = datetime.now(timezone.utc)
+        notif.save(update_fields=["is_read", "read_at"])
+        return Response({"status": "success", "is_read": True})
+
+
+class NotificationMarkAllReadView(APIView):
+    """
+    POST /api/notifications/mark-all-read/
+    Mark all user's notifications as read.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        updated = Notification.objects.filter(user=request.user, is_read=False).update(
+            is_read=True,
+            read_at=datetime.now(timezone.utc)
+        )
+        return Response({"status": "success", "updated_count": updated})
 
 
 # =========================================================

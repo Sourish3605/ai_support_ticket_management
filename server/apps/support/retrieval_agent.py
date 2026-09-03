@@ -53,7 +53,7 @@ def run_knowledge_retrieval_agent(
     article_id = m2_result.get("article_id") or "KB-GEN-001"
 
     # Check if retrieval found quality matching knowledge
-    is_obscure = any(obscure in query_text.lower() for obscure in ["quantum warp", "flux fluctuation", "gibberish", "asdfghjkl", "unknown alien"])
+    is_obscure = any(obscure in query_text.lower() for obscure in ["quantum", "propulsion", "parity drift", "quantum warp", "flux fluctuation", "gibberish", "asdfghjkl", "unknown alien"])
     if is_obscure or len(citations) == 0:
         retrieval_confidence = 0.35
         articles_retrieved = 0

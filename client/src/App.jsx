@@ -37,6 +37,12 @@ import IntegrationsPage from "./pages/admin/IntegrationsPage";
 import AiAgentWorkbench from "./pages/agent/AiAgentWorkbench";
 import JiraCloudPortal from "./pages/jira/JiraCloudPortal";
 
+import ManagerLayout from "./pages/manager/ManagerLayout";
+import ManagerDashboard from "./pages/manager/ManagerDashboard";
+import ManagerQueueAndAssignmentPage from "./pages/manager/ManagerQueueAndAssignmentPage";
+import ManagerSlaAndEscalationsPage from "./pages/manager/ManagerSlaAndEscalationsPage";
+import ManagerAnalyticsPages from "./pages/manager/ManagerAnalyticsPages";
+
 
 function initials(name) {
   if (!name) return "?";
@@ -115,8 +121,9 @@ function AgentLayout({ children }) {
   const navigation = [
     ["/dashboard", "▦", "Dashboard", null],
     ["/tickets", "▤", "All tickets", ticketCounts.all],
-    ["/tickets/queue", "◉", "My queue", ticketCounts.open],
-    ["/ai-agent/workbench", "🤖", "AI Workbench", null],
+    ["/tickets/queue", "◉", "My queue / Assigned", ticketCounts.open],
+    ["/ai-agent/workbench", "🤖", "AI Suggestions", null],
+    ["/jira", "🔗", "Jira Sync", null],
   ];
 
   const userInitials = initials(user?.name);
@@ -252,6 +259,21 @@ function AdminLayout({ children }) {
   );
 }
 
+function AdaptiveKnowledgePage() {
+  const { user } = useAuth();
+  if (user?.role === "manager") {
+    return (
+      <ManagerLayout>
+        <KnowledgeBasePage />
+      </ManagerLayout>
+    );
+  }
+  return (
+    <AdminLayout>
+      <KnowledgeBasePage />
+    </AdminLayout>
+  );
+}
 
 /* =====================================================
    UNAUTHORIZED PAGE
@@ -358,8 +380,8 @@ function PlaceholderPage({ title, description }) {
 
 function UnauthorizedPage() {
   const { user, logout } = useAuth();
-  const targetHome = user?.role === "admin" ? "/admin" : user?.role === "agent" ? "/dashboard" : "/portal/tickets";
-  const portalName = user?.role === "admin" ? "Admin Control Center" : user?.role === "agent" ? "Agent Workspace" : "Customer Portal";
+  const targetHome = user?.role === "admin" ? "/admin" : user?.role === "manager" ? "/manager" : user?.role === "agent" ? "/dashboard" : "/portal/tickets";
+  const portalName = user?.role === "admin" ? "Admin Control Center" : user?.role === "manager" ? "Manager Portal" : user?.role === "agent" ? "Agent Workspace" : "Customer Portal";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 px-6">
@@ -579,6 +601,131 @@ export default function App() {
           />
 
           {/* =================================================
+              SUPPORT MANAGER PORTAL (PDF SECTION 7.C)
+          ================================================= */}
+
+          <Route
+            path="/manager"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerDashboard />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/tickets"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerQueueAndAssignmentPage />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/queue"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerQueueAndAssignmentPage />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/assignment"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerQueueAndAssignmentPage />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/escalations"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerSlaAndEscalationsPage />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/sla"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerSlaAndEscalationsPage />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/agent-performance"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerAnalyticsPages />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/ai-performance"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerAnalyticsPages />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/reports"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerAnalyticsPages />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/notifications"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerAnalyticsPages />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/manager/profile"
+            element={
+              <ProtectedRoute allowedRoles={["manager", "admin"]}>
+                <ManagerLayout>
+                  <ManagerAnalyticsPages />
+                </ManagerLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* =================================================
               ADMIN
           ================================================= */}
 
@@ -732,11 +879,21 @@ export default function App() {
           <Route
             path="/knowledge"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
-                <AdminLayout>
-                  <KnowledgeBasePage />
-                </AdminLayout>
+              <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                <AdaptiveKnowledgePage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/knowledge"
+            element={
+              <Navigate to="/knowledge" replace />
+            }
+          />
+          <Route
+            path="/portal/knowledge"
+            element={
+              <Navigate to="/portal/self-help" replace />
             }
           />
 

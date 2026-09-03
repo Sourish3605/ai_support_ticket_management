@@ -5,11 +5,12 @@
 export const ROLES = {
   ADMIN: "admin",
   AGENT: "agent",
+  MANAGER: "manager",
   CUSTOMER: "customer",
 };
 
 /**
- * Normalizes any role variation into a canonical lowercase role ('admin' | 'agent' | 'customer').
+ * Normalizes any role variation into a canonical lowercase role ('admin' | 'agent' | 'manager' | 'customer').
  */
 export function normalizeRole(role) {
   if (!role || typeof role !== "string") return ROLES.CUSTOMER;
@@ -20,7 +21,11 @@ export function normalizeRole(role) {
     return ROLES.ADMIN;
   }
 
-  if (["agent", "support_agent", "support agent", "staff", "engineer", "lead", "l1 support", "l2 support"].includes(clean)) {
+  if (["manager", "support_manager", "support manager", "lead", "supervisor", "team_lead"].includes(clean)) {
+    return ROLES.MANAGER;
+  }
+
+  if (["agent", "support_agent", "support agent", "staff", "engineer", "l1 support", "l2 support"].includes(clean)) {
     return ROLES.AGENT;
   }
 
@@ -46,6 +51,8 @@ export function getDefaultRouteForRole(role) {
   switch (canonical) {
     case ROLES.ADMIN:
       return "/admin";
+    case ROLES.MANAGER:
+      return "/manager";
     case ROLES.AGENT:
       return "/dashboard";
     case ROLES.CUSTOMER:
@@ -53,3 +60,4 @@ export function getDefaultRouteForRole(role) {
       return "/portal/tickets";
   }
 }
+

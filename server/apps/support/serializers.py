@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import (
     Ticket,
     TicketReply,
+    Notification,
     AgentWorkflow,
     AgentExecution,
     JiraTicket,
@@ -183,6 +184,22 @@ class TicketSerializer(serializers.ModelSerializer):
             "priority",
             "severity",
             "status",
+            "sentiment",
+            "sentiment_score",
+            "ai_confidence",
+            "auto_resolved",
+            "escalated",
+            "escalation_reason",
+            "assigned_queue",
+            "suggested_resolution",
+            "resolution_notes",
+            "sla_response_due",
+            "sla_resolution_due",
+            "sla_breached",
+            "sla_warning",
+            "closed_at",
+            "similar_tickets_meta",
+            "ai_analysis_meta",
             "attachment",
             "created_by",
             "customerId",
@@ -204,6 +221,20 @@ class TicketSerializer(serializers.ModelSerializer):
             "id",
             "ticket_number",
             "ticketNumber",
+            "sentiment",
+            "sentiment_score",
+            "ai_confidence",
+            "auto_resolved",
+            "escalated",
+            "escalation_reason",
+            "assigned_queue",
+            "sla_response_due",
+            "sla_resolution_due",
+            "sla_breached",
+            "sla_warning",
+            "closed_at",
+            "similar_tickets_meta",
+            "ai_analysis_meta",
             "created_by",
             "customerId",
             "customerName",
@@ -291,3 +322,23 @@ class TicketReplyCreateSerializer(serializers.Serializer):
 class TicketAssignSerializer(serializers.Serializer):
     agent_id = serializers.IntegerField(required=False, allow_null=True)
     assignedAgentId = serializers.IntegerField(required=False, allow_null=True)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    ticket_number = serializers.CharField(source="ticket.ticket_number", read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            "id",
+            "notification_id",
+            "ticket",
+            "ticket_number",
+            "title",
+            "message",
+            "notification_type",
+            "is_read",
+            "created_at",
+            "read_at",
+        ]
+        read_only_fields = ["id", "notification_id", "ticket_number", "created_at"]

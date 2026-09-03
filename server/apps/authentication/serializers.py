@@ -39,12 +39,30 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
     def get_token(cls, user: Any):
         token = super().get_token(user)
         token['username'] = getattr(user, 'username', '')
-        token['role'] = (
-            'admin' if getattr(user, 'is_superuser', False)
-            else 'agent' if getattr(user, 'is_staff', False)
-            else 'customer'
-        )
+        token['role'] = cls._resolve_role(user)
         return token
+
+    @staticmethod
+    def _resolve_role(user: Any) -> str:
+        if getattr(user, 'is_superuser', False):
+            return 'admin'
+        profile = getattr(user, 'profile', None)
+        if profile and getattr(profile, 'role', None):
+            r = str(profile.role).lower()
+            if 'admin' in r:
+                return 'admin'
+            if 'manager' in r:
+                return 'manager'
+            if 'agent' in r:
+                return 'agent'
+            return 'customer'
+        username = str(getattr(user, 'username', '')).lower()
+        email = str(getattr(user, 'email', '')).lower()
+        if 'manager' in username or 'manager' in email:
+            return 'manager'
+        if getattr(user, 'is_staff', False):
+            return 'agent'
+        return 'customer'
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:  # type: ignore[override]
         username_or_email = attrs.get('username')
@@ -65,11 +83,7 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
                 'username': getattr(current_user, 'username', ''),
                 'email': getattr(current_user, 'email', ''),
                 'name': full_name or getattr(current_user, 'username', ''),
-                'role': (
-                    'admin' if getattr(current_user, 'is_superuser', False)
-                    else 'agent' if getattr(current_user, 'is_staff', False)
-                    else 'customer'
-                ),
+                'role': self._resolve_role(current_user),
             }
         return data
 
