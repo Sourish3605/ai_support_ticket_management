@@ -6,14 +6,45 @@ import { api } from "./api.js";
 
 export const getTickets = () => {
   try {
-    const stored = storage.get(STORAGE_KEYS.tickets, null);
+    let stored = storage.get(STORAGE_KEYS.tickets, null);
     if (!stored || !Array.isArray(stored) || stored.length === 0) {
       storage.set(STORAGE_KEYS.tickets, seedTickets);
       return seedTickets;
     }
+    // Automatically purge ghost/stub tickets (e.g., ticket 13 and 14)
+    const cleaned = stored.filter((ticket) => {
+      if (!ticket) return false;
+      const tId = String(ticket.id ?? "").trim();
+      const tNum = String(ticket.ticketNumber || ticket.ticket_number || "").trim();
+      return tId !== "13" && tId !== "14" && tNum !== "13" && tNum !== "14";
+    });
+    if (cleaned.length !== stored.length) {
+      storage.set(STORAGE_KEYS.tickets, cleaned);
+      stored = cleaned;
+    }
     return stored;
   } catch {
     return seedTickets;
+  }
+};
+
+export const deleteTicket = (ticketId) => {
+  if (!ticketId && ticketId !== 0) return false;
+  try {
+    const tickets = getTickets();
+    const target = String(ticketId).trim().toLowerCase();
+    const remaining = tickets.filter((ticket) => {
+      if (!ticket) return false;
+      const tId = String(ticket.id ?? "").trim().toLowerCase();
+      const tNum = String(ticket.ticketNumber || ticket.ticket_number || "").trim().toLowerCase();
+      return tId !== target && tNum !== target;
+    });
+    saveTickets(remaining);
+    deleteTicketApi(ticketId).catch(() => {});
+    return true;
+  } catch (e) {
+    console.warn("[ticketService] deleteTicket error:", e);
+    return false;
   }
 };
 
@@ -651,7 +682,12 @@ export const updateTicket = (
     );
   });
 
-  const ticket = index !== -1 ? tickets[index] : { id: ticketId, status: "NEW", ...updates };
+  if (index === -1) {
+    console.warn(`[ticketService] Ticket ${ticketId} not found, skipping ghost creation.`);
+    return null;
+  }
+
+  const ticket = tickets[index];
 
   const newTimeline = [...(ticket.timeline || [])];
 
@@ -683,11 +719,7 @@ export const updateTicket = (
 
   delete updatedTicket.timelineEvent;
 
-  if (index !== -1) {
-    tickets[index] = updatedTicket;
-  } else {
-    tickets.unshift(updatedTicket);
-  }
+  tickets[index] = updatedTicket;
   saveTickets(tickets);
 
   // Sync status to backend API safely
@@ -847,5 +879,15 @@ export const assignTicketApi = async (id, agentId = null) => {
     console.warn("[ticketService] assignTicketApi notice:", err.message);
   }
   return null;
+};
+
+export const deleteTicketApi = async (id) => {
+  try {
+    const res = await api.delete(`/tickets/${id}/`);
+    return res?.data || true;
+  } catch (err) {
+    console.warn("[ticketService] deleteTicketApi notice:", err?.message);
+    return false;
+  }
 };
 
