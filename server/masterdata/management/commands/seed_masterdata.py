@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 import json
 from masterdata.models import Category, SubCategory, Priority, SLARule, Department, Team, SeverityRule, Product, KnowledgeArticle
+from apps.staff.models import Profile
 
 
 class Command(BaseCommand):
@@ -227,8 +228,20 @@ class Command(BaseCommand):
             admin_u.is_superuser = True
             admin_u.set_password("password123")
             admin_u.save()
+            Profile.objects.update_or_create(user=admin_u, defaults={"role": "Admin"})
 
-        # 2. Agent (agent@gmail.com & agent)
+        # 2. Support Manager (manager@gmail.com & manager)
+        for u_name in ["manager@gmail.com", "manager"]:
+            mgr_u, _ = User.objects.get_or_create(username=u_name, defaults={"email": "manager@gmail.com"})
+            mgr_u.email = "manager@gmail.com"
+            mgr_u.first_name = "Support Manager"
+            mgr_u.is_staff = True
+            mgr_u.is_superuser = False
+            mgr_u.set_password("password123")
+            mgr_u.save()
+            Profile.objects.update_or_create(user=mgr_u, defaults={"role": "Manager"})
+
+        # 3. Agent (agent@gmail.com & agent)
         for u_name in ["agent@gmail.com", "agent"]:
             agent_u, _ = User.objects.get_or_create(username=u_name, defaults={"email": "agent@gmail.com"})
             agent_u.email = "agent@gmail.com"
@@ -237,8 +250,9 @@ class Command(BaseCommand):
             agent_u.is_superuser = False
             agent_u.set_password("password123")
             agent_u.save()
+            Profile.objects.update_or_create(user=agent_u, defaults={"role": "Agent"})
 
-        # 3. Customer (customer@gmail.com & customer)
+        # 4. Customer (customer@gmail.com & customer)
         for u_name in ["customer@gmail.com", "customer"]:
             cust_u, _ = User.objects.get_or_create(username=u_name, defaults={"email": "customer@gmail.com"})
             cust_u.email = "customer@gmail.com"
@@ -247,6 +261,7 @@ class Command(BaseCommand):
             cust_u.is_superuser = False
             cust_u.set_password("password123")
             cust_u.save()
+            Profile.objects.update_or_create(user=cust_u, defaults={"role": "Customer"})
 
         # Additional specific users
         # Admin (sourish)
@@ -257,6 +272,7 @@ class Command(BaseCommand):
         sourish_user.is_superuser = True
         sourish_user.set_password("password123")
         sourish_user.save()
+        Profile.objects.update_or_create(user=sourish_user, defaults={"role": "Admin"})
 
         # Agent (yogitha)
         yogitha_user, _ = User.objects.get_or_create(username="yogitha@gmail.com", defaults={"email": "yogitha@gmail.com"})
@@ -266,6 +282,7 @@ class Command(BaseCommand):
         yogitha_user.is_superuser = False
         yogitha_user.set_password("password123")
         yogitha_user.save()
+        Profile.objects.update_or_create(user=yogitha_user, defaults={"role": "Agent"})
 
         # Agent (premalatha)
         prema_user, _ = User.objects.get_or_create(username="premalatha@gmail.com", defaults={"email": "premalatha@gmail.com"})
@@ -275,6 +292,7 @@ class Command(BaseCommand):
         prema_user.is_superuser = False
         prema_user.set_password("password123")
         prema_user.save()
+        Profile.objects.update_or_create(user=prema_user, defaults={"role": "Agent"})
 
         # Customer / Employee (devipriya)
         devi_user, _ = User.objects.get_or_create(username="devipriya@gmail.com", defaults={"email": "devipriya@gmail.com"})
@@ -284,6 +302,7 @@ class Command(BaseCommand):
         devi_user.is_superuser = False
         devi_user.set_password("password123")
         devi_user.save()
+        Profile.objects.update_or_create(user=devi_user, defaults={"role": "Customer"})
 
         self.stdout.write(self.style.SUCCESS("Successfully seeded master data, knowledge base, and default users."))
 
