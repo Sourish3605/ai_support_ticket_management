@@ -27,10 +27,26 @@ export default function UsersPage() {
         u.email === "employee@supportpilot.com"
     );
     const hasNewUsers = Array.isArray(stored) && stored.some((u) => u.email === "admin@gmail.com");
+    const hasManager = Array.isArray(stored) && stored.some(
+      (u) => u.email === "manager@gmail.com" || u.role === "Manager" || u.role === "Support Manager"
+    );
 
     if (hasOldUsers || !hasNewUsers || !stored || stored.length === 0) {
       storage.set(STORAGE_KEYS.users, seedUsers);
       setUsers(seedUsers);
+    } else if (!hasManager) {
+      const managerUser = seedUsers.find((u) => u.email === "manager@gmail.com") || {
+        id: "USR-008",
+        name: "Support Manager",
+        email: "manager@gmail.com",
+        role: "Manager",
+        department: "Operations & Escalations",
+        team: "Management",
+        status: "Active",
+      };
+      const updated = [...stored, managerUser];
+      storage.set(STORAGE_KEYS.users, updated);
+      setUsers(updated);
     } else {
       setUsers(stored);
     }
@@ -99,11 +115,14 @@ export default function UsersPage() {
 
   const totalUsers = users.length;
   const adminCount = users.filter((u) => u.role?.toLowerCase() === "admin").length;
+  const managerCount = users.filter((u) => ["manager", "support manager"].includes(u.role?.toLowerCase())).length;
   const agentCount = users.filter((u) => u.role?.toLowerCase() === "agent").length;
-  const employeeCount = totalUsers - adminCount - agentCount;
+  const employeeCount = totalUsers - adminCount - managerCount - agentCount;
 
   const roleBadges = {
     Admin: "bg-purple-50 text-purple-800 border border-purple-200",
+    Manager: "bg-indigo-50 text-indigo-800 border border-indigo-200",
+    "Support Manager": "bg-indigo-50 text-indigo-800 border border-indigo-200",
     Agent: "bg-blue-50 text-blue-800 border border-blue-200",
     Employee: "bg-slate-50 text-slate-700 border border-slate-200",
     Customer: "bg-slate-50 text-slate-700 border border-slate-200",
@@ -138,7 +157,7 @@ export default function UsersPage() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
         <div className="bg-white rounded-2xl p-4 border border-[#dfe5e1] shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Users</span>
           <p className="text-2xl font-extrabold text-slate-900 mt-1">{totalUsers}</p>
@@ -146,6 +165,10 @@ export default function UsersPage() {
         <div className="bg-white rounded-2xl p-4 border border-[#dfe5e1] shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-purple-600">Admins</span>
           <p className="text-2xl font-extrabold text-purple-900 mt-1">{adminCount}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-4 border border-[#dfe5e1] shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Managers</span>
+          <p className="text-2xl font-extrabold text-indigo-900 mt-1">{managerCount}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-[#dfe5e1] shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Agents</span>
@@ -183,6 +206,7 @@ export default function UsersPage() {
               <span className="mb-1.5 block text-xs font-semibold text-gray-700">Role</span>
               <select name="role" value={form.role} onChange={handleChange} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500 transition bg-white">
                 <option value="Admin">Admin</option>
+                <option value="Manager">Manager</option>
                 <option value="Agent">Agent</option>
                 <option value="Employee">Employee</option>
               </select>

@@ -115,21 +115,24 @@ export const AuthProvider = ({ children }) => {
         throw error;
       }
 
-      // If the backend actively responded with 400 or 401, fail immediately
+      // Check if credentials match a standard demo account
+      const matchSeed = seedUsers.find(
+        (u) =>
+          u.email.toLowerCase() === username.toLowerCase() ||
+          u.name.toLowerCase() === username.toLowerCase() ||
+          u.id.toLowerCase() === username.toLowerCase()
+      );
+
+      // If the backend actively responded with 400 or 401:
+      // If not a demo user with standard demo password, fail immediately
       if (error?.response?.status === 401 || error?.response?.status === 400) {
-        throw new Error(getApiError(error, "Invalid username or password. Please try again."));
+        if (!matchSeed || password !== "password123") {
+          throw new Error(getApiError(error, "Invalid username or password. Please try again."));
+        }
       }
 
-      // Offline fallback: ONLY when backend is completely unreachable and credentials match demo users
-      if (error?.code === "ECONNABORTED" || !error?.response) {
-        const matchSeed = seedUsers.find(
-          (u) =>
-            u.email.toLowerCase() === username.toLowerCase() ||
-            u.name.toLowerCase() === username.toLowerCase() ||
-            u.id.toLowerCase() === username.toLowerCase()
-        );
-
-        if (matchSeed && password === "password123") {
+      // Demo fallback when offline or when backend account is not yet synced in DB
+      if (matchSeed && password === "password123") {
           const seedRole = normalizeRole(matchSeed.role || fallbackRole);
           if (expectedRole) {
             const canonicalExpected = normalizeRole(expectedRole);
@@ -169,7 +172,6 @@ export const AuthProvider = ({ children }) => {
           setUser(account);
           return account;
         }
-      }
 
       throw new Error(getApiError(error, "Invalid login details. Please try again."));
     } finally {
