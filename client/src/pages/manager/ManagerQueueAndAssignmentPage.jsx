@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { getAllTickets, updateTicket } from "../../services/ticketService";
+import { getAllTickets, updateTicket, deleteTicket } from "../../services/ticketService";
 import { seedUsers } from "../../data/seedData";
 
 export default function ManagerQueueAndAssignmentPage() {
@@ -19,6 +19,15 @@ export default function ManagerQueueAndAssignmentPage() {
 
   const loadTickets = () => {
     setTickets(getAllTickets());
+  };
+
+  const handleDelete = (ticket) => {
+    const code = ticket.ticketNumber || ticket.id;
+    if (window.confirm(`Are you sure you want to remove ticket #${code}?`)) {
+      deleteTicket(ticket.id);
+      setToast({ type: "success", message: `✓ Ticket #${code} removed successfully.` });
+      loadTickets();
+    }
   };
 
   useEffect(() => {
@@ -338,16 +347,25 @@ export default function ManagerQueueAndAssignmentPage() {
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => {
-                            setReassignModalTicket(t);
-                            setSelectedAgent(t.assignedAgent || "");
-                          }}
-                          className="px-3 py-1 rounded-lg bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-slate-950 border border-amber-200 font-bold text-[11px] transition shadow-2xs cursor-pointer"
-                        >
-                          {t.assignedAgent ? "Reassign" : "Assign"}
-                        </button>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setReassignModalTicket(t);
+                              setSelectedAgent(t.assignedAgent || "");
+                            }}
+                            className="px-3 py-1 rounded-lg bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-slate-950 border border-amber-200 font-bold text-[11px] transition shadow-2xs cursor-pointer"
+                          >
+                            {t.assignedAgent ? "Reassign" : "Assign"}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(t)}
+                            className="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-500 text-red-700 hover:text-white border border-red-200 font-bold text-[11px] transition shadow-2xs cursor-pointer"
+                            title="Remove Ticket"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

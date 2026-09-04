@@ -9,6 +9,7 @@ import {
   addTicketReplyApi,
   updateTicket,
   addComment,
+  deleteTicket,
 } from "../../services/ticketService";
 
 const priorityClass = {
@@ -122,6 +123,15 @@ export default function AgentAllTicketsPage() {
 
   const handleQuickResolve = async (ticket) => {
     handleStatusChange(ticket, "RESOLVED");
+  };
+
+  const handleDelete = (ticket) => {
+    const code = ticket.ticketNumber || ticket.ticket_number || ticket.id;
+    if (window.confirm(`Are you sure you want to remove ticket #${code}?`)) {
+      deleteTicket(ticket.id);
+      setToast({ type: "success", message: `Ticket #${code} removed successfully.` });
+      loadTickets();
+    }
   };
 
   const handleSendReply = async (e) => {
@@ -312,6 +322,14 @@ export default function AgentAllTicketsPage() {
                             Resolve
                           </button>
                         )}
+
+                        <button
+                          onClick={() => handleDelete(ticket)}
+                          className="rounded bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-500 hover:text-white transition cursor-pointer"
+                          title="Remove Ticket"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </td>
                   </tr>
