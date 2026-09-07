@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -33,13 +33,20 @@ export default function CustomerTicketDetails() {
     setIsForbidden(false);
     let curTicket = null;
 
+    const isStaffUser = Boolean(
+      user &&
+      ["admin", "agent", "manager", "support_agent", "support agent", "administrator", "superuser"].includes(
+        String(user.role || "").toLowerCase()
+      )
+    );
+
     try {
       const apiTicket = await fetchTicketByIdApi(id);
       if (apiTicket) {
         curTicket = apiTicket;
       }
     } catch (err) {
-      if (err?.response?.status === 403) {
+      if (err?.response?.status === 403 && !isStaffUser) {
         setIsForbidden(true);
         setLoading(false);
         return;
@@ -48,7 +55,16 @@ export default function CustomerTicketDetails() {
 
     if (!curTicket) {
       curTicket = getTicketById(id);
-      if (curTicket && user && curTicket.customerId && String(curTicket.customerId) !== String(user.id) && curTicket.customerEmail && user.email && curTicket.customerEmail !== user.email) {
+      if (
+        !isStaffUser &&
+        curTicket &&
+        user &&
+        curTicket.customerId &&
+        String(curTicket.customerId) !== String(user.id) &&
+        curTicket.customerEmail &&
+        user.email &&
+        curTicket.customerEmail.toLowerCase() !== user.email.toLowerCase()
+      ) {
         setIsForbidden(true);
         setLoading(false);
         return;
@@ -193,14 +209,112 @@ export default function CustomerTicketDetails() {
         selfResolved: false,
       });
       setTicket((prev) => ({ ...prev, ...updated, status: "IN_PROGRESS", assistanceRequested: true, selfResolved: false }));
+      setToast({
+        type: "info",
+        message: "👨‍💻 Support agent notified! Ticket status is now 'IN_PROGRESS'.",
+      });
     } catch (e) {
       setTicket((prev) => ({ ...prev, status: "IN_PROGRESS", assistanceRequested: true, selfResolved: false }));
+      setToast({
+        type: "info",
+        message: "👨‍💻 Support agent notified! Ticket status is now 'IN_PROGRESS'.",
+      });
     }
-    setToast({
-      type: "info",
-      message: "👨‍💻 Support agent notified! Ticket status is now 'IN_PROGRESS'.",
-    });
   };
+
+  const handleCustomerReply = async (e) => {
+    e.preventDefault();
+    if (!replyMessage.trim() || isSubmittingReply) return;
+
+    setIsSubmittingReply(true);
+    const text = replyMessage.trim();
+    const authorName = user?.name || user?.username || "Customer";
+
+    try {
+      const apiRes = await addTicketReplyApi(ticket.id, text);
+      if (apiRes) {
+        setTicket((prev) => ({
+          ...prev,
+          replies: [...(prev.replies || []), apiRes],
+          comments: [
+            ...(prev.comments || []),
+            {
+              id: apiRes.id,
+              author: apiRes.author_name || authorName,
+              authorRole: "CUSTOMER",
+              message: text,
+              timestamp: apiRes.created_at || new Date().toISOString(),
+            },
+          ],
+        }));
+      } else {
+        const newC = addComment(ticket.id, {
+          author: authorName,
+          authorRole: "CUSTOMER",
+          visibility: "Public",
+          message: text,
+        });
+        setTicket((prev) => ({
+          ...prev,
+          comments: [...(prev.comments || []), newC],
+        }));
+      }
+      setToast({ type: "success", message: "Your reply has been sent to the support team." });
+      setReplyMessage("");
+    } catch (err) {
+      console.error(err);
+      setToast({ type: "error", message: "Failed to send reply. Please try again." });
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
+  const conversationList = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    // 1. Backend replies
+    (ticket?.replies || []).forEach((r) => {
+      const key = `${r.id || ""}-${r.message}-${r.created_at || ""}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const role = (r.author_role || "").toUpperCase();
+        const isAgent = role.includes("AGENT") || role.includes("ADMIN") || role.includes("STAFF") || role.includes("MANAGER");
+        list.push({
+          id: r.id,
+          author: r.author_name || (isAgent ? "Support Agent" : "Customer"),
+          authorRole: isAgent ? "Support Agent" : "Customer",
+          isAgent,
+          message: r.message,
+          timestamp: r.created_at,
+          attachment: r.attachment,
+        });
+      }
+    });
+
+    // 2. Local comments
+    (ticket?.comments || []).forEach((c) => {
+      const key = `${c.id || ""}-${c.message}-${c.timestamp || c.createdAt || ""}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const role = (c.authorRole || c.author_role || "").toUpperCase();
+        const isAgent = role.includes("AGENT") || role.includes("ADMIN") || role.includes("STAFF") || role.includes("MANAGER") || (!role.includes("CUSTOMER") && c.author !== user?.name && c.author !== "Customer");
+        list.push({
+          id: c.id,
+          author: c.author || (isAgent ? "Support Agent" : "Customer"),
+          authorRole: isAgent ? "Support Agent" : "Customer",
+          isAgent,
+          message: c.message,
+          timestamp: c.timestamp || c.createdAt || c.created_at,
+          attachment: c.attachment,
+        });
+      }
+    });
+
+    // Sort chronologically
+    list.sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
+    return list;
+  }, [ticket, user]);
 
   const ticketCode = ticket.ticketNumber || ticket.ticket_number || `TKT${String(ticket.id).replace(/\D/g, "")}`;
 
@@ -401,7 +515,173 @@ export default function CustomerTicketDetails() {
             </p>
           </section>
 
-          {/* 3. TICKET WORKFLOW TIMELINE CARD */}
+          {/* 3. SUPPORT CONVERSATION & AGENT REPLIES CARD */}
+          <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-[#dfe5e1]">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 font-bold text-sm">
+                  💬
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-[#1c2430]">
+                    Conversation & Support Chat
+                  </h2>
+                  <p className="text-[11px] text-gray-500">
+                    Live updates and direct communication with your assigned support specialist.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                  {conversationList.length} {conversationList.length === 1 ? "Message" : "Messages"}
+                </span>
+                <button
+                  type="button"
+                  onClick={loadTicket}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  title="Refresh conversation"
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Conversation Feed */}
+            <div className="space-y-3.5 max-h-[480px] overflow-y-auto pr-1">
+              {/* Initial Customer Request Message */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                      {ticket.customerName ? ticket.customerName.charAt(0).toUpperCase() : "C"}
+                    </div>
+                    <span className="text-xs font-bold text-[#1c2430]">
+                      {ticket.customerName || user?.name || "Customer"}
+                    </span>
+                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700">
+                      Ticket Creator
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-mono">
+                    {dateDisplay}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                  {ticket.description || ticket.subject || "No initial problem description provided."}
+                </p>
+              </div>
+
+              {/* Dynamic Conversation Items */}
+              {conversationList.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-gray-500 bg-slate-50/30">
+                  <p className="font-semibold text-slate-700">No replies yet.</p>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    When an agent replies, their response will appear here immediately. You can also send additional details below.
+                  </p>
+                </div>
+              ) : (
+                conversationList.map((msg, index) => {
+                  const msgDate = msg.timestamp
+                    ? new Date(msg.timestamp).toLocaleString()
+                    : "Recently";
+
+                  if (msg.isAgent) {
+                    return (
+                      <div
+                        key={msg.id || index}
+                        className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-[10px] shadow-xs">
+                              👨‍💼
+                            </div>
+                            <span className="text-xs font-bold text-[#1c2430]">
+                              {msg.author || "Support Agent"}
+                            </span>
+                            <span className="rounded-full bg-emerald-600 text-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                              Support Agent
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-emerald-800/80 font-mono font-medium">
+                            {msgDate}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                          {msg.message}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={msg.id || index}
+                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                            👤
+                          </div>
+                          <span className="text-xs font-bold text-[#1c2430]">
+                            {msg.author || "Customer"}
+                          </span>
+                          <span className="rounded bg-slate-100 text-slate-600 px-1.5 py-0.5 text-[9px] font-semibold">
+                            Customer
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {msgDate}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                        {msg.message}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Customer Reply Input Box */}
+            <form onSubmit={handleCustomerReply} className="pt-3 border-t border-[#dfe5e1] space-y-3">
+              <label className="block text-xs font-bold text-[#1c2430]">
+                Send a Message or Additional Details to Support:
+              </label>
+              <textarea
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                rows={3}
+                placeholder="Type your message, question, or follow-up to the support specialist..."
+                className="w-full rounded-xl border border-[#dfe5e1] p-3 text-xs outline-none focus:border-[#15803d] focus:ring-1 focus:ring-[#15803d] transition"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-gray-400">
+                  Your message will be saved and delivered to the assigned agent.
+                </span>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReply || !replyMessage.trim()}
+                  className="rounded-xl bg-[#15803d] hover:bg-[#166534] disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-5 py-2 text-xs font-bold shadow-sm transition flex items-center gap-2 cursor-pointer"
+                >
+                  {isSubmittingReply ? (
+                    <>
+                      <div className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Reply</span>
+                      <span>➤</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* 4. TICKET WORKFLOW TIMELINE CARD */}
           <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm space-y-4">
             <h2 className="text-base font-bold text-[#1c2430]">
               Ticket Workflow Timeline
@@ -432,7 +712,7 @@ export default function CustomerTicketDetails() {
               <div className="relative pl-4">
                 <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
                 <div className="text-xs font-bold text-[#1c2430]">Ticket assigned</div>
-                <div className="text-[11px] text-gray-500">Assigned to {ticket.assignedAgentName || "premalatha (Network Support)"}.</div>
+                <div className="text-[11px] text-gray-500">Assigned to {ticket.assignedAgentName || ticket.assignedAgent || "Support Desk"}.</div>
                 <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
               </div>
             </div>
@@ -481,7 +761,7 @@ export default function CustomerTicketDetails() {
 
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Assigned Agent</span>
-                <span className="font-semibold text-[#1c2430]">{ticket.assignedAgentName || ticket.assignedAgent || "premalatha"}</span>
+                <span className="font-semibold text-[#1c2430]">{ticket.assignedAgentName || ticket.assignedAgent || "Unassigned"}</span>
               </div>
 
               <div className="flex justify-between items-center">

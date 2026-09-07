@@ -1,18 +1,62 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getAllTickets, updateTicket, deleteTicket } from "../../services/ticketService";
+import {
+  getAllTickets,
+  updateTicket,
+  deleteTicket,
+  fetchAgentTicketsApi,
+  assignTicketApi,
+  fetchAgentsApi,
+  autoAssignTicketsApi,
+} from "../../services/ticketService";
 import { seedUsers } from "../../data/seedData";
 
 export default function ManagerDashboard() {
   const [tickets, setTickets] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState(null);
+  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [reassignModalTicket, setReassignModalTicket] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [toast, setToast] = useState(null);
+  const [agents, setAgents] = useState(() =>
+    seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role))
+  );
 
-  const loadTickets = () => {
-    const list = getAllTickets();
-    setTickets(list);
+  const isTicketAssignedToAgent = (t, ag) => {
+    if (!t || !ag) return false;
+    const tAgentName = (t.assignedAgentName || t.assignedAgent || "").toLowerCase();
+    const tAgentId = String(t.assignedAgentId ?? t.assigned_to ?? t.assignedTo ?? "").toLowerCase();
+    const agId = String(ag.id || "").toLowerCase();
+    const agName = (ag.name || "").toLowerCase();
+    const agUsername = (ag.username || "").toLowerCase();
+    const agEmail = (ag.email || "").toLowerCase();
+
+    if (agId && tAgentId && agId === tAgentId) return true;
+    if (agName && tAgentName.includes(agName)) return true;
+    if (agUsername && (tAgentName.includes(agUsername) || tAgentId === agUsername)) return true;
+    if (agEmail && (tAgentName.includes(agEmail) || tAgentId === agEmail)) return true;
+    return false;
+  };
+
+  const loadTickets = async () => {
+    try {
+      const apiTickets = await fetchAgentTicketsApi();
+      if (apiTickets && Array.isArray(apiTickets) && apiTickets.length > 0) {
+        setTickets(apiTickets);
+        return;
+      }
+    } catch (e) {}
+    const local = getAllTickets().map((t) => {
+      const agName = t.assignedAgent || t.assignedAgentName;
+      const cleanAgName = agName && agName !== "Unassigned" ? agName : null;
+      return {
+        ...t,
+        assignedAgent: cleanAgName,
+        assignedAgentName: cleanAgName,
+      };
+    });
+    setTickets(local);
   };
 
   const handleDelete = (ticket) => {
@@ -26,6 +70,11 @@ export default function ManagerDashboard() {
 
   useEffect(() => {
     loadTickets();
+    fetchAgentsApi().then((list) => {
+      if (list && Array.isArray(list) && list.length > 0) {
+        setAgents(list);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -61,30 +110,99 @@ export default function ManagerDashboard() {
 
   // Filtered tickets
   const displayedTickets = tickets.filter((t) => {
+    if (selectedAgentFilter && !isTicketAssignedToAgent(t, selectedAgentFilter)) return false;
+    const isAssigned = Boolean((t.assignedAgentName || t.assignedAgent) && (t.assignedAgentName || t.assignedAgent) !== "Unassigned");
     if (filter === "open") return !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status);
     if (filter === "high") return ["Critical", "P1", "High", "P2"].includes(t.priority);
     if (filter === "escalated") return ["ESCALATED", "Escalated"].includes(t.status);
-    if (filter === "unassigned") return !t.assignedAgent || t.assignedAgent === "Unassigned";
+    if (filter === "unassigned") return !isAssigned;
     return true;
   });
 
-  const handleReassign = (e) => {
+  const handleAutoAssignAll = async () => {
+    setIsAutoAssigning(true);
+    try {
+      const res = await autoAssignTicketsApi();
+      if (res) {
+        setToast({
+          type: "success",
+          message: res.message || "✓ Successfully auto-assigned tickets based on category and priority!",
+        });
+        await loadTickets();
+      } else {
+        const unassigned = tickets.filter(
+          (t) => !(t.assignedAgent || t.assignedAgentName) && !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
+        );
+        for (const t of unassigned) {
+          const cat = (t.category || "").toLowerCase();
+          const targetAgent = agents.find((a) =>
+            cat.includes("network") ? a.name?.toLowerCase().includes("premalatha")
+            : (cat.includes("tech") || cat.includes("software")) ? a.name?.toLowerCase().includes("yogitha")
+            : a.name?.toLowerCase().includes("agent")
+          ) || agents[0];
+
+          if (targetAgent) {
+            await assignTicketApi(t.id, targetAgent.id, targetAgent.name);
+          }
+        }
+        setToast({
+          type: "success",
+          message: `✓ Auto-assigned ${unassigned.length} tickets based on Category & Priority rules.`,
+        });
+        await loadTickets();
+      }
+    } catch (err) {
+      setToast({ type: "error", message: "Auto-assignment encountered an issue." });
+    } finally {
+      setIsAutoAssigning(false);
+    }
+  };
+
+  const handleReassign = async (e) => {
     e.preventDefault();
     if (!reassignModalTicket || !selectedAgent) return;
 
     try {
-      const agentUser = seedUsers.find((u) => u.name === selectedAgent || u.email === selectedAgent);
-      const agentDisplayName = agentUser ? `${agentUser.name} (${agentUser.department || "Support"})` : selectedAgent;
+      const foundAgent = agents.find(
+        (u) =>
+          String(u.id) === String(selectedAgent) ||
+          u.username === selectedAgent ||
+          u.name === selectedAgent ||
+          u.email === selectedAgent
+      );
+      const agentId = foundAgent?.id != null && !String(foundAgent.id).startsWith("USR") ? foundAgent.id : null;
+      const agentName = foundAgent?.name || foundAgent?.username || selectedAgent;
+      const agentDisplayName = foundAgent ? `${agentName} (${foundAgent.department || "Support"})` : selectedAgent;
+
+      // Immediately update local state so table updates instantly
+      setTickets((prev) =>
+        prev.map((t) =>
+          t.id === reassignModalTicket.id
+            ? {
+                ...t,
+                assigned_to: agentId,
+                assignedAgent: agentName,
+                assignedAgentName: agentDisplayName,
+                assignedAgentId: agentId,
+                status: "ASSIGNED",
+              }
+            : t
+        )
+      );
+
+      await assignTicketApi(reassignModalTicket.id, agentId, agentName);
 
       updateTicket(reassignModalTicket.id, {
-        assignedAgent: selectedAgent,
+        assigned_to: agentId,
+        assignedAgent: agentName,
         assignedAgentName: agentDisplayName,
-        status: reassignModalTicket.status === "NEW" ? "ASSIGNED" : reassignModalTicket.status,
+        assignedAgentId: agentId,
+        status: "ASSIGNED",
       });
 
       setToast({
         type: "success",
-        message: `✓ Ticket #${reassignModalTicket.ticketNumber || reassignModalTicket.id} reassigned to ${selectedAgent}.`,
+        message: `✓ Ticket #${reassignModalTicket.ticketNumber || reassignModalTicket.id} assigned to ${agentName}.`,
       });
 
       setReassignModalTicket(null);
@@ -94,8 +212,6 @@ export default function ManagerDashboard() {
       setToast({ type: "error", message: "Failed to reassign ticket." });
     }
   };
-
-  const agents = seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
 
   return (
     <div className="space-y-6">
@@ -123,10 +239,29 @@ export default function ManagerDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            disabled={isAutoAssigning}
+            onClick={handleAutoAssignAll}
+            className="rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-700 text-slate-950 font-bold text-xs px-4 py-2.5 transition shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer"
+            title="Automatically assign tickets based on Category and Priority"
+          >
+            {isAutoAssigning ? (
+              <>
+                <div className="animate-spin inline-block w-3 h-3 border-2 border-slate-950 border-t-transparent rounded-full" />
+                <span>Auto-Assigning...</span>
+              </>
+            ) : (
+              <>
+                <span>⚡</span>
+                <span>AI Auto-Assign</span>
+              </>
+            )}
+          </button>
           <Link
             to="/manager/assignment"
-            className="rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2.5 transition shadow-lg shadow-amber-500/20 flex items-center gap-2"
+            className="rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-slate-700 font-bold text-xs px-4 py-2.5 transition flex items-center gap-2"
           >
             <span>👥</span> Reassign Workload
           </Link>
@@ -294,6 +429,28 @@ export default function ManagerDashboard() {
             </div>
           </div>
 
+          {/* Active Agent Filter Banner */}
+          {selectedAgentFilter && (
+            <div className="bg-amber-50 border-b border-amber-200 px-5 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs">
+                <span>👤</span>
+                <span className="font-bold text-slate-900">
+                  Filtered by Agent: {selectedAgentFilter.name || selectedAgentFilter.username}
+                </span>
+                <span className="text-slate-500">
+                  ({displayedTickets.length} tickets matching)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAgentFilter(null)}
+                className="rounded-lg bg-white border border-amber-300 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition cursor-pointer"
+              >
+                ✕ Clear Filter
+              </button>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -320,6 +477,8 @@ export default function ManagerDashboard() {
                     const isCrit = t.priority === "Critical" || t.priority === "P1";
                     const isHigh = t.priority === "High" || t.priority === "P2";
                     const isEscalated = ["ESCALATED", "Escalated"].includes(t.status);
+                    const assignedName = t.assignedAgentName || t.assignedAgent;
+                    const isAssigned = Boolean(assignedName && assignedName !== "Unassigned" && assignedName !== "null");
 
                     return (
                       <tr key={t.id} className="hover:bg-slate-50/80 transition">
@@ -363,13 +522,13 @@ export default function ManagerDashboard() {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-slate-700">
-                          {t.assignedAgent ? (
-                            <span className="flex items-center gap-1.5 font-medium">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                              <span>{t.assignedAgent}</span>
+                          {isAssigned ? (
+                            <span className="flex items-center gap-1.5 font-semibold text-xs text-slate-900">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0 shadow-xs" />
+                              <span>{assignedName}</span>
                             </span>
                           ) : (
-                            <span className="text-amber-700 font-bold italic text-[11px]">
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
                               ⚠ Unassigned
                             </span>
                           )}
@@ -379,11 +538,11 @@ export default function ManagerDashboard() {
                             <button
                               onClick={() => {
                                 setReassignModalTicket(t);
-                                setSelectedAgent(t.assignedAgent || "");
+                                setSelectedAgent(t.assigned_to || t.assignedAgentId || assignedName || "");
                               }}
                               className="px-3 py-1 rounded-lg bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-slate-950 border border-amber-200 text-[11px] font-bold transition cursor-pointer shadow-2xs"
                             >
-                              Assign / Route
+                              {isAssigned ? "Reassign" : "Assign / Route"}
                             </button>
                             <button
                               onClick={() => handleDelete(t)}
@@ -408,31 +567,45 @@ export default function ManagerDashboard() {
           {/* Agent Workload Gauge Card */}
           <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <span>👥</span> Team Workload Capacity
-              </h3>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <span>👥</span> Team Workload Capacity
+                </h3>
+                <p className="text-[10px] text-slate-400">Click any agent to filter queue</p>
+              </div>
               <Link to="/manager/assignment" className="text-[11px] text-amber-700 font-bold hover:underline">
                 Manage
               </Link>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-2">
               {agents.map((ag) => {
                 const assignedCount = tickets.filter(
                   (t) =>
-                    (t.assignedAgent === ag.name || t.assignedAgent === ag.email) &&
+                    isTicketAssignedToAgent(t, ag) &&
                     !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
                 ).length;
 
                 const maxCapacity = 5;
                 const loadPct = Math.min(100, Math.round((assignedCount / maxCapacity) * 100));
+                const isSelected = selectedAgentFilter?.id === ag.id || selectedAgentFilter?.username === ag.username;
 
                 return (
-                  <div key={ag.id} className="space-y-1 text-xs">
+                  <div
+                    key={ag.id || ag.username}
+                    onClick={() => setSelectedAgentFilter(isSelected ? null : ag)}
+                    className={`space-y-1 text-xs p-2.5 rounded-xl transition cursor-pointer select-none ${
+                      isSelected
+                        ? "bg-amber-50/90 border border-amber-400 ring-1 ring-amber-400 shadow-2xs"
+                        : "hover:bg-slate-50 border border-transparent"
+                    }`}
+                    title={`Click to filter queue by ${ag.name || ag.username}`}
+                  >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-800">{ag.name}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-800">{ag.name || ag.username}</span>
                         <span className="text-[10px] text-slate-400">({ag.department || "Support"})</span>
+                        {isSelected && <span className="text-[9px] text-amber-700 font-bold bg-amber-100 px-1.5 rounded">Active</span>}
                       </div>
                       <span className="font-mono font-bold text-amber-700">
                         {assignedCount} / {maxCapacity} ({loadPct}%)
@@ -549,8 +722,8 @@ export default function ManagerDashboard() {
                 >
                   <option value="">-- Choose Agent --</option>
                   {agents.map((ag) => (
-                    <option key={ag.id} value={ag.name}>
-                      {ag.name} ({ag.department || "Support Team"})
+                    <option key={ag.id || ag.username} value={ag.id != null && !String(ag.id).startsWith("USR") ? ag.id : (ag.name || ag.username)}>
+                      {ag.name || ag.username} ({ag.department || ag.role || "Support Team"})
                     </option>
                   ))}
                 </select>

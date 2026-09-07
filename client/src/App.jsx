@@ -191,6 +191,7 @@ function AdminLayout({ children }) {
 
   const adminNav = [
     { to: "/admin", icon: "▦", label: "Dashboard" },
+    { to: "/tickets", icon: "▤", label: "All Tickets" },
     { to: "/ai-agent/workbench", icon: "🤖", label: "AI Agent Ops" },
     { to: "/admin/master-data", icon: "🗂️", label: "Master Data" },
     { to: "/admin/users", icon: "👥", label: "Users" },
@@ -438,6 +439,35 @@ function UnauthorizedPage() {
   );
 }
 
+function TicketDetailDispatcher() {
+  const { user } = useAuth();
+  if (user?.role === "customer") {
+    return (
+      <CustomerLayout>
+        <CustomerTicketDetails />
+      </CustomerLayout>
+    );
+  }
+  return (
+    <AgentLayout>
+      <AgentTicketDetails />
+    </AgentLayout>
+  );
+}
+
+function AllTicketsRedirect() {
+  const { user } = useAuth();
+  if (user?.role === "customer") return <Navigate to="/portal/tickets" replace />;
+  if (user?.role === "manager") return <Navigate to="/manager/tickets" replace />;
+  return <Navigate to="/tickets" replace />;
+}
+
+function MyTicketsRedirect() {
+  const { user } = useAuth();
+  if (user?.role === "customer") return <Navigate to="/portal/tickets" replace />;
+  if (user?.role === "manager") return <Navigate to="/manager/tickets" replace />;
+  return <Navigate to="/tickets/queue" replace />;
+}
 
 /* =====================================================
    APP
@@ -512,7 +542,7 @@ export default function App() {
             path="/portal/tickets/:id"
             element={
               <ProtectedRoute
-                allowedRoles={["customer"]}
+                allowedRoles={["customer", "admin", "agent", "manager"]}
               >
                 <CustomerLayout>
                   <CustomerTicketDetails />
@@ -522,7 +552,7 @@ export default function App() {
           />
 
           {/* =================================================
-              AGENT
+              AGENT & TICKETS
           ================================================= */}
 
           <Route
@@ -541,7 +571,7 @@ export default function App() {
           <Route
             path="/tickets"
             element={
-              <ProtectedRoute allowedRoles={["agent"]}>
+              <ProtectedRoute allowedRoles={["agent", "admin", "manager"]}>
                 <AgentLayout><AgentAllTicketsPage /></AgentLayout>
               </ProtectedRoute>
             }
@@ -551,7 +581,7 @@ export default function App() {
             path="/tickets/queue"
             element={
               <ProtectedRoute
-                allowedRoles={["agent"]}
+                allowedRoles={["agent", "admin", "manager"]}
               >
                 <AgentLayout>
                   <WorkQueuePage />
@@ -564,11 +594,9 @@ export default function App() {
             path="/tickets/:id"
             element={
               <ProtectedRoute
-                allowedRoles={["agent", "admin"]}
+                allowedRoles={["agent", "admin", "manager", "customer"]}
               >
-                <AgentLayout>
-                  <AgentTicketDetails />
-                </AgentLayout>
+                <TicketDetailDispatcher />
               </ProtectedRoute>
             }
           />
@@ -949,6 +977,34 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* =================================================
+              ADMIN TICKETS & ROUTE ALIASES
+          ================================================= */}
+
+          <Route
+            path="/admin/tickets"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "agent", "manager"]}>
+                <AdminLayout>
+                  <AgentAllTicketsPage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="/admin/all-tickets" element={<Navigate to="/tickets" replace />} />
+          <Route path="/agent/tickets" element={<Navigate to="/tickets" replace />} />
+          <Route path="/agent/all-tickets" element={<Navigate to="/tickets" replace />} />
+          <Route path="/agent/my-tickets" element={<Navigate to="/tickets/queue" replace />} />
+          <Route path="/customer/tickets" element={<Navigate to="/portal/tickets" replace />} />
+          <Route path="/customer/my-tickets" element={<Navigate to="/portal/tickets" replace />} />
+          <Route path="/customer/all-tickets" element={<Navigate to="/portal/tickets" replace />} />
+          <Route path="/customer/create-ticket" element={<Navigate to="/portal/tickets/new" replace />} />
+          <Route path="/customer/settings" element={<Navigate to="/portal/tickets" replace />} />
+          <Route path="/portal/my-tickets" element={<Navigate to="/portal/tickets" replace />} />
+          <Route path="/all-tickets" element={<AllTicketsRedirect />} />
+          <Route path="/my-tickets" element={<MyTicketsRedirect />} />
 
           {/* =================================================
               UNAUTHORIZED

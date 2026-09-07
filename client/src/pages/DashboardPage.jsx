@@ -21,7 +21,12 @@ const DashboardPage = () => {
     useState([]);
 
   useEffect(() => {
-    getTickets().then(setTickets);
+    const data = getTickets();
+    if (data && typeof data.then === "function") {
+      data.then(setTickets);
+    } else {
+      setTickets(Array.isArray(data) ? data : []);
+    }
   }, []);
 
   const customerTickets =

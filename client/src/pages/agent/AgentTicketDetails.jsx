@@ -221,20 +221,35 @@ export default function AgentTicketDetails() {
   const postComment = async () => {
     if (!comment.trim()) return;
 
+    const replyText = comment.trim();
+    setComment("");
+
+    let savedReply = null;
     try {
-      await addTicketReplyApi(ticket.id, comment.trim());
+      savedReply = await addTicketReplyApi(ticket.id, replyText);
     } catch (e) {}
 
     const updated = addComment(ticket.id, {
       author: agentName,
       authorRole: "SUPPORT_AGENT",
       visibility: "Public",
-      message: comment.trim(),
+      message: replyText,
     });
-    setTicket(updated);
-    setComment("");
-    setToast({ type: "success", message: "Reply posted to conversation." });
-    loadTicket();
+
+    if (savedReply) {
+      setTicket((prev) => ({
+        ...prev,
+        ...updated,
+        replies: [...(prev?.replies || []), savedReply],
+      }));
+    } else {
+      setTicket(updated);
+    }
+
+    setToast({ type: "success", message: "✓ Reply sent to customer portal." });
+    setTimeout(() => {
+      loadTicket();
+    }, 500);
   };
 
   const saveOverride = () => {
@@ -511,9 +526,18 @@ export default function AgentTicketDetails() {
             <h3 className="text-sm font-bold text-slate-900">Conversation & Agent Replies</h3>
 
             {/* Existing replies */}
-            {Array.isArray(ticket.replies) && ticket.replies.length > 0 && (
+            {((Array.isArray(ticket.replies) && ticket.replies.length > 0) || (Array.isArray(ticket.comments) && ticket.comments.length > 0)) && (
               <div className="space-y-3 mb-4 pb-4 border-b border-slate-100">
-                {ticket.replies.map((reply) => (
+                {(ticket.replies && ticket.replies.length > 0
+                  ? ticket.replies
+                  : ticket.comments.map((c) => ({
+                      id: c.id,
+                      author_name: c.author || c.author_name || "Support Agent",
+                      author_role: c.authorRole || c.author_role || "SUPPORT_AGENT",
+                      message: c.message || c.text || "",
+                      created_at: c.timestamp || c.created_at || new Date().toISOString(),
+                    }))
+                ).map((reply) => (
                   <div
                     key={reply.id}
                     className={`p-3.5 rounded-xl border text-xs ${

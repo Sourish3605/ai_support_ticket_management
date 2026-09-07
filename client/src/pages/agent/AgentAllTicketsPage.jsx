@@ -69,15 +69,52 @@ export default function AgentAllTicketsPage() {
     }
   }, [toast]);
 
+  const [assignmentFilter, setAssignmentFilter] = useState("all"); // "all", "assigned_to_me", "unassigned"
+
+  const isAssignedToMe = (ticket) => {
+    if (!user) return false;
+    const myId = String(user.id || "").toLowerCase();
+    const myUsername = String(user.username || "").toLowerCase();
+    const myName = String(user.name || "").toLowerCase();
+    const myEmail = String(user.email || "").toLowerCase();
+
+    const tAgentId = String(ticket.assignedAgentId ?? ticket.assigned_to ?? ticket.assignedTo ?? "").toLowerCase();
+    const tAgentName = String(ticket.assignedAgentName || ticket.assignedAgent || "").toLowerCase();
+
+    if (myId && tAgentId && (myId === tAgentId || tAgentId === myId)) return true;
+    if (myUsername && (tAgentName.includes(myUsername) || tAgentId === myUsername)) return true;
+    if (myName && tAgentName.includes(myName)) return true;
+    if (myEmail && (tAgentName.includes(myEmail) || tAgentId === myEmail)) return true;
+    return false;
+  };
+
+  const isUnassigned = (ticket) => {
+    const tAgent = String(ticket.assignedAgentName || ticket.assignedAgent || "").toLowerCase();
+    const tAgentId = ticket.assignedAgentId ?? ticket.assigned_to ?? ticket.assignedTo;
+    return !tAgentId && (!tAgent || tAgent === "unassigned" || tAgent === "support desk");
+  };
+
+  const isAssignedToOther = (ticket) => {
+    return !isUnassigned(ticket) && !isAssignedToMe(ticket);
+  };
+
   const categories = [...new Set(tickets.map((ticket) => ticket.category).filter(Boolean))];
   const filtered = useMemo(() => tickets.filter((ticket) => {
     const ticketCode = ticket.ticketNumber || ticket.ticket_number || ticket.id;
     const haystack = `${ticketCode} ${ticket.subject || ticket.title} ${ticket.customerName || ""} ${ticket.category || ""}`.toLowerCase();
+    const matchesAssignment =
+      assignmentFilter === "all"
+        ? true
+        : assignmentFilter === "assigned_to_me"
+        ? isAssignedToMe(ticket)
+        : isUnassigned(ticket);
+
     return haystack.includes(query.toLowerCase())
+      && matchesAssignment
       && (status === "All statuses" || ticket.status === status)
       && (priority === "All priorities" || ticket.priority === priority)
       && (category === "All categories" || ticket.category === category);
-  }), [tickets, query, status, priority, category]);
+  }), [tickets, query, status, priority, category, assignmentFilter, user]);
 
   const handleAssignToMe = async (ticket) => {
     const agentName = user?.name || user?.username || "Agent";
@@ -197,6 +234,43 @@ export default function AgentAllTicketsPage() {
 
       {/* Filter and Table Card */}
       <div className="sp-card overflow-hidden">
+        {/* Queue Switcher Tabs */}
+        <div className="flex border-b border-[#dfe5e1] bg-[#f8faf9] px-4 pt-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setAssignmentFilter("assigned_to_me")}
+            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors ${
+              assignmentFilter === "assigned_to_me"
+                ? "border-[#15803d] text-[#15803d]"
+                : "border-transparent text-[#6b7280] hover:text-[#1c2430]"
+            }`}
+          >
+            Assigned to Me ({tickets.filter(isAssignedToMe).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssignmentFilter("unassigned")}
+            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors ${
+              assignmentFilter === "unassigned"
+                ? "border-[#15803d] text-[#15803d]"
+                : "border-transparent text-[#6b7280] hover:text-[#1c2430]"
+            }`}
+          >
+            Unassigned Queue ({tickets.filter(isUnassigned).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssignmentFilter("all")}
+            className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors ${
+              assignmentFilter === "all"
+                ? "border-[#15803d] text-[#15803d]"
+                : "border-transparent text-[#6b7280] hover:text-[#1c2430]"
+            }`}
+          >
+            All Tickets ({tickets.length})
+          </button>
+        </div>
+
         <div className="flex flex-wrap gap-2 p-4 bg-[#fafbfa] border-b border-[#dfe5e1]">
           <input
             value={query}
@@ -278,59 +352,76 @@ export default function AgentAllTicketsPage() {
                     </td>
 
                     <td className="px-3.5 py-3 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        <Link
-                          to={`/tickets/${ticketCode}`}
-                          className="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition"
-                        >
-                          View
-                        </Link>
-
-                        <button
-                          onClick={() => handleAssignToMe(ticket)}
-                          className="rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
-                        >
-                          Assign
-                        </button>
-
-                        <select
-                          value={ticket.status}
-                          onChange={(e) => handleStatusChange(ticket, e.target.value)}
-                          className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-700 outline-none"
-                        >
-                          <option value="NEW">NEW</option>
-                          <option value="IN_PROGRESS">IN_PROGRESS</option>
-                          <option value="RESOLVED">RESOLVED</option>
-                          <option value="CLOSED">CLOSED</option>
-                        </select>
-
-                        <button
-                          onClick={() => {
-                            setActiveReplyTicket(ticket);
-                            setReplyMessage("");
-                          }}
-                          className="rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
-                        >
-                          Reply
-                        </button>
-
-                        {!isResolved && (
-                          <button
-                            onClick={() => handleQuickResolve(ticket)}
-                            className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition cursor-pointer"
+                      {isAssignedToOther(ticket) ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <Link
+                            to={`/tickets/${ticketCode}`}
+                            className="rounded bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition"
                           >
-                            Resolve
-                          </button>
-                        )}
+                            View
+                          </Link>
+                          <span
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700 border border-amber-200"
+                            title={`Assigned to ${ticket.assignedAgentName || ticket.assignedAgent}`}
+                          >
+                            🔒 {ticket.assignedAgentName || ticket.assignedAgent || "Assigned"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1">
+                          <Link
+                            to={`/tickets/${ticketCode}`}
+                            className="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition"
+                          >
+                            View
+                          </Link>
 
-                        <button
-                          onClick={() => handleDelete(ticket)}
-                          className="rounded bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-500 hover:text-white transition cursor-pointer"
-                          title="Remove Ticket"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => handleAssignToMe(ticket)}
+                            className="rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                          >
+                            Assign
+                          </button>
+
+                          <select
+                            value={ticket.status}
+                            onChange={(e) => handleStatusChange(ticket, e.target.value)}
+                            className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-700 outline-none"
+                          >
+                            <option value="NEW">NEW</option>
+                            <option value="IN_PROGRESS">IN_PROGRESS</option>
+                            <option value="RESOLVED">RESOLVED</option>
+                            <option value="CLOSED">CLOSED</option>
+                          </select>
+
+                          <button
+                            onClick={() => {
+                              setActiveReplyTicket(ticket);
+                              setReplyMessage("");
+                            }}
+                            className="rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                          >
+                            Reply
+                          </button>
+
+                          {!isResolved && (
+                            <button
+                              onClick={() => handleQuickResolve(ticket)}
+                              className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition cursor-pointer"
+                            >
+                              Resolve
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleDelete(ticket)}
+                            className="rounded bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-500 hover:text-white transition cursor-pointer"
+                            title="Remove Ticket"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );

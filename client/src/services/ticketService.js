@@ -531,15 +531,50 @@ export const createTicket = async (form, user) => {
       slaHours * 60 * 60 * 1000
   );
 
-  // Automatic assignment
-  const agent = getAvailableAgent(classification?.team);
-
   const customerId = user?.id ? String(user.id) : "USR-003";
   const customerName = user?.name || user?.username || "Customer";
   const customerEmail = user?.email || (user?.username?.includes("@") ? user.username : `${user?.username || "customer"}@gmail.com`);
 
+  // Persist directly to Django backend
+  let backendTicket = null;
+  try {
+    const res = await api.post("/tickets/", {
+      subject: rawSubject,
+      title: rawSubject,
+      description: rawDesc,
+      category,
+      sub_category: subCategory,
+      severity,
+      priority,
+      attachment: form.attachments?.[0] || null,
+    });
+    if (res?.data) {
+      backendTicket = res.data;
+    }
+  } catch (err) {
+    try {
+      const res = await api.post("/support/tickets/", {
+        subject: rawSubject,
+        title: rawSubject,
+        description: rawDesc,
+        category,
+        sub_category: subCategory,
+        severity,
+        priority,
+      });
+      if (res?.data) backendTicket = res.data;
+    } catch (e2) {
+      console.warn("[TicketService] Backend create ticket error, using offline store:", err.message);
+    }
+  }
+
+  const finalId = backendTicket?.id != null ? backendTicket.id : ticketId;
+  const finalTicketNumber = backendTicket?.ticket_number || backendTicket?.ticketNumber || (typeof finalId === "number" ? `TKT-${1000 + finalId}` : ticketId);
+
   const ticket = {
-    id: ticketId,
+    id: finalId,
+    ticketNumber: finalTicketNumber,
+    ticket_number: finalTicketNumber,
     title: rawSubject,
     subject: rawSubject,
     description: rawDesc,
@@ -547,11 +582,11 @@ export const createTicket = async (form, user) => {
     subCategory,
     severity,
     priority,
-    status: "AI_RESOLUTION_READY",
+    status: backendTicket?.status || "OPEN",
 
-    customerId,
-    customerName,
-    customerEmail,
+    customerId: backendTicket?.customerId != null ? backendTicket.customerId : customerId,
+    customerName: backendTicket?.customerName || customerName,
+    customerEmail: backendTicket?.customerEmail || customerEmail,
 
     department: form.department || user?.department || "IT support",
     location: form.location || "",
@@ -566,12 +601,14 @@ export const createTicket = async (form, user) => {
     bestTime: form.bestTime || "",
     attachments: form.attachments || [],
 
-    assignedTo: agent?.id || null,
-    assignedAgent: agent?.name || "Unassigned",
-    team: agent?.team || classification?.team || "IT Support",
+    assignedTo: backendTicket?.assigned_to || null,
+    assignedAgent: backendTicket?.assignedAgentName || "Unassigned",
+    assignedAgentName: backendTicket?.assignedAgentName || "Unassigned",
+    assignedAgentId: backendTicket?.assigned_to || null,
+    team: classification?.team || "IT Support",
 
-    createdAt: createdAt.toISOString(),
-    updatedAt: createdAt.toISOString(),
+    createdAt: backendTicket?.created_at || backendTicket?.createdAt || createdAt.toISOString(),
+    updatedAt: backendTicket?.updated_at || backendTicket?.updatedAt || createdAt.toISOString(),
     slaHours,
     slaDueAt: slaDueAt.toISOString(),
 
@@ -613,50 +650,15 @@ export const createTicket = async (form, user) => {
         description: `Knowledge retrieved from: ${classification?.knowledgeSource || "Enterprise Knowledge Store"}.`,
         timestamp: new Date(createdAt.getTime() + 2000).toISOString(),
       },
-
-      ...(agent
-        ? [
-            {
-              id: Date.now() + 3,
-              type: "assigned",
-              title: "Ticket assigned",
-              description: `Assigned to ${agent.name} (${classification?.team || "IT Support"}).`,
-              timestamp: new Date(createdAt.getTime() + 3000).toISOString(),
-            },
-          ]
-        : []),
     ],
 
     comments: [],
+    replies: backendTicket?.replies || [],
   };
 
-  tickets.unshift(ticket);
-  saveTickets(tickets);
-
-  // Asynchronously persist ticket to backend PostgreSQL database
-  try {
-    api.post("/support/tickets/", {
-      title: ticket.subject,
-      description: ticket.description,
-      category: ticket.category,
-      sub_category: ticket.subCategory,
-      severity: ticket.severity,
-      priority: ticket.priority,
-      department: ticket.department || "IT support",
-      scope: ticket.scope || "Just me",
-      work_blocked: Boolean(ticket.workBlocked),
-      customer_email: ticket.customerEmail,
-      customer_name: ticket.customerName,
-    }).then((res) => {
-      if (res?.data?.id) {
-        console.log(`[DB Sync] Ticket #${res.data.id} persisted to PostgreSQL database.`);
-      }
-    }).catch((syncErr) => {
-      console.warn("[DB Sync Notice] Backend database sync:", syncErr?.message);
-    });
-  } catch (e) {
-    console.warn("[DB Sync Error]:", e);
-  }
+  const remaining = tickets.filter((t) => t && String(t.id) !== String(ticket.id) && String(t.ticketNumber) !== String(ticket.ticketNumber));
+  remaining.unshift(ticket);
+  saveTickets(remaining);
 
   return ticket;
 };
@@ -827,7 +829,18 @@ export const fetchMyTicketsApi = async () => {
 export const fetchAgentTicketsApi = async (params = {}) => {
   try {
     const res = await api.get("/agent/tickets/", { params });
-    if (res?.data && Array.isArray(res.data)) return res.data;
+    if (res?.data && Array.isArray(res.data)) {
+      return res.data.map((t) => {
+        const agName = t.assignedAgent || t.assignedAgentName;
+        const cleanAgName = agName && agName !== "Unassigned" ? agName : null;
+        return {
+          ...t,
+          assignedAgent: cleanAgName,
+          assignedAgentName: cleanAgName,
+          assignedAgentId: t.assignedAgentId ?? t.assigned_to ?? null,
+        };
+      });
+    }
   } catch (err) {
     console.warn("[ticketService] fetchAgentTicketsApi notice:", err.message);
   }
@@ -837,7 +850,17 @@ export const fetchAgentTicketsApi = async (params = {}) => {
 export const fetchTicketByIdApi = async (id) => {
   try {
     const res = await api.get(`/tickets/${id}/`);
-    if (res?.data) return res.data;
+    if (res?.data) {
+      const t = res.data;
+      const agName = t.assignedAgent || t.assignedAgentName;
+      const cleanAgName = agName && agName !== "Unassigned" ? agName : null;
+      return {
+        ...t,
+        assignedAgent: cleanAgName,
+        assignedAgentName: cleanAgName,
+        assignedAgentId: t.assignedAgentId ?? t.assigned_to ?? null,
+      };
+    }
   } catch (err) {
     if (err?.response?.status === 403) {
       throw err;
@@ -845,6 +868,17 @@ export const fetchTicketByIdApi = async (id) => {
     console.warn("[ticketService] fetchTicketByIdApi notice:", err.message);
   }
   return null;
+};
+
+export const autoAssignTicketsApi = async (ticketId = null) => {
+  try {
+    const endpoint = ticketId ? `/tickets/${ticketId}/auto-assign/` : "/tickets/auto-assign/";
+    const res = await api.post(endpoint, ticketId ? { ticket_id: ticketId } : {});
+    return res?.data;
+  } catch (err) {
+    console.warn("[ticketService] autoAssignTicketsApi notice:", err.message);
+    return null;
+  }
 };
 
 export const updateTicketStatusApi = async (id, newStatus) => {
@@ -857,6 +891,18 @@ export const updateTicketStatusApi = async (id, newStatus) => {
   return null;
 };
 
+export const fetchAgentsApi = async () => {
+  try {
+    const res = await api.get("/agent/list/");
+    if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+      return res.data;
+    }
+  } catch (err) {
+    console.warn("[ticketService] fetchAgentsApi notice:", err.message);
+  }
+  return seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
+};
+
 export const addTicketReplyApi = async (id, message, attachment = null, isInternal = false) => {
   try {
     const res = await api.post(`/tickets/${id}/reply/`, {
@@ -864,17 +910,41 @@ export const addTicketReplyApi = async (id, message, attachment = null, isIntern
       attachment,
       is_internal: isInternal,
     });
-    if (res?.data) return res.data;
+    if (res?.data) {
+      const reply = res.data;
+      addComment(id, {
+        id: reply.id,
+        author: reply.author_name,
+        authorRole: reply.author_role,
+        message: reply.message,
+        attachment: reply.attachment,
+        timestamp: reply.created_at,
+        created_at: reply.created_at,
+      });
+      return res.data;
+    }
   } catch (err) {
     console.warn("[ticketService] addTicketReplyApi notice:", err.message);
   }
   return null;
 };
 
-export const assignTicketApi = async (id, agentId = null) => {
+export const assignTicketApi = async (id, agentId = null, agentName = null) => {
   try {
-    const res = await api.patch(`/tickets/${id}/assign/`, { agent_id: agentId });
-    if (res?.data) return res.data;
+    const res = await api.patch(`/tickets/${id}/assign/`, {
+      agent_id: agentId,
+      agent_name: agentName,
+    });
+    if (res?.data) {
+      updateTicket(id, {
+        assigned_to: res.data.assigned_to,
+        assignedAgent: res.data.assignedAgentName || agentName,
+        assignedAgentName: res.data.assignedAgentName || agentName,
+        assignedAgentId: res.data.assignedAgentId || agentId,
+        status: res.data.status || "ASSIGNED",
+      });
+      return res.data;
+    }
   } catch (err) {
     console.warn("[ticketService] assignTicketApi notice:", err.message);
   }

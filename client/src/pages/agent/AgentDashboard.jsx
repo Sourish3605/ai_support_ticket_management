@@ -64,12 +64,53 @@ export default function AgentDashboard() {
     }
   }, [toast]);
 
+  const [queueFilter, setQueueFilter] = useState("assigned_to_me"); // "assigned_to_me", "unassigned", "all"
+
+  const isAssignedToMe = (ticket) => {
+    if (!user) return false;
+    const myId = String(user.id || "").toLowerCase();
+    const myUsername = String(user.username || "").toLowerCase();
+    const myName = String(user.name || "").toLowerCase();
+    const myEmail = String(user.email || "").toLowerCase();
+
+    const tAgentId = String(ticket.assignedAgentId ?? ticket.assigned_to ?? ticket.assignedTo ?? "").toLowerCase();
+    const tAgentName = String(ticket.assignedAgentName || ticket.assignedAgent || "").toLowerCase();
+
+    if (myId && tAgentId && (myId === tAgentId || tAgentId === myId)) return true;
+    if (myUsername && (tAgentName.includes(myUsername) || tAgentId === myUsername)) return true;
+    if (myName && tAgentName.includes(myName)) return true;
+    if (myEmail && (tAgentName.includes(myEmail) || tAgentId === myEmail)) return true;
+    return false;
+  };
+
+  const isUnassigned = (ticket) => {
+    const tAgent = String(ticket.assignedAgentName || ticket.assignedAgent || "").toLowerCase();
+    const tAgentId = ticket.assignedAgentId ?? ticket.assigned_to ?? ticket.assignedTo;
+    return !tAgentId && (!tAgent || tAgent === "unassigned" || tAgent === "support desk");
+  };
+
+  const isAssignedToOther = (ticket) => {
+    return !isUnassigned(ticket) && !isAssignedToMe(ticket);
+  };
+
   // Support Agent KPI Calculations
   const totalCount = tickets.length;
+  const myAssignedCount = tickets.filter(isAssignedToMe).length;
+  const unassignedCount = tickets.filter(isUnassigned).length;
   const newCount = tickets.filter((t) => ["NEW", "Open", "CLASSIFIED", "AI_RESOLUTION_READY"].includes(t.status)).length;
   const inProgressCount = tickets.filter((t) => ["IN_PROGRESS", "In Progress", "Pending"].includes(t.status)).length;
   const resolvedCount = tickets.filter((t) => ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status)).length;
   const highPriorityCount = tickets.filter((t) => ["P1", "P2", "High", "Critical"].includes(t.priority)).length;
+
+  const displayedTickets = useMemo(() => {
+    if (queueFilter === "assigned_to_me") {
+      return tickets.filter(isAssignedToMe);
+    }
+    if (queueFilter === "unassigned") {
+      return tickets.filter(isUnassigned);
+    }
+    return tickets;
+  }, [tickets, queueFilter, user]);
 
   // Agent Actions
   const handleAssignToMe = async (ticket) => {
@@ -77,14 +118,16 @@ export default function AgentDashboard() {
     const agentId = user?.id || null;
 
     try {
-      await assignTicketApi(ticket.id, agentId);
+      await assignTicketApi(ticket.id, agentId, agentName);
     } catch (e) {}
 
     updateTicket(ticket.id, {
       assignedAgent: agentName,
+      assignedAgentName: agentName,
       assignedAgentId: agentId,
       assignedTo: agentId,
       assigned_to: agentId,
+      status: "ASSIGNED",
       timelineEvent: {
         type: "assigned",
         title: "Ticket Assigned",
@@ -122,21 +165,23 @@ export default function AgentDashboard() {
     e.preventDefault();
     if (!activeReplyTicket || !replyMessage.trim()) return;
 
-    const agentName = user?.name || user?.username || "Support Agent";
+    const replyText = replyMessage.trim();
+    setActiveReplyTicket(null);
+    setReplyMessage("");
+
     try {
-      await addTicketReplyApi(activeReplyTicket.id, replyMessage.trim());
+      await addTicketReplyApi(activeReplyTicket.id, replyText);
     } catch (e) {}
 
+    const agentName = user?.name || user?.username || "Support Agent";
     addComment(activeReplyTicket.id, {
       author: agentName,
       authorRole: "SUPPORT_AGENT",
       visibility: "Public",
-      message: replyMessage.trim(),
+      message: replyText,
     });
 
-    setToast({ type: "success", message: `Reply posted to ${activeReplyTicket.ticketNumber || activeReplyTicket.id}.` });
-    setActiveReplyTicket(null);
-    setReplyMessage("");
+    setToast({ type: "success", message: `✓ Reply sent to customer on ${activeReplyTicket.ticketNumber || activeReplyTicket.id}.` });
     loadTickets();
   };
 
@@ -168,7 +213,7 @@ export default function AgentDashboard() {
         </div>
       </div>
 
-      {/* Primary KPI Metrics: Total Tickets, New, In Progress, Resolved, High Priority */}
+      {/* Primary KPI Metrics */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="sp-card p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b95a1]">Total Tickets</div>
@@ -177,9 +222,9 @@ export default function AgentDashboard() {
         </div>
 
         <div className="sp-card p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">New</div>
-          <div className="my-1 text-2xl font-extrabold text-blue-700">{newCount}</div>
-          <div className="text-[11px] font-semibold text-blue-600">Awaiting triage</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Assigned To Me</div>
+          <div className="my-1 text-2xl font-extrabold text-emerald-700">{myAssignedCount}</div>
+          <div className="text-[11px] font-semibold text-emerald-600">Your active queue</div>
         </div>
 
         <div className="sp-card p-4">
@@ -189,9 +234,9 @@ export default function AgentDashboard() {
         </div>
 
         <div className="sp-card p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Resolved</div>
-          <div className="my-1 text-2xl font-extrabold text-emerald-700">{resolvedCount}</div>
-          <div className="text-[11px] font-semibold text-emerald-600">Completed</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Unassigned</div>
+          <div className="my-1 text-2xl font-extrabold text-blue-700">{unassignedCount}</div>
+          <div className="text-[11px] font-semibold text-blue-600">Awaiting assignment</div>
         </div>
 
         <div className="sp-card p-4">
@@ -201,11 +246,47 @@ export default function AgentDashboard() {
         </div>
       </div>
 
-      {/* Ticket Table */}
+      {/* Ticket Table with Actionable Filter Tabs */}
       <div className="sp-card overflow-hidden">
-        <div className="border-b border-[#dfe5e1] bg-[#fafbfa] px-4 py-3 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-[#1c2430]">Support Ticket Queue</h2>
-          <span className="text-xs text-slate-500 font-medium">{tickets.length} tickets in queue</span>
+        <div className="border-b border-[#dfe5e1] bg-[#fafbfa] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold text-[#1c2430]">Support Ticket Queue</h2>
+            <p className="text-[11px] text-slate-500">Tickets assigned to you appear as actionable work</p>
+          </div>
+
+          {/* Queue Filter Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+            <button
+              onClick={() => setQueueFilter("assigned_to_me")}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                queueFilter === "assigned_to_me"
+                  ? "bg-white text-emerald-800 shadow-sm font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              ✦ Assigned to Me ({myAssignedCount})
+            </button>
+            <button
+              onClick={() => setQueueFilter("unassigned")}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                queueFilter === "unassigned"
+                  ? "bg-white text-blue-800 shadow-sm font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Unassigned Queue ({unassignedCount})
+            </button>
+            <button
+              onClick={() => setQueueFilter("all")}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                queueFilter === "all"
+                  ? "bg-white text-slate-900 shadow-sm font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All Tickets ({tickets.length})
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -222,12 +303,19 @@ export default function AgentDashboard() {
               </tr>
             </thead>
             <tbody>
-              {tickets.map((ticket) => {
+              {displayedTickets.map((ticket) => {
                 const ticketCode = ticket.ticketNumber || ticket.ticket_number || ticket.id;
                 const isResolved = ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(ticket.status);
+                const assignedToMe = isAssignedToMe(ticket);
+                const assignedToOther = isAssignedToOther(ticket);
 
                 return (
-                  <tr className="hover:bg-[#f8faf9] transition-colors border-b border-[#eef2f0]" key={ticket.id}>
+                  <tr
+                    className={`transition-colors border-b border-[#eef2f0] ${
+                      assignedToMe ? "bg-emerald-50/20 hover:bg-emerald-50/40" : "hover:bg-[#f8faf9]"
+                    }`}
+                    key={ticket.id}
+                  >
                     {/* Ticket ID */}
                     <td className="px-3.5 py-3 font-mono font-bold text-[#14532d]">
                       {ticketCode}
@@ -236,8 +324,23 @@ export default function AgentDashboard() {
                     {/* Subject */}
                     <td className="px-3.5 py-3 max-w-[260px]">
                       <div className="font-semibold text-[#1c2430] truncate">{ticket.subject || ticket.title}</div>
-                      <div className="text-[10px] text-[#8b95a1]">
-                        {ticket.customerName || "Customer"} {ticket.assignedAgentName || ticket.assignedAgent ? `· Assigned: ${ticket.assignedAgentName || ticket.assignedAgent}` : "· Unassigned"}
+                      <div className="text-[10px] flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[#8b95a1]">{ticket.customerName || "Customer"}</span>
+                        {assignedToMe && (
+                          <span className="rounded bg-emerald-100 text-emerald-900 border border-emerald-300 px-1.5 py-0.2 text-[9px] font-bold">
+                            Assigned to You
+                          </span>
+                        )}
+                        {assignedToOther && (
+                          <span className="rounded bg-slate-100 text-slate-600 px-1.5 py-0.2 text-[9px] font-medium">
+                            Assigned: {ticket.assignedAgentName || ticket.assignedAgent}
+                          </span>
+                        )}
+                        {!assignedToMe && !assignedToOther && (
+                          <span className="rounded bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.2 text-[9px] font-medium">
+                            Unassigned
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -265,57 +368,71 @@ export default function AgentDashboard() {
                       {ticket.createdAt || ticket.created_at ? new Date(ticket.createdAt || ticket.created_at).toLocaleDateString() : "Recently"}
                     </td>
 
-                    {/* Actions: View, Assign, Change Status, Reply, Resolve */}
+                    {/* Actions: Distinguish assigned to me vs other agents */}
                     <td className="px-3.5 py-3 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        {/* View */}
+                      <div className="inline-flex items-center gap-1.5">
+                        {/* Open Ticket Details */}
                         <Link
                           to={`/tickets/${ticketCode}`}
-                          className="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 transition"
+                          className="rounded-lg bg-slate-900 text-white px-2.5 py-1 text-[11px] font-bold hover:bg-slate-800 transition"
                         >
-                          View
+                          Open
                         </Link>
 
-                        {/* Assign */}
-                        <button
-                          onClick={() => handleAssignToMe(ticket)}
-                          className="rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
-                          title="Assign to me"
-                        >
-                          Assign
-                        </button>
-
-                        {/* Change Status Dropdown */}
-                        <select
-                          value={ticket.status}
-                          onChange={(e) => handleStatusChange(ticket, e.target.value)}
-                          className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-700 outline-none"
-                        >
-                          <option value="NEW">NEW</option>
-                          <option value="IN_PROGRESS">IN_PROGRESS</option>
-                          <option value="RESOLVED">RESOLVED</option>
-                          <option value="CLOSED">CLOSED</option>
-                        </select>
-
-                        {/* Reply */}
-                        <button
-                          onClick={() => {
-                            setActiveReplyTicket(ticket);
-                            setReplyMessage("");
-                          }}
-                          className="rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
-                        >
-                          Reply
-                        </button>
-
-                        {/* Resolve */}
-                        {!isResolved && (
-                          <button
-                            onClick={() => handleQuickResolve(ticket)}
-                            className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm"
+                        {assignedToOther ? (
+                          <span
+                            className="rounded bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500 border border-slate-200"
+                            title={`Assigned to ${ticket.assignedAgentName || ticket.assignedAgent}. Non-actionable for you.`}
                           >
-                            Resolve
-                          </button>
+                            🔒 Assigned
+                          </span>
+                        ) : (
+                          <>
+                            {/* Assign to me (for unassigned) */}
+                            {!assignedToMe && (
+                              <button
+                                onClick={() => handleAssignToMe(ticket)}
+                                className="rounded bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                                title="Assign to me"
+                              >
+                                Claim
+                              </button>
+                            )}
+
+                            {/* Change Status Dropdown */}
+                            <select
+                              value={ticket.status}
+                              onChange={(e) => handleStatusChange(ticket, e.target.value)}
+                              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-700 outline-none cursor-pointer"
+                            >
+                              <option value="NEW">NEW</option>
+                              <option value="ASSIGNED">ASSIGNED</option>
+                              <option value="IN_PROGRESS">IN_PROGRESS</option>
+                              <option value="RESOLVED">RESOLVED</option>
+                              <option value="CLOSED">CLOSED</option>
+                            </select>
+
+                            {/* Reply */}
+                            <button
+                              onClick={() => {
+                                setActiveReplyTicket(ticket);
+                                setReplyMessage("");
+                              }}
+                              className="rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                            >
+                              Reply
+                            </button>
+
+                            {/* Resolve */}
+                            {!isResolved && (
+                              <button
+                                onClick={() => handleQuickResolve(ticket)}
+                                className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition cursor-pointer shadow-sm"
+                              >
+                                Resolve
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
@@ -326,9 +443,13 @@ export default function AgentDashboard() {
           </table>
         </div>
 
-        {!tickets.length && (
+        {!displayedTickets.length && (
           <div className="p-10 text-center text-sm text-[#8b95a1]">
-            No tickets found in the queue.
+            {queueFilter === "assigned_to_me"
+              ? "You have no tickets currently assigned to you."
+              : queueFilter === "unassigned"
+              ? "No unassigned tickets waiting in queue."
+              : "No tickets found in the queue."}
           </div>
         )}
       </div>
