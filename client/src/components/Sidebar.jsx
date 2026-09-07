@@ -16,19 +16,9 @@ import {
   FiX,
 } from "react-icons/fi";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-
-const DEPARTMENT_AGENTS = [
-  { name: "Alex Agent", email: "agent@gmail.com", department: "IT", specialty: "Hardware & Network" },
-  { name: "Yogitha", email: "yogitha@gmail.com", department: "IT", specialty: "Software & Apps" },
-  { name: "Premalatha", email: "premalatha@gmail.com", department: "IT", specialty: "Network & VPN" },
-  { name: "David IT", email: "david.it@supportpilot.com", department: "IT", specialty: "Infrastructure" },
-  { name: "Sarah HR", email: "sarah.hr@supportpilot.com", department: "HR", specialty: "Onboarding & Policy" },
-  { name: "Rachel HR", email: "rachel.hr@supportpilot.com", department: "HR", specialty: "Benefits & Leaves" },
-  { name: "Michael Finance", email: "michael.fin@supportpilot.com", department: "Finance", specialty: "Billing & Invoices" },
-  { name: "Emma Finance", email: "emma.fin@supportpilot.com", department: "Finance", specialty: "Payroll & Refunds" },
-];
+import { getDepartmentAgentsList } from "../services/ticketService";
 
 const Sidebar = ({
   isOpen,
@@ -41,6 +31,19 @@ const Sidebar = ({
   const role = user?.role;
   const [selectedDept, setSelectedDept] = useState("ALL");
   const [switchingEmail, setSwitchingEmail] = useState(null);
+  const [agentsList, setAgentsList] = useState(() => getDepartmentAgentsList());
+
+  useEffect(() => {
+    const handleSync = () => {
+      setAgentsList(getDepartmentAgentsList());
+    };
+    window.addEventListener("supportpilot_users_changed", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("supportpilot_users_changed", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, []);
 
   const isCurrentAgent = (ag) => {
     if (!user) return false;
@@ -280,7 +283,7 @@ const Sidebar = ({
                   Switch Agent / Dept
                 </span>
                 <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                  8 Agents
+                  {agentsList.length} Agents
                 </span>
               </div>
 
@@ -304,7 +307,7 @@ const Sidebar = ({
 
               {/* LIST */}
               <div className="space-y-1 max-h-48 overflow-y-auto">
-                {DEPARTMENT_AGENTS.filter((ag) => selectedDept === "ALL" || ag.department === selectedDept).map((ag) => {
+                {agentsList.filter((ag) => selectedDept === "ALL" || ag.department === selectedDept).map((ag) => {
                   const isCurrent = isCurrentAgent(ag);
                   const isBusy = switchingEmail === ag.email;
                   return (

@@ -13,7 +13,7 @@ import {
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { getAllTickets } from "./services/ticketService";
+import { getAllTickets, getDepartmentAgentsList } from "./services/ticketService";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -88,94 +88,8 @@ function CustomerLayout({ children }) {
 }
 
 /* =====================================================
-   AGENT LAYOUT & DEPARTMENT SWITCHER
+   AGENT LAYOUT & DEPARTMENT SWITCHER (SYNCED WITH ADMIN USERS)
 ===================================================== */
-
-const DEPARTMENT_AGENTS = [
-  // IT Department (4 Agents)
-  {
-    name: "Alex Agent",
-    email: "agent@gmail.com",
-    department: "IT",
-    title: "L1 Support Agent",
-    specialty: "Hardware & Network",
-    deptBadge: "IT",
-    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
-    avatarBg: "bg-blue-600",
-  },
-  {
-    name: "Yogitha",
-    email: "yogitha@gmail.com",
-    department: "IT",
-    title: "IT Support Agent",
-    specialty: "Software & Applications",
-    deptBadge: "IT",
-    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
-    avatarBg: "bg-cyan-600",
-  },
-  {
-    name: "Premalatha",
-    email: "premalatha@gmail.com",
-    department: "IT",
-    title: "IT Support Agent",
-    specialty: "Network & VPN",
-    deptBadge: "IT",
-    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
-    avatarBg: "bg-indigo-600",
-  },
-  {
-    name: "David IT",
-    email: "david.it@supportpilot.com",
-    department: "IT",
-    title: "Senior IT Engineer",
-    specialty: "Infrastructure & Security",
-    deptBadge: "IT",
-    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
-    avatarBg: "bg-sky-700",
-  },
-  // HR Department (2 Agents)
-  {
-    name: "Sarah HR",
-    email: "sarah.hr@supportpilot.com",
-    department: "HR",
-    title: "HR Specialist",
-    specialty: "Onboarding & Policies",
-    deptBadge: "HR",
-    badgeColor: "bg-purple-500/20 text-purple-300 border-purple-400/40",
-    avatarBg: "bg-purple-600",
-  },
-  {
-    name: "Rachel HR",
-    email: "rachel.hr@supportpilot.com",
-    department: "HR",
-    title: "HR Representative",
-    specialty: "Benefits & Leaves",
-    deptBadge: "HR",
-    badgeColor: "bg-purple-500/20 text-purple-300 border-purple-400/40",
-    avatarBg: "bg-fuchsia-600",
-  },
-  // Finance Department (2 Agents)
-  {
-    name: "Michael Finance",
-    email: "michael.fin@supportpilot.com",
-    department: "Finance",
-    title: "Finance Specialist",
-    specialty: "Billing & Invoices",
-    deptBadge: "FIN",
-    badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40",
-    avatarBg: "bg-emerald-600",
-  },
-  {
-    name: "Emma Finance",
-    email: "emma.fin@supportpilot.com",
-    department: "Finance",
-    title: "Finance Analyst",
-    specialty: "Payroll & Reimbursements",
-    deptBadge: "FIN",
-    badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40",
-    avatarBg: "bg-teal-600",
-  },
-];
 
 function AgentLayout({ children }) {
   const { logout, login, user } = useAuth();
@@ -185,6 +99,19 @@ function AgentLayout({ children }) {
   const [selectedDeptFilter, setSelectedDeptFilter] = useState("ALL");
   const [switchingEmail, setSwitchingEmail] = useState(null);
   const [switchNotice, setSwitchNotice] = useState(null);
+  const [agentsList, setAgentsList] = useState(() => getDepartmentAgentsList());
+
+  useEffect(() => {
+    const handleSync = () => {
+      setAgentsList(getDepartmentAgentsList());
+    };
+    window.addEventListener("supportpilot_users_changed", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("supportpilot_users_changed", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, []);
 
   useEffect(() => {
     const tickets = getAllTickets();
@@ -220,7 +147,6 @@ function AgentLayout({ children }) {
       await login(ag.email, "password123", "agent");
       setSwitchNotice(`Switched to ${ag.name} (${ag.department})`);
       setTimeout(() => setSwitchNotice(null), 3500);
-      // Reload tickets or refresh page view smoothly
       if (location.pathname !== "/dashboard" && location.pathname !== "/tickets" && location.pathname !== "/tickets/queue") {
         navigate("/dashboard");
       }
@@ -233,18 +159,18 @@ function AgentLayout({ children }) {
     }
   };
 
-  const currentDeptAgent = DEPARTMENT_AGENTS.find((ag) => isCurrentAgent(ag));
+  const currentDeptAgent = agentsList.find((ag) => isCurrentAgent(ag));
   const currentDepartment = user?.department || currentDeptAgent?.department || "IT";
 
   const filteredAgents = selectedDeptFilter === "ALL"
-    ? DEPARTMENT_AGENTS
-    : DEPARTMENT_AGENTS.filter((ag) => ag.department === selectedDeptFilter);
+    ? agentsList
+    : agentsList.filter((ag) => ag.department === selectedDeptFilter);
 
   const deptCounts = {
-    ALL: DEPARTMENT_AGENTS.length,
-    IT: DEPARTMENT_AGENTS.filter((a) => a.department === "IT").length,
-    HR: DEPARTMENT_AGENTS.filter((a) => a.department === "HR").length,
-    Finance: DEPARTMENT_AGENTS.filter((a) => a.department === "Finance").length,
+    ALL: agentsList.length,
+    IT: agentsList.filter((a) => a.department === "IT").length,
+    HR: agentsList.filter((a) => a.department === "HR").length,
+    Finance: agentsList.filter((a) => a.department === "Finance").length,
   };
 
   const pageMeta = location.pathname === "/dashboard"
