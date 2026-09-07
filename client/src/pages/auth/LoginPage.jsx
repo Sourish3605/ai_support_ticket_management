@@ -783,7 +783,7 @@ const LoginPage = () => {
                   Quick Demo Credentials
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+                <div className="grid grid-cols-4 gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -821,6 +821,23 @@ const LoginPage = () => {
                   <button
                     type="button"
                     onClick={() => {
+                      setSelectedRole("agent");
+                      setForm({ email: "agent@gmail.com", password: "password123" });
+                      setError("");
+                    }}
+                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
+                      selectedRole === "agent"
+                        ? "border-blue-700 bg-blue-700 text-white ring-2 ring-blue-400/20"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-sm">🛡️</span>
+                    <span className="text-[11px]">Agent</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
                       setSelectedRole("customer");
                       setForm({ email: "customer@gmail.com", password: "password123" });
                       setError("");
@@ -834,104 +851,6 @@ const LoginPage = () => {
                     <span className="text-sm">👤</span>
                     <span className="text-[11px]">Customer</span>
                   </button>
-                </div>
-
-                {/* Department Agent Selectors */}
-                <div className="space-y-1.5 text-[11px]">
-                  {/* IT Department */}
-                  <div className="p-1.5 rounded-lg bg-blue-50/60 border border-blue-100">
-                    <div className="text-[10px] font-bold text-blue-700 uppercase tracking-wide flex items-center gap-1 mb-1">
-                      <span>💻</span> IT Department Agents
-                    </div>
-                    <div className="grid grid-cols-4 gap-1">
-                      {[
-                        { name: "Agent (Alex)", email: "agent@gmail.com" },
-                        { name: "Yogitha", email: "yogitha@gmail.com" },
-                        { name: "Premalatha", email: "premalatha@gmail.com" },
-                        { name: "David IT", email: "david.it@supportpilot.com" },
-                      ].map((ag) => (
-                        <button
-                          key={ag.email}
-                          type="button"
-                          onClick={() => {
-                            setSelectedRole("agent");
-                            setForm({ email: ag.email, password: "password123" });
-                            setError("");
-                          }}
-                          className={`rounded border px-1 py-1 text-[10px] font-medium truncate transition cursor-pointer ${
-                            form.email === ag.email && selectedRole === "agent"
-                              ? "bg-blue-600 text-white border-blue-700 shadow-xs"
-                              : "bg-white text-blue-900 border-blue-200 hover:bg-blue-100/70"
-                          }`}
-                          title={ag.name}
-                        >
-                          {ag.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* HR Department */}
-                  <div className="p-1.5 rounded-lg bg-purple-50/60 border border-purple-100">
-                    <div className="text-[10px] font-bold text-purple-700 uppercase tracking-wide flex items-center gap-1 mb-1">
-                      <span>👥</span> HR Department Agents
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {[
-                        { name: "Sarah HR", email: "sarah.hr@supportpilot.com" },
-                        { name: "Rachel HR", email: "rachel.hr@supportpilot.com" },
-                      ].map((ag) => (
-                        <button
-                          key={ag.email}
-                          type="button"
-                          onClick={() => {
-                            setSelectedRole("agent");
-                            setForm({ email: ag.email, password: "password123" });
-                            setError("");
-                          }}
-                          className={`rounded border px-1 py-1 text-[10px] font-medium truncate transition cursor-pointer ${
-                            form.email === ag.email && selectedRole === "agent"
-                              ? "bg-purple-600 text-white border-purple-700 shadow-xs"
-                              : "bg-white text-purple-900 border-purple-200 hover:bg-purple-100/70"
-                          }`}
-                          title={ag.name}
-                        >
-                          {ag.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Finance Department */}
-                  <div className="p-1.5 rounded-lg bg-emerald-50/60 border border-emerald-100">
-                    <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1 mb-1">
-                      <span>💳</span> Finance Department Agents
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {[
-                        { name: "Michael Finance", email: "michael.fin@supportpilot.com" },
-                        { name: "Emma Finance", email: "emma.fin@supportpilot.com" },
-                      ].map((ag) => (
-                        <button
-                          key={ag.email}
-                          type="button"
-                          onClick={() => {
-                            setSelectedRole("agent");
-                            setForm({ email: ag.email, password: "password123" });
-                            setError("");
-                          }}
-                          className={`rounded border px-1 py-1 text-[10px] font-medium truncate transition cursor-pointer ${
-                            form.email === ag.email && selectedRole === "agent"
-                              ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
-                              : "bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100/70"
-                          }`}
-                          title={ag.name}
-                        >
-                          {ag.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
 

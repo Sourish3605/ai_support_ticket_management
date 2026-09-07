@@ -16,7 +16,19 @@ import {
   FiX,
 } from "react-icons/fi";
 
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+
+const DEPARTMENT_AGENTS = [
+  { name: "Alex Agent", email: "agent@gmail.com", department: "IT", specialty: "Hardware & Network" },
+  { name: "Yogitha", email: "yogitha@gmail.com", department: "IT", specialty: "Software & Apps" },
+  { name: "Premalatha", email: "premalatha@gmail.com", department: "IT", specialty: "Network & VPN" },
+  { name: "David IT", email: "david.it@supportpilot.com", department: "IT", specialty: "Infrastructure" },
+  { name: "Sarah HR", email: "sarah.hr@supportpilot.com", department: "HR", specialty: "Onboarding & Policy" },
+  { name: "Rachel HR", email: "rachel.hr@supportpilot.com", department: "HR", specialty: "Benefits & Leaves" },
+  { name: "Michael Finance", email: "michael.fin@supportpilot.com", department: "Finance", specialty: "Billing & Invoices" },
+  { name: "Emma Finance", email: "emma.fin@supportpilot.com", department: "Finance", specialty: "Payroll & Refunds" },
+];
 
 const Sidebar = ({
   isOpen,
@@ -24,11 +36,32 @@ const Sidebar = ({
   theme,
   toggleTheme,
 }) => {
-  const { user, logout } = useAuth();
-
+  const { user, logout, login } = useAuth();
   const navigate = useNavigate();
-
   const role = user?.role;
+  const [selectedDept, setSelectedDept] = useState("ALL");
+  const [switchingEmail, setSwitchingEmail] = useState(null);
+
+  const isCurrentAgent = (ag) => {
+    if (!user) return false;
+    const uEmail = (user.email || "").toLowerCase().trim();
+    const uName = (user.name || user.username || "").toLowerCase().trim();
+    return uEmail === ag.email.toLowerCase() || uName === ag.name.toLowerCase();
+  };
+
+  const handleSwitchAgent = async (ag) => {
+    if (isCurrentAgent(ag) || switchingEmail) return;
+    setSwitchingEmail(ag.email);
+    try {
+      await login(ag.email, "password123", "agent");
+      navigate("/dashboard");
+      if (onClose) onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSwitchingEmail(null);
+    }
+  };
 
   const menuItems = {
     customer: [
@@ -240,6 +273,65 @@ const Sidebar = ({
             )
           )}
 
+          {role === "agent" && (
+            <div className="pt-4 mt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Switch Agent / Dept
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  8 Agents
+                </span>
+              </div>
+
+              {/* TABS */}
+              <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg mb-2 text-center text-[10px] font-bold">
+                {["ALL", "IT", "HR", "Finance"].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSelectedDept(d)}
+                    className={`py-1 rounded transition cursor-pointer ${
+                      selectedDept === d
+                        ? "bg-white text-emerald-700 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    {d === "Finance" ? "Fin" : d}
+                  </button>
+                ))}
+              </div>
+
+              {/* LIST */}
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {DEPARTMENT_AGENTS.filter((ag) => selectedDept === "ALL" || ag.department === selectedDept).map((ag) => {
+                  const isCurrent = isCurrentAgent(ag);
+                  const isBusy = switchingEmail === ag.email;
+                  return (
+                    <button
+                      key={ag.email}
+                      type="button"
+                      disabled={isCurrent || isBusy}
+                      onClick={() => handleSwitchAgent(ag)}
+                      className={`w-full text-left p-2 rounded-xl text-xs flex items-center justify-between gap-1 border transition cursor-pointer ${
+                        isCurrent
+                          ? "bg-emerald-50 border-emerald-300 font-bold text-emerald-900"
+                          : "border-slate-100 hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">{ag.name}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{ag.specialty}</div>
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">
+                        {isCurrent ? "Active" : ag.department}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </nav>
 
         {/* THEME */}
