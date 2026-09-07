@@ -38,9 +38,11 @@ const Sidebar = ({
       setAgentsList(getDepartmentAgentsList());
     };
     window.addEventListener("supportpilot_users_changed", handleSync);
+    window.addEventListener("supportpilot_user_deleted", handleSync);
     window.addEventListener("storage", handleSync);
     return () => {
       window.removeEventListener("supportpilot_users_changed", handleSync);
+      window.removeEventListener("supportpilot_user_deleted", handleSync);
       window.removeEventListener("storage", handleSync);
     };
   }, []);

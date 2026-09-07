@@ -979,21 +979,33 @@ export const updateTicketStatusApi = async (id, newStatus) => {
   return null;
 };
 
+export const fetchUsersApi = async () => {
+  try {
+    const res = await api.get("/users/");
+    if (res?.data && Array.isArray(res.data)) {
+      return res.data.filter((u) => !isUserDeleted(u));
+    }
+  } catch (err) {
+    console.warn("[ticketService] fetchUsersApi notice:", err.message);
+  }
+  return [];
+};
+
 export const fetchAgentsApi = async (params = {}) => {
   try {
     const res = await api.get("/agent/list/", { params });
     if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-      return res.data;
+      return res.data.filter((a) => !isUserDeleted(a));
     }
   } catch (err) {
     console.warn("[ticketService] fetchAgentsApi notice:", err.message);
   }
-  let agents = seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
+  let agents = seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role) && !isUserDeleted(u));
   if (params.department) {
     const deptQuery = params.department.toLowerCase().replace(" department", "").trim();
     agents = agents.filter((a) => (a.department || "").toLowerCase().includes(deptQuery));
   }
-  return agents;
+  return agents.filter((a) => !isUserDeleted(a));
 };
 
 export const updateAgentAvailabilityApi = async (status, agentId = null, agentEmail = null) => {
@@ -1205,13 +1217,163 @@ export const autoAssignDepartmentAgent = (departmentName, category = null) => {
   return candidatesWithCounts[0].agent;
 };
 
+export const getDeletedUserIdentifiers = () => {
+  const list = storage.get(STORAGE_KEYS.deletedUsers, []);
+  if (!Array.isArray(list)) return new Set();
+  const set = new Set();
+  list.forEach((item) => {
+    if (item != null) {
+      set.add(String(item).toLowerCase().trim());
+    }
+  });
+  return set;
+};
+
+export const isUserDeleted = (userOrIdentifier) => {
+  if (!userOrIdentifier) return false;
+  const deletedSet = getDeletedUserIdentifiers();
+  if (typeof userOrIdentifier === "object") {
+    const id = userOrIdentifier.id != null ? String(userOrIdentifier.id).toLowerCase().trim() : "";
+    const email = userOrIdentifier.email ? String(userOrIdentifier.email).toLowerCase().trim() : "";
+    const username = userOrIdentifier.username ? String(userOrIdentifier.username).toLowerCase().trim() : "";
+    if (id && deletedSet.has(id)) return true;
+    if (email && deletedSet.has(email)) return true;
+    if (username && deletedSet.has(username)) return true;
+    return false;
+  }
+  return deletedSet.has(String(userOrIdentifier).toLowerCase().trim());
+};
+
+export const deleteUserEverywhere = async (userOrIdOrEmail) => {
+  let targetId = null;
+  let targetEmail = null;
+  let targetUsername = null;
+  let targetName = null;
+
+  if (typeof userOrIdOrEmail === "object" && userOrIdOrEmail !== null) {
+    targetId = userOrIdOrEmail.id != null ? String(userOrIdOrEmail.id).trim() : null;
+    targetEmail = userOrIdOrEmail.email ? String(userOrIdOrEmail.email).trim() : null;
+    targetUsername = userOrIdOrEmail.username ? String(userOrIdOrEmail.username).trim() : null;
+    targetName = userOrIdOrEmail.name ? String(userOrIdOrEmail.name).trim() : null;
+  } else {
+    const val = String(userOrIdOrEmail).trim();
+    if (val.includes("@")) {
+      targetEmail = val;
+    } else if (/^\d+$/.test(val) || val.startsWith("USR-")) {
+      targetId = val;
+    } else {
+      targetUsername = val;
+    }
+  }
+
+  // Find matching user in storage to get complete details
+  const storedUsers = storage.get(STORAGE_KEYS.users, []);
+  const matched = storedUsers.find((u) => {
+    if (!u) return false;
+    const uId = u.id != null ? String(u.id).toLowerCase() : "";
+    const uEmail = u.email ? String(u.email).toLowerCase() : "";
+    const uUser = u.username ? String(u.username).toLowerCase() : "";
+    if (targetId && uId === targetId.toLowerCase()) return true;
+    if (targetEmail && uEmail === targetEmail.toLowerCase()) return true;
+    if (targetUsername && uUser === targetUsername.toLowerCase()) return true;
+    return false;
+  });
+
+  if (matched) {
+    targetId = targetId || matched.id;
+    targetEmail = targetEmail || matched.email;
+    targetUsername = targetUsername || matched.username;
+    targetName = targetName || matched.name;
+  }
+
+  // 1. Call Backend API to permanently delete user in Django database
+  const deleteKey = targetId || targetEmail || targetUsername;
+  if (deleteKey) {
+    try {
+      await api.delete(`/users/${encodeURIComponent(deleteKey)}/`);
+    } catch (apiErr) {
+      try {
+        await api.delete(`/auth/users/${encodeURIComponent(deleteKey)}/`);
+      } catch (e2) {
+        console.warn("[ticketService] Backend delete user notice:", apiErr.message);
+      }
+    }
+  }
+
+  // 2. Add all identifiers to STORAGE_KEYS.deletedUsers so they are permanently ignored
+  const currentDeleted = storage.get(STORAGE_KEYS.deletedUsers, []);
+  const updatedDeletedSet = new Set(currentDeleted.map((x) => String(x).toLowerCase().trim()));
+  if (targetId) updatedDeletedSet.add(String(targetId).toLowerCase().trim());
+  if (targetEmail) updatedDeletedSet.add(String(targetEmail).toLowerCase().trim());
+  if (targetUsername) updatedDeletedSet.add(String(targetUsername).toLowerCase().trim());
+  if (targetName) updatedDeletedSet.add(String(targetName).toLowerCase().trim());
+  storage.set(STORAGE_KEYS.deletedUsers, Array.from(updatedDeletedSet));
+
+  // 3. Remove user from STORAGE_KEYS.users
+  const updatedUsers = storedUsers.filter((u) => {
+    if (!u) return false;
+    const uId = u.id != null ? String(u.id).toLowerCase() : "";
+    const uEmail = u.email ? String(u.email).toLowerCase() : "";
+    const uUser = u.username ? String(u.username).toLowerCase() : "";
+    if (targetId && uId === targetId.toLowerCase()) return false;
+    if (targetEmail && uEmail === targetEmail.toLowerCase()) return false;
+    if (targetUsername && uUser === targetUsername.toLowerCase()) return false;
+    return true;
+  });
+  storage.set(STORAGE_KEYS.users, updatedUsers);
+
+  // 4. Unassign any tickets assigned to this deleted user
+  const tickets = getTickets();
+  let ticketsModified = false;
+  const cleanedTickets = tickets.map((t) => {
+    if (!t) return t;
+    const assignedId = String(t.assignedTo || t.assignedAgentId || "").toLowerCase();
+    const assignedName = String(t.assignedAgent || t.assignedAgentName || "").toLowerCase();
+    const isAssignedToUser = (
+      (targetId && (assignedId === targetId.toLowerCase() || assignedName.includes(targetId.toLowerCase()))) ||
+      (targetEmail && (assignedId === targetEmail.toLowerCase() || assignedName.includes(targetEmail.toLowerCase()))) ||
+      (targetUsername && (assignedId === targetUsername.toLowerCase() || assignedName.includes(targetUsername.toLowerCase()))) ||
+      (targetName && assignedName === targetName.toLowerCase())
+    );
+
+    if (isAssignedToUser) {
+      ticketsModified = true;
+      return {
+        ...t,
+        assignedTo: null,
+        assignedAgent: "Unassigned",
+        assignedAgentName: "Unassigned",
+        assignedAgentId: null,
+        assignedAgentDepartment: null,
+        assignedAgentTitle: null,
+        assignedAgentAvailability: null,
+        status: ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status) ? t.status : "OPEN",
+      };
+    }
+    return t;
+  });
+
+  if (ticketsModified) {
+    saveTickets(cleanedTickets);
+  }
+
+  // 5. Broadcast global events so all components, sidebars, switchers and manager queues instantly update
+  window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: updatedUsers }));
+  window.dispatchEvent(new CustomEvent("supportpilot_user_deleted", { detail: { id: targetId, email: targetEmail, username: targetUsername, name: targetName } }));
+  window.dispatchEvent(new CustomEvent("supportpilot_tickets_changed", { detail: cleanedTickets }));
+
+  return { success: true, deleted: { id: targetId, email: targetEmail, username: targetUsername } };
+};
+
 export const getDepartmentAgentsList = () => {
   const users = storage.get(STORAGE_KEYS.users, seedUsers);
+  const deletedSet = getDeletedUserIdentifiers();
 
   // Combine seedUsers with stored users to ensure all agents are present
   const userMap = new Map();
 
   seedUsers.forEach((u) => {
+    if (isUserDeleted(u)) return;
     const r = String(u.role || "").toLowerCase();
     if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead")) {
       userMap.set(u.email.toLowerCase(), { ...u });
@@ -1220,7 +1382,7 @@ export const getDepartmentAgentsList = () => {
 
   if (Array.isArray(users)) {
     users.forEach((u) => {
-      if (!u || !u.email) return;
+      if (!u || !u.email || isUserDeleted(u)) return;
       const r = String(u.role || "").toLowerCase();
       if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead")) {
         const key = u.email.toLowerCase();
@@ -1237,7 +1399,7 @@ export const getDepartmentAgentsList = () => {
   };
 
   return Array.from(userMap.values())
-    .filter((u) => u.status !== "Inactive")
+    .filter((u) => u.status !== "Inactive" && !isUserDeleted(u))
     .map((u) => {
       let dept = "IT";
       const rawDept = String(u.department || "").toLowerCase();
