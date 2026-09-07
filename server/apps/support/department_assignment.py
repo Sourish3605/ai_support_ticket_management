@@ -73,66 +73,122 @@ def get_department_for_category(category_name):
     return "IT Department"
 
 
-def get_agents_in_department(department_name, available_only=False):
+def is_team_lead_or_admin(user):
     """
-    Returns QuerySet or list of User accounts belonging to a specific department.
-    Optionally filters by availability_status == 'AVAILABLE'.
+    Identifies Team Leads, Supervisors, Managers, and Admins who should be
+    excluded from automatic round-robin ticket assignments.
+    """
+    if not user:
+        return False
+    uname = (user.username or "").lower().strip()
+    uemail = (user.email or "").lower().strip()
+
+    # Explicit Admins, Managers, and system accounts
+    if any(k in uname or k in uemail for k in ["admin", "manager", "sourish", "workflow_", "scen_"]):
+        return True
+
+    # Profile role & title inspection
+    profile = getattr(user, "profile", None)
+    if profile:
+        role = (profile.role or "").lower().strip()
+        if role in ["admin", "manager", "customer"]:
+            return True
+        title = (profile.title or "").lower().strip()
+        if any(k in title for k in ["lead", "supervisor", "head", "director", "manager"]):
+            return True
+
+    # Default IT Support Desk Lead
+    if uname in ["agent", "agent@gmail.com", "alex.agent@supportpilot.com"]:
+        return True
+
+    return False
+
+
+def get_agents_in_department(department_name, available_only=False, exclude_leads=False):
+    """
+    Returns list of User accounts belonging to a specific department.
+    - available_only: filters by availability_status == 'AVAILABLE'
+    - exclude_leads: excludes Team Leads and Admins/Managers (for automatic ticket assignment)
     """
     from apps.staff.models import Profile
 
-    profile_qs = Profile.objects.filter(department__iexact=department_name)
+    dept_query = department_name.strip()
+    if not dept_query.endswith("Department") and not dept_query.endswith("department"):
+        dept_query = f"{dept_query} Department"
+
+    profile_qs = Profile.objects.filter(
+        Q(department__iexact=dept_query) | Q(department__iexact=department_name)
+    )
     if available_only:
         profile_qs = profile_qs.filter(availability_status="AVAILABLE")
+
+    # Exclude roles that should never be treated as support agents
+    profile_qs = profile_qs.exclude(role__in=["Customer", "Admin", "Manager"])
 
     agent_user_ids = list(profile_qs.values_list("user_id", flat=True))
 
     users = list(
         User.objects.filter(id__in=agent_user_ids).filter(
-            Q(is_staff=True) | Q(profile__role__in=["Agent", "Support Agent", "Manager", "Admin"])
+            Q(profile__role__in=["Agent", "Support Agent"]) | Q(is_staff=True)
         ).distinct()
     )
 
-    # Fallback heuristic if no profiles seeded yet: match known usernames or staff
-    if not users and department_name == "IT Department":
-        users = list(
-            User.objects.filter(
-                is_staff=True
-            ).exclude(
-                username__in=["workflow_manager", "scen_mgr"]
-            )[:4]
-        )
+    filtered_users = []
+    seen = set()
+    for u in users:
+        uname = (u.username or "").lower().strip()
+        uemail = (u.email or "").lower().strip()
 
-    return users
+        # Exclude administrative accounts
+        if any(k in uname or k in uemail for k in ["admin", "manager", "sourish", "workflow_", "scen_", "customer"]):
+            continue
+
+        # Exclude Team Leads from auto-assignment if requested
+        if exclude_leads and is_team_lead_or_admin(u):
+            continue
+
+        # Deduplicate users by clean email or base username
+        key = uemail or uname
+        if key not in seen:
+            seen.add(key)
+            filtered_users.append(u)
+
+    return filtered_users
 
 
-def auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True):
+def auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True, exclude_leads=True):
     """
-    Full Category -> Department -> Available Agent -> Fair Assignment workflow.
+    Full Category -> Department -> Regular Available Agent (Excluding Team Leads) -> Fair Assignment workflow.
     1. Identify Category -> Determine Department.
     2. Check availability status of agents in that department.
     3. Exclude 'UNAVAILABLE', 'BUSY', 'INACTIVE' agents.
-    4. Fair workload balancing: select eligible agent with lowest active ticket count.
-    5. If no agent available: mark unassigned, retain department, queue for Manager.
+    4. Exclude Team Leads (e.g. Lead IT Support Specialist) from auto-assignment.
+    5. Fair workload balancing: select eligible regular agent with lowest active ticket count.
+    6. If no regular agent available: mark unassigned, retain department, queue for Manager.
     """
     category = ticket.category or "General"
     department = get_department_for_category(category)
     ticket.department = department
 
-    # Find available agents in this department
-    eligible_agents = get_agents_in_department(department, available_only=True)
+    # Find available regular agents in this department (excluding Team Leads)
+    eligible_agents = get_agents_in_department(department, available_only=True, exclude_leads=exclude_leads)
 
     if not eligible_agents:
-        # No agent available right now in this department
+        # If excluding leads returned no agents, check if leads exist to document in log
+        all_department_agents = get_agents_in_department(department, available_only=True, exclude_leads=False)
+        has_lead = len(all_department_agents) > 0
+
         ticket.assigned_to = None
         ticket.save(update_fields=["department", "assigned_to", "updated_at"])
 
         try:
             from .agent_orchestrator import _log_activity
+            reason = "Team Lead is excluded from auto-assignment and all regular agents are unavailable." if has_lead else f"No available agents in {department}."
             _log_activity(
                 ticket=ticket,
                 actor="Department Router",
                 action="PENDING_ASSIGNMENT",
-                description=f"Routed to '{department}' for Category '{category}'. All department agents are currently unavailable/busy. Queued for Manager assignment.",
+                description=f"Routed to '{department}' for Category '{category}'. {reason} Queued for Manager assignment.",
             )
         except Exception:
             pass
@@ -146,7 +202,7 @@ def auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True):
                     user=mgr,
                     ticket=ticket,
                     title=f"Unassigned {department} Ticket: #{ticket.ticket_number}",
-                    message=f"No agents available in {department} for ticket '{ticket.title}'. Manual assignment required.",
+                    message=f"Ticket '{ticket.title}' queued for assignment (Team Leads excluded from auto-assignment).",
                     notification_type="system",
                 )
         except Exception:
@@ -154,7 +210,7 @@ def auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True):
 
         return None
 
-    # Fair Workload Balancing: Pick agent with fewest non-resolved, non-closed tickets
+    # Fair Workload Balancing: Pick regular agent with fewest non-resolved, non-closed tickets
     def get_active_workload(agent_user):
         return Ticket.objects.filter(assigned_to=agent_user).exclude(
             status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
@@ -173,11 +229,12 @@ def auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True):
     try:
         from .agent_orchestrator import _log_activity
         agent_display = best_agent.get_full_name() or best_agent.username
+        agent_title = getattr(getattr(best_agent, "profile", None), "title", "Support Agent")
         _log_activity(
             ticket=ticket,
             actor="Department Router",
             action="AUTO_ASSIGNED",
-            description=f"Category '{category}' routed to '{department}'. Auto-assigned to {agent_display} (Current workload: {workload} active tickets).",
+            description=f"Category '{category}' routed to '{department}'. Auto-assigned to {agent_display} ({agent_title}) [Team Lead excluded]. (Current workload: {workload} active tickets).",
         )
     except Exception:
         pass

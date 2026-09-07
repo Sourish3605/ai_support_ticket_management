@@ -323,7 +323,14 @@ const Sidebar = ({
                       }`}
                     >
                       <div className="min-w-0">
-                        <div className="truncate font-semibold">{ag.name}</div>
+                        <div className="truncate font-semibold flex items-center gap-1">
+                          <span>{ag.name}</span>
+                          {ag.isTeamLead && (
+                            <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-800 font-bold">
+                              👑 Lead
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-400 truncate">{ag.specialty}</div>
                       </div>
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">

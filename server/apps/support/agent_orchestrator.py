@@ -118,8 +118,18 @@ def run_multi_agent_workflow(
         workflow.save(update_fields=["current_agent"])
 
         class_res = run_classification_agent(ticket.title, ticket.description)
-        ticket.category = class_res.get("category", ticket.category)
-        ticket.sub_category = class_res.get("sub_category", ticket.sub_category)
+        ai_cat = class_res.get("category")
+        if ai_cat and ai_cat not in ["Other", "General"]:
+            ticket.category = ai_cat
+            ticket.sub_category = class_res.get("sub_category", ticket.sub_category)
+        elif not ticket.category or ticket.category in ["Other", "General"]:
+            ticket.category = ai_cat or ticket.category or "General"
+            ticket.sub_category = class_res.get("sub_category", ticket.sub_category)
+
+        from .department_assignment import get_department_for_category, auto_assign_ticket_to_department_agent
+        ticket.department = get_department_for_category(ticket.category)
+        if not ticket.assigned_to:
+            auto_assign_ticket_to_department_agent(ticket, update_status_if_open=False, exclude_leads=True)
 
         _record_execution(
             workflow=workflow,
@@ -135,7 +145,7 @@ def run_multi_agent_workflow(
             ticket=ticket,
             actor="Classification Agent",
             action="CLASSIFICATION_COMPLETED",
-            description=f"Predicted category: {ticket.category} → {ticket.sub_category}.",
+            description=f"Predicted category: {ticket.category} → {ticket.sub_category} (Department: {ticket.department}).",
             metadata=class_res,
         )
 
@@ -435,7 +445,7 @@ def run_multi_agent_workflow(
             ticket.status = "AI_RESPONDED"
             ticket.auto_resolved = True
             ticket.save(update_fields=[
-                "category", "sub_category", "priority", "severity", "sentiment", "sentiment_score",
+                "category", "sub_category", "department", "assigned_to", "priority", "severity", "sentiment", "sentiment_score",
                 "similar_tickets_meta", "suggested_resolution", "ai_confidence", "ai_analysis_meta",
                 "status", "auto_resolved", "sla_response_due", "sla_resolution_due", "updated_at"
             ])
@@ -525,7 +535,7 @@ def run_multi_agent_workflow(
             ticket.assigned_queue = escalation_res.get("target_team", "Technical Support")
             ticket.escalation_reason = escalation_res.get("escalation_reason", "AI confidence threshold not met.")
             ticket.save(update_fields=[
-                "category", "sub_category", "priority", "severity", "sentiment", "sentiment_score",
+                "category", "sub_category", "department", "assigned_to", "priority", "severity", "sentiment", "sentiment_score",
                 "similar_tickets_meta", "suggested_resolution", "ai_confidence", "ai_analysis_meta",
                 "status", "escalated", "assigned_queue", "escalation_reason",
                 "sla_response_due", "sla_resolution_due", "updated_at"

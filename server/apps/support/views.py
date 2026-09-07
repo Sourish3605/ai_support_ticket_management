@@ -256,7 +256,17 @@ class TicketListCreateView(generics.ListCreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        ticket_instance = serializer.instance
+        if ticket_instance:
+            ticket_instance.refresh_from_db()
+            response_serializer = TicketSerializer(ticket_instance)
+            headers = self.get_success_headers(response_serializer.data)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
         import uuid
@@ -1113,12 +1123,12 @@ class TicketAssignView(APIView):
         )
 
 
-def auto_assign_single_ticket(ticket, update_status_if_open=True):
+def auto_assign_single_ticket(ticket, update_status_if_open=True, exclude_leads=True):
     """
-    Automatically assigns ticket based on Category -> Department -> Available Agent (Workload/Round-Robin).
+    Automatically assigns ticket based on Category -> Department -> Available Regular Agent (Excluding Team Leads).
     """
     from .department_assignment import auto_assign_ticket_to_department_agent
-    return auto_assign_ticket_to_department_agent(ticket, update_status_if_open=update_status_if_open)
+    return auto_assign_ticket_to_department_agent(ticket, update_status_if_open=update_status_if_open, exclude_leads=exclude_leads)
 
 
 
@@ -1126,7 +1136,7 @@ class TicketAutoAssignView(APIView):
     """
     POST /api/tickets/auto-assign/
     POST /api/tickets/<lookup>/auto-assign/
-    Automatically assigns unassigned tickets or a specific ticket based on category & priority.
+    Automatically assigns unassigned tickets or a specific ticket based on category & priority (Excluding Team Leads).
     """
     permission_classes = [IsSupportAgentOrAdmin]
 
@@ -1137,9 +1147,13 @@ class TicketAutoAssignView(APIView):
             ticket = get_ticket_by_id_or_number(lookup)
             if not ticket:
                 return Response({"detail": f"Ticket '{lookup}' not found."}, status=status.HTTP_404_NOT_FOUND)
-            agent = auto_assign_single_ticket(ticket, update_status_if_open=True)
+            agent = auto_assign_single_ticket(ticket, update_status_if_open=True, exclude_leads=True)
+            if agent:
+                msg = f"Ticket #{ticket.ticket_number} auto-assigned to {agent.get_full_name() or agent.username} based on category '{ticket.category}' (Team Leads excluded)."
+            else:
+                msg = f"No available regular agents in {ticket.department}. Team Leads are excluded from auto-assignment."
             return Response({
-                "message": f"Ticket #{ticket.ticket_number} auto-assigned to {agent.get_full_name() or agent.username} based on category '{ticket.category}' and priority '{ticket.priority}'.",
+                "message": msg,
                 "ticket": TicketSerializer(ticket).data
             })
 
@@ -1149,12 +1163,12 @@ class TicketAutoAssignView(APIView):
         )
         assigned_list = []
         for t in unassigned_tickets:
-            ag = auto_assign_single_ticket(t, update_status_if_open=True)
+            ag = auto_assign_single_ticket(t, update_status_if_open=True, exclude_leads=True)
             if ag:
                 assigned_list.append(t)
 
         return Response({
-            "message": f"Successfully auto-assigned {len(assigned_list)} tickets based on category and priority.",
+            "message": f"Successfully auto-assigned {len(assigned_list)} tickets based on category and priority (Team Leads excluded).",
             "assigned_count": len(assigned_list),
             "tickets": TicketSerializer(assigned_list, many=True).data,
         })
@@ -1165,7 +1179,7 @@ class AgentListView(APIView):
     """
     GET /api/agent/list/ or /api/agents/
     List active support agents and staff for ticket assignment.
-    Supports ?department=... and ?available_only=true filters.
+    Supports ?department=..., ?available_only=true, and ?exclude_leads=true filters.
     """
     permission_classes = [
         permissions.IsAuthenticated,
@@ -1174,10 +1188,12 @@ class AgentListView(APIView):
 
     def get(self, request):
         from apps.staff.models import Profile
+        from apps.support.department_assignment import is_team_lead_or_admin
         from django.db.models import Q
 
         department_filter = request.query_params.get("department")
         available_only = request.query_params.get("available_only") in ["true", "1", "True"]
+        exclude_leads = request.query_params.get("exclude_leads") in ["true", "1", "True"]
 
         profile_qs = Profile.objects.filter(role__in=["Agent", "Manager", "Admin", "Support Agent"])
         if department_filter and department_filter != "ALL":
@@ -1201,8 +1217,12 @@ class AgentListView(APIView):
             if available_only and avail != "AVAILABLE":
                 continue
 
+            is_lead = is_team_lead_or_admin(u)
+            if exclude_leads and is_lead:
+                continue
+
             role = profile.role if profile and profile.role else ("Admin" if u.is_superuser else "Agent")
-            title = profile.title if profile and profile.title else "Support Specialist"
+            title = profile.title if profile and profile.title else ("Lead IT Support Specialist" if is_lead else "Support Specialist")
 
             active_tickets = Ticket.objects.filter(assigned_to=u).exclude(
                 status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
@@ -1217,6 +1237,7 @@ class AgentListView(APIView):
                 "department": dept,
                 "availability_status": avail,
                 "title": title,
+                "is_team_lead": is_lead,
                 "active_tickets": active_tickets,
             })
         return Response(data, status=status.HTTP_200_OK)
