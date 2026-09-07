@@ -7,6 +7,7 @@ import {
   classifyTicket,
   findDuplicateTicket,
   createTicketApi,
+  getDepartmentForCategory,
 } from "../../services/ticketService";
 import { api } from "../../services/api";
 
@@ -55,13 +56,14 @@ function Step({ number, title, subtitle, done = false }) {
 }
 
 const DEFAULT_CATEGORIES = [
-  { id: 1, name: "Network", sub_categories: [{ id: 101, name: "VPN" }, { id: 102, name: "Internet" }, { id: 103, name: "Wi-Fi" }, { id: 104, name: "DNS / Gateway" }, { id: 105, name: "Firewall" }] },
-  { id: 2, name: "Security", sub_categories: [{ id: 201, name: "Phishing" }, { id: 202, name: "Unauthorized Access" }, { id: 203, name: "Fraud" }, { id: 204, name: "Security Alert" }, { id: 205, name: "Malware" }] },
-  { id: 3, name: "Authentication", sub_categories: [{ id: 301, name: "Password Reset" }, { id: 302, name: "Login Issue" }, { id: 303, name: "MFA / SSO" }, { id: 304, name: "Account Locked" }] },
-  { id: 4, name: "Hardware", sub_categories: [{ id: 401, name: "Laptop" }, { id: 402, name: "Desktop" }, { id: 403, name: "Monitor" }, { id: 404, name: "Keyboard / Mouse" }, { id: 405, name: "Printer" }] },
-  { id: 5, name: "Software", sub_categories: [{ id: 501, name: "Application Error" }, { id: 502, name: "Crash" }, { id: 503, name: "License Expired" }, { id: 504, name: "Installation" }] },
-  { id: 6, name: "Email", sub_categories: [{ id: 601, name: "Outlook Sync" }, { id: 602, name: "Calendar Issue" }, { id: 603, name: "Spam" }, { id: 604, name: "Delivery Failure" }] },
-  { id: 7, name: "Billing", sub_categories: [{ id: 701, name: "Invoice" }, { id: 702, name: "Payment Failure" }, { id: 703, name: "Subscription" }] },
+  { id: 1, name: "Hardware", sub_categories: [{ id: 401, name: "Laptop" }, { id: 402, name: "Desktop" }, { id: 403, name: "Monitor" }, { id: 404, name: "Keyboard / Mouse" }, { id: 405, name: "Printer" }] },
+  { id: 2, name: "Software", sub_categories: [{ id: 501, name: "Application Error" }, { id: 502, name: "Crash" }, { id: 503, name: "License Expired" }, { id: 504, name: "Installation" }] },
+  { id: 3, name: "Network", sub_categories: [{ id: 101, name: "VPN" }, { id: 102, name: "Internet" }, { id: 103, name: "Wi-Fi" }, { id: 104, name: "DNS / Gateway" }, { id: 105, name: "Firewall" }] },
+  { id: 4, name: "HR/Payroll", sub_categories: [{ id: 801, name: "Salary / Payslip" }, { id: 802, name: "Benefits / Health Insurance" }, { id: 803, name: "Leave Management" }, { id: 804, name: "Employee Onboarding" }] },
+  { id: 5, name: "Finance/Payments", sub_categories: [{ id: 701, name: "Invoice Processing" }, { id: 702, name: "Payment Failure" }, { id: 703, name: "Subscription Billing" }, { id: 704, name: "Expense Reimbursement" }] },
+  { id: 6, name: "Authentication", sub_categories: [{ id: 301, name: "Password Reset" }, { id: 302, name: "Login Issue" }, { id: 303, name: "MFA / SSO" }, { id: 304, name: "Account Locked" }] },
+  { id: 7, name: "Security", sub_categories: [{ id: 201, name: "Phishing" }, { id: 202, name: "Unauthorized Access" }, { id: 203, name: "Fraud Alert" }] },
+  { id: 8, name: "Billing", sub_categories: [{ id: 901, name: "Invoice" }, { id: 902, name: "Payment Failure" }, { id: 903, name: "Subscription" }] },
 ];
 
 const DEFAULT_PRIORITIES = [
@@ -763,6 +765,22 @@ export default function NewTicketPage() {
                     </div>
                   </Field>
                 </div>
+
+                {/* Target Department Indicator based on Category */}
+                {form.category && (
+                  <div className="mb-4 p-2.5 rounded-xl bg-blue-50 border border-blue-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-blue-950">
+                      <span>🏢</span>
+                      <span>Target Department:</span>
+                      <span className="rounded-md bg-blue-700 text-white px-2 py-0.5 font-mono text-[11px] shadow-2xs">
+                        {getDepartmentForCategory(form.category)}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-blue-700 font-medium">
+                      ✓ Auto-assigns to an available {getDepartmentForCategory(form.category)} specialist
+                    </span>
+                  </div>
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Priority Level">

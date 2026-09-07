@@ -16,6 +16,7 @@ from .views import (
     NotificationMarkAllReadView,
     AgentListView,
     TicketAutoAssignView,
+    AgentAvailabilityUpdateView,
 )
 from .views_m3 import (
     AgentWorkflowStartView,
@@ -52,6 +53,8 @@ urlpatterns = [
     path("agent/list/", AgentListView.as_view(), name="agent-list"),
     path("agents", AgentListView.as_view(), name="agents-no-slash"),
     path("agents/", AgentListView.as_view(), name="agents"),
+    re_path(r"^agent/availability/?$", AgentAvailabilityUpdateView.as_view(), name="agent-availability-current"),
+    re_path(r"^agent/(?P<pk>[A-Za-z0-9_-]+)/availability/?$", AgentAvailabilityUpdateView.as_view(), name="agent-availability-user"),
 
     # Individual Ticket Operations (by numeric ID or string ticket_number like TKT-1001)
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/status/?$", TicketStatusUpdateView.as_view(), name="ticket-status-update"),

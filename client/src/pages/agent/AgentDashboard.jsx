@@ -9,6 +9,8 @@ import {
   addTicketReplyApi,
   updateTicket,
   addComment,
+  updateAgentAvailabilityApi,
+  getDepartmentForCategory,
 } from "../../services/ticketService";
 
 const priorityClass = {
@@ -35,12 +37,39 @@ const statusClass = {
   AI_RESOLUTION_READY: "sp-tag-brand font-bold bg-emerald-50 text-emerald-800 border border-emerald-300",
 };
 
+const AVAILABILITY_OPTIONS = [
+  { value: "AVAILABLE", label: "Working / Available", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50 border-emerald-300" },
+  { value: "BUSY", label: "Busy", dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50 border-amber-300" },
+  { value: "UNAVAILABLE", label: "Not Working / Unavailable", dot: "bg-orange-500", text: "text-orange-700", bg: "bg-orange-50 border-orange-300" },
+  { value: "INACTIVE", label: "Inactive", dot: "bg-slate-400", text: "text-slate-700", bg: "bg-slate-100 border-slate-300" },
+];
+
 export default function AgentDashboard() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [activeReplyTicket, setActiveReplyTicket] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
   const [toast, setToast] = useState(null);
+  const [availability, setAvailability] = useState(
+    user?.availability_status || user?.availabilityStatus || "AVAILABLE"
+  );
+  const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false);
+
+  const handleAvailabilityChange = async (newStatus) => {
+    setIsUpdatingAvailability(true);
+    try {
+      await updateAgentAvailabilityApi(newStatus);
+      setAvailability(newStatus);
+      setToast({
+        type: "success",
+        message: `Status updated to ${AVAILABILITY_OPTIONS.find((o) => o.value === newStatus)?.label || newStatus}.`,
+      });
+    } catch (e) {
+      setToast({ type: "error", message: "Failed to update availability status." });
+    } finally {
+      setIsUpdatingAvailability(false);
+    }
+  };
 
   const loadTickets = async () => {
     try {
@@ -197,18 +226,56 @@ export default function AgentDashboard() {
       )}
 
       {/* Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#0c1a2e] via-[#163354] to-[#1d4ed8] p-5 text-white shadow-md">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-[#0c1a2e] via-[#163354] to-[#1d4ed8] p-5 text-white shadow-md">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-300">Support Workspace</span>
-          <h1 className="text-xl sm:text-2xl font-bold mt-0.5">Support Agent Dashboard</h1>
-          <p className="text-xs text-white/70 mt-1">Manage ticket queue, triage requests, assign agents, and reply to customers.</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-300">Support Workspace</span>
+            <span className="rounded-full bg-cyan-400/20 border border-cyan-300/30 px-2.5 py-0.5 text-[10px] font-extrabold text-cyan-200">
+              🏢 {user?.department || "IT Department"}
+            </span>
+            {user?.title && (
+              <span className="text-[11px] text-cyan-100/70 hidden sm:inline">• {user.title}</span>
+            )}
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold mt-1 flex items-center gap-2">
+            Support Agent Dashboard
+            <span className="text-xs font-normal text-white/80">({user?.name || user?.username || "Agent"})</span>
+          </h1>
+          <p className="text-xs text-white/70 mt-0.5">Manage ticket queue, triage requests, assign agents, and reply to customers.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/tickets" className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-[#1d4ed8] shadow hover:bg-blue-50 transition">
-            View All Tickets ({totalCount})
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Availability Status Selector */}
+          <div className="flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-3 py-1.5 border border-white/20">
+            <span className="text-[11px] font-semibold text-white/80">My Status:</span>
+            <div className="relative">
+              <select
+                value={availability}
+                disabled={isUpdatingAvailability}
+                onChange={(e) => handleAvailabilityChange(e.target.value)}
+                className="rounded-lg bg-slate-900/90 text-white font-bold text-xs py-1 pl-2.5 pr-6 border border-white/20 focus:outline-hidden focus:ring-2 focus:ring-cyan-400 cursor-pointer"
+              >
+                {AVAILABILITY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-slate-900 text-white font-medium">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Status dot */}
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                AVAILABILITY_OPTIONS.find((o) => o.value === availability)?.dot || "bg-emerald-500"
+              }`}
+              title={AVAILABILITY_OPTIONS.find((o) => o.value === availability)?.label}
+            />
+          </div>
+
+          <Link to="/tickets" className="rounded-xl bg-white px-3.5 py-2 text-xs font-bold text-[#1d4ed8] shadow hover:bg-blue-50 transition">
+            View All ({totalCount})
           </Link>
-          <button onClick={loadTickets} className="rounded-xl bg-white/15 px-4 py-2 text-xs font-bold text-white hover:bg-white/25 transition cursor-pointer">
-            Refresh Queue
+          <button onClick={loadTickets} className="rounded-xl bg-white/15 px-3.5 py-2 text-xs font-bold text-white hover:bg-white/25 transition cursor-pointer">
+            Refresh
           </button>
         </div>
       </div>
@@ -295,6 +362,7 @@ export default function AgentDashboard() {
               <tr>
                 <th className="border-b border-[#dfe5e1] px-3.5 py-3 font-bold">Ticket ID</th>
                 <th className="border-b border-[#dfe5e1] px-3.5 py-3 font-bold">Subject</th>
+                <th className="border-b border-[#dfe5e1] px-3.5 py-3 font-bold">Department</th>
                 <th className="border-b border-[#dfe5e1] px-3.5 py-3 font-bold">Category</th>
                 <th className="border-b border-[#dfe5e1] px-3.5 py-3 font-bold">Priority</th>
                 <th className="border-b border-[#dfe5e1] px-3.5 py-3 font-bold">Status</th>
@@ -308,6 +376,7 @@ export default function AgentDashboard() {
                 const isResolved = ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(ticket.status);
                 const assignedToMe = isAssignedToMe(ticket);
                 const assignedToOther = isAssignedToOther(ticket);
+                const deptName = ticket.department || getDepartmentForCategory(ticket.category);
 
                 return (
                   <tr
@@ -342,6 +411,13 @@ export default function AgentDashboard() {
                           </span>
                         )}
                       </div>
+                    </td>
+
+                    {/* Department */}
+                    <td className="px-3.5 py-3">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 text-slate-800 px-2 py-0.5 text-[10px] font-bold">
+                        <span>🏢</span> {deptName}
+                      </span>
                     </td>
 
                     {/* Category */}

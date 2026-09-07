@@ -2,6 +2,51 @@ import { seedTickets, seedUsers } from "../data/seedData.js";
 import { storage, STORAGE_KEYS } from "./storageService.js";
 import { api } from "./api.js";
 
+export const CATEGORY_TO_DEPARTMENT_MAP = {
+  // IT Department
+  Hardware: "IT Department",
+  Software: "IT Department",
+  "Software/Application": "IT Department",
+  Network: "IT Department",
+  Account: "IT Department",
+  Security: "IT Department",
+  Access: "IT Department",
+  Database: "IT Department",
+  Infrastructure: "IT Department",
+
+  // HR Department
+  HR: "HR Department",
+  "HR/Payroll": "HR Department",
+  Payroll: "HR Department",
+  Benefits: "HR Department",
+  Onboarding: "HR Department",
+  Leave: "HR Department",
+  "Leave/Vacation": "HR Department",
+
+  // Finance Department
+  Finance: "Finance Department",
+  "Finance/Payments": "Finance Department",
+  Payments: "Finance Department",
+  Billing: "Finance Department",
+  Invoicing: "Finance Department",
+  Expense: "Finance Department",
+};
+
+export const getDepartmentForCategory = (category) => {
+  if (!category) return "IT Department";
+  const cat = String(category).trim().toLowerCase();
+  for (const [key, dept] of Object.entries(CATEGORY_TO_DEPARTMENT_MAP)) {
+    if (key.toLowerCase() === cat) return dept;
+  }
+  if (cat.includes("pay") || cat.includes("hr") || cat.includes("benefit") || cat.includes("leave") || cat.includes("employee")) {
+    return "HR Department";
+  }
+  if (cat.includes("bill") || cat.includes("financ") || cat.includes("payment") || cat.includes("tax") || cat.includes("invoic") || cat.includes("cost")) {
+    return "Finance Department";
+  }
+  return "IT Department";
+};
+
 
 
 export const getTickets = () => {
@@ -529,6 +574,7 @@ export const createTicket = async (form, user) => {
 
   const category = form.category || classification?.category || "General";
   const subCategory = form.subCategory || classification?.subCategory || "General";
+  const department = form.department || getDepartmentForCategory(category);
   const severity = form.severity || classification?.severity || "Medium";
   const priority = form.priority || classification?.priority || "P3";
   const slaHours = form.slaHours || classification?.slaHours || getSLAHours(priority);
@@ -551,6 +597,7 @@ export const createTicket = async (form, user) => {
       title: rawSubject,
       description: rawDesc,
       category,
+      department,
       sub_category: subCategory,
       severity,
       priority,
@@ -566,6 +613,7 @@ export const createTicket = async (form, user) => {
         title: rawSubject,
         description: rawDesc,
         category,
+        department,
         sub_category: subCategory,
         severity,
         priority,
@@ -596,7 +644,7 @@ export const createTicket = async (form, user) => {
     customerName: backendTicket?.customerName || customerName,
     customerEmail: backendTicket?.customerEmail || customerEmail,
 
-    department: form.department || user?.department || "IT support",
+    department: backendTicket?.department || department,
     location: form.location || "",
     assetTag: form.assetTag || "",
     affectedSystem: form.affectedSystem || "",
@@ -610,10 +658,13 @@ export const createTicket = async (form, user) => {
     attachments: form.attachments || [],
 
     assignedTo: backendTicket?.assigned_to || null,
-    assignedAgent: backendTicket?.assignedAgentName || "Unassigned",
-    assignedAgentName: backendTicket?.assignedAgentName || "Unassigned",
-    assignedAgentId: backendTicket?.assigned_to || null,
-    team: classification?.team || "IT Support",
+    assignedAgent: backendTicket?.assignedAgentName || backendTicket?.assignedAgent || "Unassigned",
+    assignedAgentName: backendTicket?.assignedAgentName || backendTicket?.assignedAgent || "Unassigned",
+    assignedAgentId: backendTicket?.assignedAgentId || backendTicket?.assigned_to || null,
+    assignedAgentDepartment: backendTicket?.assignedAgentDepartment || null,
+    assignedAgentTitle: backendTicket?.assignedAgentTitle || null,
+    assignedAgentAvailability: backendTicket?.assignedAgentAvailability || null,
+    team: classification?.team || "Support",
 
     createdAt: backendTicket?.created_at || backendTicket?.createdAt || createdAt.toISOString(),
     updatedAt: backendTicket?.updated_at || backendTicket?.updatedAt || createdAt.toISOString(),
@@ -809,11 +860,14 @@ export const addComment = (
 
 export const createTicketApi = async (formData) => {
   try {
+    const category = formData.category || "General";
+    const department = formData.department || getDepartmentForCategory(category);
     const res = await api.post("/tickets/", {
       subject: formData.subject || formData.title,
       title: formData.subject || formData.title,
       description: formData.description,
-      category: formData.category,
+      category,
+      department,
       priority: formData.priority,
       severity: formData.severity,
       attachment: formData.attachment || null,
@@ -920,16 +974,32 @@ export const updateTicketStatusApi = async (id, newStatus) => {
   return null;
 };
 
-export const fetchAgentsApi = async () => {
+export const fetchAgentsApi = async (params = {}) => {
   try {
-    const res = await api.get("/agent/list/");
+    const res = await api.get("/agent/list/", { params });
     if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
       return res.data;
     }
   } catch (err) {
     console.warn("[ticketService] fetchAgentsApi notice:", err.message);
   }
-  return seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
+  let agents = seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
+  if (params.department) {
+    const deptQuery = params.department.toLowerCase().replace(" department", "").trim();
+    agents = agents.filter((a) => (a.department || "").toLowerCase().includes(deptQuery));
+  }
+  return agents;
+};
+
+export const updateAgentAvailabilityApi = async (status, agentId = null) => {
+  try {
+    const url = agentId ? `/agent/${agentId}/availability/` : `/agent/availability/`;
+    const res = await api.patch(url, { availability_status: status });
+    return res?.data;
+  } catch (err) {
+    console.warn("[ticketService] updateAgentAvailabilityApi error:", err.message);
+    throw err;
+  }
 };
 
 export const syncTicketToBackendApi = async (localTicket) => {
@@ -1038,12 +1108,17 @@ export const assignTicketApi = async (id, agentId = null, agentName = null) => {
         assignedAgent: res.data.assignedAgentName || agentName,
         assignedAgentName: res.data.assignedAgentName || agentName,
         assignedAgentId: res.data.assignedAgentId || agentId,
+        assignedAgentDepartment: res.data.assignedAgentDepartment || null,
+        assignedAgentTitle: res.data.assignedAgentTitle || null,
+        assignedAgentAvailability: res.data.assignedAgentAvailability || null,
         status: res.data.status || "ASSIGNED",
       });
       return res.data;
     }
   } catch (err) {
     console.warn("[ticketService] assignTicketApi notice:", err.message);
+    const errorMsg = err?.response?.data?.error || err?.response?.data?.detail || err.message;
+    throw new Error(errorMsg);
   }
   return null;
 };
