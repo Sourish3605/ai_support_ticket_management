@@ -13,7 +13,8 @@ import {
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { getAllTickets, getDepartmentAgentsList } from "./services/ticketService";
+import { getAllTickets, getDepartmentAgentsList, updateAgentAvailabilityApi } from "./services/ticketService";
+import { storage, STORAGE_KEYS } from "./services/storageService";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -92,7 +93,7 @@ function CustomerLayout({ children }) {
 ===================================================== */
 
 function AgentLayout({ children }) {
-  const { logout, login, user } = useAuth();
+  const { logout, login, user, updateUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [ticketCounts, setTicketCounts] = useState({ all: 0, open: 0 });
@@ -220,6 +221,40 @@ function AgentLayout({ children }) {
       default:
         return "Working / Available";
     }
+  };
+
+  const handleGlobalAvailabilityChange = async (newStatus) => {
+    if (updateUser) {
+      updateUser({
+        availability_status: newStatus,
+        availabilityStatus: newStatus,
+      });
+    }
+
+    try {
+      const storedUsers = storage.get(STORAGE_KEYS.users, []);
+      if (Array.isArray(storedUsers) && user?.email) {
+        const uEmail = user.email.toLowerCase().trim();
+        const updated = storedUsers.map((u) => {
+          if (u.email?.toLowerCase().trim() === uEmail || u.id === user?.id) {
+            return { ...u, availabilityStatus: newStatus, availability_status: newStatus };
+          }
+          return u;
+        });
+        storage.set(STORAGE_KEYS.users, updated);
+        window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: updated }));
+      }
+    } catch (e) {
+      console.warn("Error updating local users store:", e);
+    }
+
+    try {
+      await updateAgentAvailabilityApi(newStatus, user?.id, user?.email);
+    } catch (e) {}
+
+    const label = getAvailabilityLabel(newStatus);
+    setSwitchNotice(`My Status updated to ${label}`);
+    setTimeout(() => setSwitchNotice(null), 3000);
   };
 
   return (
@@ -359,17 +394,25 @@ function AgentLayout({ children }) {
         {/* SIDEBAR FOOTER (CURRENT LOGGED-IN AGENT) */}
         <div className="sp-sidebar-footer">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="sp-avatar sp-agent-avatar shrink-0" title={displayName}>
                 {userInitials}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold text-white truncate">{displayName}</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${getAvailabilityDot(user?.availability_status || user?.availabilityStatus)}`} />
-                  <span className="text-[10px] font-semibold text-cyan-300 truncate">
-                    {currentDepartment} Dept &bull; {getAvailabilityLabel(user?.availability_status || user?.availabilityStatus)}
-                  </span>
+                  <span className={`h-2 w-2 rounded-full ${getAvailabilityDot(user?.availability_status || user?.availabilityStatus)} shrink-0`} />
+                  <select
+                    value={user?.availability_status || user?.availabilityStatus || "AVAILABLE"}
+                    onChange={(e) => handleGlobalAvailabilityChange(e.target.value)}
+                    className="bg-slate-900/90 text-cyan-300 text-[10px] font-bold py-0.5 px-1 rounded border border-slate-700 outline-none cursor-pointer w-full truncate"
+                    title="Change your availability status"
+                  >
+                    <option value="AVAILABLE" className="bg-slate-900 text-white">🟢 Available</option>
+                    <option value="BUSY" className="bg-slate-900 text-white">🟡 Busy</option>
+                    <option value="UNAVAILABLE" className="bg-slate-900 text-white">🟠 Unavailable</option>
+                    <option value="INACTIVE" className="bg-slate-900 text-white">⚪ Inactive</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -393,15 +436,27 @@ function AgentLayout({ children }) {
             <h1>{pageMeta[1]}</h1>
           </div>
           <div className="flex items-center gap-3">
-            {/* CURRENT ACTIVE AGENT BADGE */}
-            <div className="hidden sm:flex items-center gap-2 rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1">
-              <span className={`h-2 w-2 rounded-full ${getAvailabilityDot(user?.availability_status || user?.availabilityStatus)}`} />
-              <span className="text-xs font-semibold text-slate-700">
-                {displayName}
-              </span>
-              <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded border border-blue-200">
-                {currentDepartment} Dept &bull; {getAvailabilityLabel(user?.availability_status || user?.availabilityStatus)}
-              </span>
+            {/* CURRENT ACTIVE AGENT & INTERACTIVE MY STATUS CONTROLLER */}
+            <div className="flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-1.5 shadow-xs">
+              <span className={`h-2.5 w-2.5 rounded-full ${getAvailabilityDot(user?.availability_status || user?.availabilityStatus)} shrink-0`} />
+              <div className="hidden md:flex flex-col text-left mr-1">
+                <span className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">{displayName}</span>
+                <span className="text-[10px] text-slate-500 font-semibold">{currentDepartment} Dept</span>
+              </div>
+              <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden sm:inline">My Status:</span>
+                <select
+                  value={user?.availability_status || user?.availabilityStatus || "AVAILABLE"}
+                  onChange={(e) => handleGlobalAvailabilityChange(e.target.value)}
+                  className="rounded-lg bg-slate-50 text-slate-800 font-semibold text-xs py-1 px-2 border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  title="Change your availability status"
+                >
+                  <option value="AVAILABLE">🟢 Working / Available</option>
+                  <option value="BUSY">🟡 Busy</option>
+                  <option value="UNAVAILABLE">🟠 Not Working / Unavailable</option>
+                  <option value="INACTIVE">⚪ Inactive</option>
+                </select>
+              </div>
             </div>
             <button
               onClick={handleLogout}

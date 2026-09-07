@@ -61,6 +61,26 @@ export default function AgentDashboard() {
     setAvailability(current);
   }, [user?.email, user?.id, user?.availability_status, user?.availabilityStatus]);
 
+  useEffect(() => {
+    const handleSync = (e) => {
+      const stored = e?.detail || storage.get(STORAGE_KEYS.users, []);
+      if (Array.isArray(stored) && user?.email) {
+        const u = stored.find(
+          (item) => item.email?.toLowerCase() === user.email.toLowerCase() || item.id === user.id
+        );
+        if (u && (u.availability_status || u.availabilityStatus)) {
+          setAvailability(u.availability_status || u.availabilityStatus);
+        }
+      }
+    };
+    window.addEventListener("supportpilot_users_changed", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("supportpilot_users_changed", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
+  }, [user?.email, user?.id]);
+
   const handleAvailabilityChange = async (newStatus) => {
     setIsUpdatingAvailability(true);
     setAvailability(newStatus);

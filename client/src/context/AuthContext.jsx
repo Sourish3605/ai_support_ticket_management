@@ -29,7 +29,13 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
       const item = localStorage.getItem("supportpilot-user");
-      return item ? JSON.parse(item) : null;
+      if (!item) return null;
+      const parsed = JSON.parse(item);
+      if (parsed && !parsed.availability_status && !parsed.availabilityStatus) {
+        parsed.availability_status = "AVAILABLE";
+        parsed.availabilityStatus = "AVAILABLE";
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -94,12 +100,39 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
+      // Resolve availability status & department from stored users or seed data
+      const storedUsersRaw = localStorage.getItem("supportpilot_users");
+      const storedUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+      const matchStored = Array.isArray(storedUsers)
+        ? storedUsers.find(
+            (u) =>
+              (u.email && u.email.toLowerCase() === username.toLowerCase()) ||
+              (u.username && u.username.toLowerCase() === username.toLowerCase()) ||
+              (u.name && u.name.toLowerCase() === username.toLowerCase())
+          )
+        : null;
+
+      const userDept =
+        apiUser?.department ||
+        matchStored?.department ||
+        matchStored?.rawDepartment ||
+        "IT Department";
+
+      const userAvail =
+        matchStored?.availability_status ||
+        matchStored?.availabilityStatus ||
+        apiUser?.availability_status ||
+        "AVAILABLE";
+
       const account = {
         id: apiUser?.id ?? `USR-${Date.now()}`,
         username: apiUser?.username || username,
         email: apiUser?.email || (username.includes("@") ? username : `${username}@company.com`),
         name: apiUser?.name || apiUser?.username || username.split("@")[0],
         role: parsedRole,
+        department: userDept,
+        availability_status: userAvail,
+        availabilityStatus: userAvail,
       };
 
       const authTokens = { access: response.data.access, refresh: response.data.refresh };
@@ -155,13 +188,32 @@ export const AuthProvider = ({ children }) => {
             }
           }
 
+          // Check if previously updated status exists in local users store
+          const storedUsersRaw = localStorage.getItem("supportpilot_users");
+          const storedUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+          const matchStored = Array.isArray(storedUsers)
+            ? storedUsers.find(
+                (u) =>
+                  (u.email && u.email.toLowerCase() === matchSeed.email.toLowerCase()) ||
+                  (u.id && u.id === matchSeed.id)
+              )
+            : null;
+
+          const seedAvail =
+            matchStored?.availability_status ||
+            matchStored?.availabilityStatus ||
+            matchSeed.availabilityStatus ||
+            "AVAILABLE";
+
           const account = {
             id: matchSeed.id,
             username: matchSeed.email.split("@")[0],
             email: matchSeed.email,
             name: matchSeed.name,
             role: seedRole,
-            department: matchSeed.department,
+            department: matchSeed.department || "IT Department",
+            availability_status: seedAvail,
+            availabilityStatus: seedAvail,
           };
           const mockTokens = { access: `demo-access-${Date.now()}`, refresh: `demo-refresh-${Date.now()}` };
           localStorage.setItem("supportpilot-user", JSON.stringify(account));
