@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   getAllTickets,
@@ -24,8 +24,12 @@ const priorityClass = {
 };
 
 const statusClass = {
-  NEW: "sp-tag-info font-bold",
+  NEW: "sp-tag-neutral",
+  OPEN: "sp-tag-info",
+  ASSIGNED: "sp-tag-warning font-semibold",
   IN_PROGRESS: "sp-tag-warning font-semibold",
+  AI_RESPONDED: "sp-tag-brand font-bold bg-emerald-100 text-emerald-800 border border-emerald-300",
+  ESCALATED: "sp-tag-danger font-bold bg-red-100 text-red-800 border border-red-300",
   RESOLVED: "sp-tag-success font-semibold",
   CLOSED: "sp-tag-neutral",
   Open: "sp-tag-info",
@@ -37,6 +41,7 @@ const statusClass = {
 };
 
 export default function AgentAllTicketsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [tickets, setTickets] = useState(() => getAllTickets());
   const [query, setQuery] = useState("");
@@ -46,16 +51,27 @@ export default function AgentAllTicketsPage() {
   const [activeReplyTicket, setActiveReplyTicket] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
   const [toast, setToast] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadTickets = async () => {
+  const loadTickets = async (showToast = false) => {
+    setIsRefreshing(true);
     try {
       const apiTickets = await fetchAgentTicketsApi();
       if (apiTickets && Array.isArray(apiTickets)) {
         setTickets(apiTickets);
+        if (showToast) {
+          setToast({ type: "success", message: `Queue refreshed with latest ${apiTickets.length} tickets.` });
+        }
+        setIsRefreshing(false);
         return;
       }
     } catch (e) {}
-    setTickets(getAllTickets());
+    const local = getAllTickets();
+    setTickets(local);
+    if (showToast) {
+      setToast({ type: "success", message: `Queue refreshed with latest ${local.length} tickets.` });
+    }
+    setIsRefreshing(false);
   };
 
   useEffect(() => {
@@ -211,8 +227,14 @@ export default function AgentAllTicketsPage() {
             Complete list of customer tickets across all channels and statuses.
           </p>
         </div>
-        <button className="sp-btn sp-btn-primary shadow" onClick={loadTickets}>
-          Refresh Queue
+        <button
+          className="sp-btn sp-btn-primary shadow flex items-center gap-2 cursor-pointer disabled:opacity-60"
+          onClick={() => loadTickets(true)}
+          disabled={isRefreshing}
+          title="Sync and refresh latest ticket queue"
+        >
+          <span className={`inline-block text-sm ${isRefreshing ? "animate-spin" : ""}`}>🔄</span>
+          <span>{isRefreshing ? "Refreshing..." : "Refresh Queue"}</span>
         </button>
       </div>
 
@@ -319,13 +341,33 @@ export default function AgentAllTicketsPage() {
                 const isResolved = ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(ticket.status);
 
                 return (
-                  <tr className="hover:bg-[#f8faf9] transition-colors border-b border-[#eef2f0]" key={ticket.id}>
+                  <tr
+                    className="hover:bg-[#f0fdf4] transition-colors border-b border-[#eef2f0] cursor-pointer group"
+                    key={ticket.id}
+                    onClick={(e) => {
+                      if (e.target.closest("button, select, input, a")) return;
+                      navigate(`/tickets/${ticketCode}`);
+                    }}
+                    title="Click to view full ticket details"
+                  >
                     <td className="px-3.5 py-3 font-mono font-bold text-[#14532d]">
-                      {ticketCode}
+                      <Link
+                        to={`/tickets/${ticketCode}`}
+                        className="text-[#15803d] group-hover:text-[#166534] hover:underline block font-bold"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {ticketCode}
+                      </Link>
                     </td>
 
                     <td className="px-3.5 py-3 max-w-[260px]">
-                      <div className="font-semibold text-[#1c2430] truncate">{ticket.subject || ticket.title}</div>
+                      <Link
+                        to={`/tickets/${ticketCode}`}
+                        className="font-semibold text-[#1c2430] group-hover:text-[#15803d] hover:underline truncate block"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {ticket.subject || ticket.title}
+                      </Link>
                       <div className="text-[10px] text-[#8b95a1]">
                         {ticket.customerName || "Customer"} {ticket.assignedAgentName || ticket.assignedAgent ? `· ${ticket.assignedAgentName || ticket.assignedAgent}` : "· Unassigned"}
                       </div>
