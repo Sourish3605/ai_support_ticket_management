@@ -1266,16 +1266,33 @@ class AgentAvailabilityUpdateView(APIView):
         if clean_status not in valid_choices:
             return Response({"detail": f"Invalid status. Must be one of: {', '.join(valid_choices)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        profile, _ = Profile.objects.get_or_create(user=target_user)
-        profile.availability_status = clean_status
-        profile.save(update_fields=["availability_status"])
+        # Synchronize ALL user accounts and profiles sharing this email/username
+        user_filter = Q(id=target_user.id)
+        if target_user.email:
+            user_filter |= Q(email__iexact=target_user.email)
+        if target_user.username:
+            user_filter |= Q(username__iexact=target_user.username)
+        # Also include email from payload if provided
+        req_email = request.data.get("email") or request.headers.get("X-User-Email")
+        if req_email:
+            user_filter |= Q(email__iexact=str(req_email).strip())
+
+        matched_users = list(User.objects.filter(user_filter).distinct())
+        primary_dept = "IT Department"
+        for u in matched_users:
+            p, _ = Profile.objects.get_or_create(user=u)
+            p.availability_status = clean_status
+            if p.department:
+                primary_dept = p.department
+            p.save(update_fields=["availability_status"])
 
         return Response({
             "message": f"Availability for {target_user.username} updated to '{clean_status}'.",
             "agent_id": target_user.id,
             "username": target_user.username,
             "availability_status": clean_status,
-            "department": profile.department,
+            "department": primary_dept,
+            "synced_users_count": len(matched_users),
         }, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):

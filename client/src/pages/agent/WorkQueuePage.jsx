@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getAllTickets, updateTicket, fetchAgentTicketsApi, assignTicketApi } from "../../services/ticketService";
+import { getAllTickets, updateTicket, fetchAgentTicketsApi, assignTicketApi, updateAgentAvailabilityApi } from "../../services/ticketService";
+import { storage, STORAGE_KEYS } from "../../services/storageService";
 import { useAuth } from "../../context/AuthContext";
 
 const priorityClass = { High: "sp-p1", Medium: "sp-p2", Low: "sp-p4", P1: "sp-p1", P2: "sp-p2", P3: "sp-p3", P4: "sp-p4", Critical: "sp-p1" };
@@ -12,7 +13,7 @@ function minutesToBreach(ticket) {
 
 export default function WorkQueuePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toast, setToast] = useState(null);
@@ -87,6 +88,45 @@ export default function WorkQueuePage() {
     load();
   };
 
+  const currentAvailability = user?.availability_status || user?.availabilityStatus || "AVAILABLE";
+
+  const handleAvailabilityChange = async (newStatus) => {
+    if (updateUser) {
+      updateUser({
+        availability_status: newStatus,
+        availabilityStatus: newStatus,
+      });
+    }
+
+    try {
+      const storedUsers = storage.get(STORAGE_KEYS.users, []);
+      if (Array.isArray(storedUsers) && user?.email) {
+        const uEmail = user.email.toLowerCase().trim();
+        const updated = storedUsers.map((u) => {
+          if (u.email?.toLowerCase().trim() === uEmail || u.id === user?.id) {
+            return { ...u, availabilityStatus: newStatus, availability_status: newStatus };
+          }
+          return u;
+        });
+        storage.set(STORAGE_KEYS.users, updated);
+        window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: updated }));
+      }
+    } catch (e) {}
+
+    try {
+      await updateAgentAvailabilityApi(newStatus, user?.id, user?.email);
+    } catch (e) {}
+
+    const statusNames = {
+      AVAILABLE: "Working / Available",
+      BUSY: "Busy",
+      UNAVAILABLE: "Not Working / Unavailable",
+      INACTIVE: "Inactive",
+    };
+    setToast(`Your status updated to ${statusNames[newStatus] || newStatus}.`);
+    setTimeout(() => setToast(null), 3000);
+  };
+
   return (
     <div className="space-y-4">
       {toast && (
@@ -97,6 +137,27 @@ export default function WorkQueuePage() {
         </div>
       )}
 
+      {/* Availability Status Alert Banner if not Available */}
+      {currentAvailability !== "AVAILABLE" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50 p-3.5 rounded-xl border border-amber-300 text-xs text-amber-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚠️</span>
+            <div>
+              <strong>Your status is currently '{currentAvailability}'.</strong>
+              <div className="text-amber-800 text-[11px] mt-0.5">
+                New incoming tickets in your department will not be auto-assigned to you while you are {currentAvailability.toLowerCase()}.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => handleAvailabilityChange("AVAILABLE")}
+            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition shadow cursor-pointer"
+          >
+            ✓ Set to Working / Available
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#eef4ef] p-4 rounded-xl border border-[#dfe5e1] border-l-4 border-l-[#1f7a45]">
         <div className="text-xs">
           <strong className="text-[#14532d]">Ordered by time-to-breach, not by creation date</strong>
@@ -104,15 +165,32 @@ export default function WorkQueuePage() {
             Shows only tickets assigned to you and unassigned tickets ready for claim. Tickets assigned to other agents are excluded.
           </div>
         </div>
-        <button
-          className="sp-btn sp-btn-primary shadow flex items-center gap-1.5 text-xs cursor-pointer disabled:opacity-60"
-          onClick={() => load(true)}
-          disabled={isRefreshing}
-          title="Refresh Work Queue"
-        >
-          <span className={`inline-block text-xs ${isRefreshing ? "animate-spin" : ""}`}>🔄</span>
-          <span>{isRefreshing ? "Refreshing..." : "Refresh Queue"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Quick status selector */}
+          <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-xs">
+            <span className="text-[11px] font-semibold text-slate-500">My Status:</span>
+            <select
+              value={currentAvailability}
+              onChange={(e) => handleAvailabilityChange(e.target.value)}
+              className="bg-transparent font-bold text-xs text-slate-800 outline-none cursor-pointer"
+            >
+              <option value="AVAILABLE">🟢 Available</option>
+              <option value="BUSY">🟡 Busy</option>
+              <option value="UNAVAILABLE">🟠 Unavailable</option>
+              <option value="INACTIVE">⚪ Inactive</option>
+            </select>
+          </div>
+
+          <button
+            className="sp-btn sp-btn-primary shadow flex items-center gap-1.5 text-xs cursor-pointer disabled:opacity-60"
+            onClick={() => load(true)}
+            disabled={isRefreshing}
+            title="Refresh Work Queue"
+          >
+            <span className={`inline-block text-xs ${isRefreshing ? "animate-spin" : ""}`}>🔄</span>
+            <span>{isRefreshing ? "Refreshing..." : "Refresh Queue"}</span>
+          </button>
+        </div>
       </div>
 
       <div className="sp-card overflow-hidden">
