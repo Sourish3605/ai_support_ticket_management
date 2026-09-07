@@ -1133,3 +1133,66 @@ export const deleteTicketApi = async (id) => {
   }
 };
 
+export const getDepartmentAgentsList = () => {
+  const users = storage.get(STORAGE_KEYS.users, seedUsers);
+
+  // Combine seedUsers with stored users to ensure all agents are present
+  const userMap = new Map();
+
+  seedUsers.forEach((u) => {
+    const r = String(u.role || "").toLowerCase();
+    if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead")) {
+      userMap.set(u.email.toLowerCase(), { ...u });
+    }
+  });
+
+  if (Array.isArray(users)) {
+    users.forEach((u) => {
+      if (!u || !u.email) return;
+      const r = String(u.role || "").toLowerCase();
+      if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead")) {
+        const key = u.email.toLowerCase();
+        const existing = userMap.get(key) || {};
+        userMap.set(key, { ...existing, ...u });
+      }
+    });
+  }
+
+  const deptColors = {
+    IT: { badge: "IT", color: "bg-blue-500/20 text-blue-300 border-blue-400/40", avatar: "bg-blue-600" },
+    HR: { badge: "HR", color: "bg-purple-500/20 text-purple-300 border-purple-400/40", avatar: "bg-purple-600" },
+    Finance: { badge: "FIN", color: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40", avatar: "bg-emerald-600" },
+  };
+
+  return Array.from(userMap.values())
+    .filter((u) => u.status !== "Inactive")
+    .map((u) => {
+      let dept = "IT";
+      const rawDept = String(u.department || "").toLowerCase();
+      if (rawDept.includes("hr") || rawDept.includes("human") || rawDept.includes("payroll")) {
+        dept = "HR";
+      } else if (rawDept.includes("fin") || rawDept.includes("pay") || rawDept.includes("bill")) {
+        dept = "Finance";
+      } else {
+        dept = "IT";
+      }
+
+      const conf = deptColors[dept] || deptColors.IT;
+
+      return {
+        id: u.id,
+        name: u.name || u.username || "Support Agent",
+        email: u.email,
+        department: dept,
+        rawDepartment: u.department || `${dept} Department`,
+        title: u.title || `${dept} Support Agent`,
+        specialty: u.specialty || u.title || u.team || `${dept} Operations`,
+        deptBadge: conf.badge,
+        badgeColor: conf.color,
+        avatarBg: conf.avatar,
+        availabilityStatus: u.availabilityStatus || "AVAILABLE",
+      };
+    });
+};
+
+

@@ -9,6 +9,7 @@ import {
   fetchAgentsApi,
   autoAssignTicketsApi,
   getDepartmentForCategory,
+  getDepartmentAgentsList,
 } from "../../services/ticketService";
 import { seedUsers } from "../../data/seedData";
 
@@ -28,9 +29,7 @@ export default function ManagerQueueAndAssignmentPage() {
   const [reassignModalTicket, setReassignModalTicket] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [toast, setToast] = useState(null);
-  const [agents, setAgents] = useState(() =>
-    seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role))
-  );
+  const [agents, setAgents] = useState(() => getDepartmentAgentsList());
 
   const isTicketAssignedToAgent = (t, ag) => {
     if (!t || !ag) return false;

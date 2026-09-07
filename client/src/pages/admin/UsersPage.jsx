@@ -16,45 +16,45 @@ export default function UsersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    const stored = storage.get(STORAGE_KEYS.users, seedUsers);
-    const hasOldUsers = Array.isArray(stored) && stored.some(
-      (u) =>
-        u.email === "arun@company.com" ||
-        u.email === "bala@company.com" ||
-        u.email === "admin@company.com" ||
-        u.email === "employee@supportpilot.com"
-    );
-    const hasNewUsers = Array.isArray(stored) && stored.some((u) => u.email === "admin@gmail.com");
-    const hasManager = Array.isArray(stored) && stored.some(
-      (u) => u.email === "manager@gmail.com" || u.role === "Manager" || u.role === "Support Manager"
-    );
+    const stored = storage.get(STORAGE_KEYS.users, []);
 
-    if (hasOldUsers || !hasNewUsers || !stored || stored.length === 0) {
-      storage.set(STORAGE_KEYS.users, seedUsers);
-      setUsers(seedUsers);
-    } else if (!hasManager) {
-      const managerUser = seedUsers.find((u) => u.email === "manager@gmail.com") || {
-        id: "USR-008",
-        name: "Support Manager",
-        email: "manager@gmail.com",
-        role: "Manager",
-        department: "Operations & Escalations",
-        team: "Management",
-        status: "Active",
-      };
-      const updated = [...stored, managerUser];
-      storage.set(STORAGE_KEYS.users, updated);
-      setUsers(updated);
-    } else {
-      setUsers(stored);
+    // Combine seedUsers with stored users to ensure EVERY agent and user is present
+    const userMap = new Map();
+    // 1. Seed users first
+    seedUsers.forEach((u) => {
+      userMap.set(u.email.toLowerCase(), { ...u });
+    });
+    // 2. Overlay stored users
+    if (Array.isArray(stored)) {
+      stored.forEach((u) => {
+        if (!u || !u.email) return;
+        const key = u.email.toLowerCase();
+        // Skip obsolete dummy emails
+        if (["arun@company.com", "bala@company.com", "admin@company.com", "employee@supportpilot.com"].includes(key)) {
+          return;
+        }
+        if (userMap.has(key)) {
+          userMap.set(key, { ...userMap.get(key), ...u });
+        } else {
+          userMap.set(key, u);
+        }
+      });
     }
+
+    const merged = Array.from(userMap.values());
+    storage.set(STORAGE_KEYS.users, merged);
+    setUsers(merged);
+    window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: merged }));
   }, []);
 
   useEffect(() => {
     if (users && users.length > 0) {
       storage.set(STORAGE_KEYS.users, users);
+      window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: users }));
     }
   }, [users]);
 
@@ -81,18 +81,23 @@ export default function UsersPage() {
       id: editingId || `USR-${String(users.length + 1).padStart(3, "0")}`,
       name,
       email,
-      department: form.department || "General",
+      department: form.department || "IT Department",
       role: form.role || "Agent",
-      team: form.team || "Support",
+      team: form.team || form.department || "Support",
       status: form.status || "Active",
+      availabilityStatus: "AVAILABLE",
     };
 
+    let updatedUsers = [];
     if (editingId) {
-      setUsers((current) => current.map((user) => (user.id === editingId ? nextUser : user)));
+      updatedUsers = users.map((user) => (user.id === editingId ? nextUser : user));
     } else {
-      setUsers((current) => [nextUser, ...current]);
+      updatedUsers = [nextUser, ...users];
     }
 
+    setUsers(updatedUsers);
+    storage.set(STORAGE_KEYS.users, updatedUsers);
+    window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: updatedUsers }));
     resetForm();
   };
 
@@ -110,7 +115,12 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = (id) => {
-    setUsers((current) => current.filter((user) => user.id !== id));
+    setUsers((current) => {
+      const updated = current.filter((user) => user.id !== id);
+      storage.set(STORAGE_KEYS.users, updated);
+      window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: updated }));
+      return updated;
+    });
   };
 
   const totalUsers = users.length;
@@ -118,6 +128,24 @@ export default function UsersPage() {
   const managerCount = users.filter((u) => ["manager", "support manager"].includes(u.role?.toLowerCase())).length;
   const agentCount = users.filter((u) => u.role?.toLowerCase() === "agent").length;
   const employeeCount = totalUsers - adminCount - managerCount - agentCount;
+
+  const filteredUsers = users.filter((u) => {
+    const roleLower = String(u.role || "").toLowerCase();
+    if (roleFilter === "ADMIN" && roleLower !== "admin") return false;
+    if (roleFilter === "MANAGER" && !["manager", "support manager"].includes(roleLower)) return false;
+    if (roleFilter === "AGENT" && roleLower !== "agent") return false;
+    if (roleFilter === "EMPLOYEE" && (roleLower === "admin" || roleLower === "manager" || roleLower === "agent")) return false;
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      const matchName = String(u.name || "").toLowerCase().includes(q);
+      const matchEmail = String(u.email || "").toLowerCase().includes(q);
+      const matchDept = String(u.department || "").toLowerCase().includes(q);
+      const matchTeam = String(u.team || "").toLowerCase().includes(q);
+      return matchName || matchEmail || matchDept || matchTeam;
+    }
+    return true;
+  });
 
   const roleBadges = {
     Admin: "bg-purple-50 text-purple-800 border border-purple-200",
@@ -233,6 +261,42 @@ export default function UsersPage() {
         </form>
       )}
 
+      {/* Search & Filter Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-[#dfe5e1] shadow-2xs">
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+          {[
+            { id: "ALL", label: "All Users", count: totalUsers },
+            { id: "AGENT", label: "Agents", count: agentCount },
+            { id: "MANAGER", label: "Managers", count: managerCount },
+            { id: "ADMIN", label: "Admins", count: adminCount },
+            { id: "EMPLOYEE", label: "Employees", count: employeeCount },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setRoleFilter(tab.id)}
+              className={`py-1.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                roleFilter === tab.id
+                  ? "bg-[#14532d] text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {tab.label} <span className="text-[10px] opacity-80">({tab.count})</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="w-full sm:w-72">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by name, email, dept..."
+            className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-emerald-500 transition"
+          />
+        </div>
+      </div>
+
       {/* Users Table */}
       <div className="overflow-hidden rounded-2xl border border-[#dfe5e1] bg-white shadow-2xs">
         <div className="overflow-x-auto">
@@ -249,7 +313,14 @@ export default function UsersPage() {
             </thead>
 
             <tbody className="divide-y divide-slate-100 text-xs">
-              {users.map((user) => (
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                    No users matching criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3.5 px-4">
                     <p className="font-bold text-slate-900 text-[13px]">{user.name}</p>
@@ -287,7 +358,7 @@ export default function UsersPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>
