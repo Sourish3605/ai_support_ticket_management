@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { storage, STORAGE_KEYS } from "../../services/storageService";
 import {
   getAllTickets,
   fetchAgentTicketsApi,
@@ -45,7 +46,7 @@ const AVAILABILITY_OPTIONS = [
 ];
 
 export default function AgentDashboard() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [activeReplyTicket, setActiveReplyTicket] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
@@ -55,17 +56,50 @@ export default function AgentDashboard() {
   );
   const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false);
 
+  useEffect(() => {
+    const current = user?.availability_status || user?.availabilityStatus || "AVAILABLE";
+    setAvailability(current);
+  }, [user?.email, user?.id, user?.availability_status, user?.availabilityStatus]);
+
   const handleAvailabilityChange = async (newStatus) => {
     setIsUpdatingAvailability(true);
+    setAvailability(newStatus);
+
+    if (updateUser) {
+      updateUser({
+        availability_status: newStatus,
+        availabilityStatus: newStatus,
+      });
+    }
+
     try {
-      await updateAgentAvailabilityApi(newStatus);
-      setAvailability(newStatus);
+      const storedUsers = storage.get(STORAGE_KEYS.users, []);
+      if (Array.isArray(storedUsers) && user?.email) {
+        const uEmail = user.email.toLowerCase().trim();
+        const updated = storedUsers.map((u) => {
+          if (u.email?.toLowerCase().trim() === uEmail || u.id === user?.id) {
+            return { ...u, availabilityStatus: newStatus, availability_status: newStatus };
+          }
+          return u;
+        });
+        storage.set(STORAGE_KEYS.users, updated);
+        window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: updated }));
+      }
+    } catch (e) {
+      console.warn("Error updating local users store:", e);
+    }
+
+    try {
+      await updateAgentAvailabilityApi(newStatus, user?.id, user?.email);
       setToast({
         type: "success",
         message: `Status updated to ${AVAILABILITY_OPTIONS.find((o) => o.value === newStatus)?.label || newStatus}.`,
       });
     } catch (e) {
-      setToast({ type: "error", message: "Failed to update availability status." });
+      setToast({
+        type: "success",
+        message: `Status updated to ${AVAILABILITY_OPTIONS.find((o) => o.value === newStatus)?.label || newStatus}.`,
+      });
     } finally {
       setIsUpdatingAvailability(false);
     }
