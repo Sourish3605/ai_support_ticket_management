@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { getCustomerTickets, fetchMyTicketsApi } from "../../services/ticketService";
+import {
+  getCustomerTickets,
+  fetchMyTicketsApi,
+  getTickets,
+  saveTickets,
+} from "../../services/ticketService";
 
 const priorityClass = {
   P1: "sp-p1",
@@ -36,8 +41,28 @@ export default function MyTicketsPage() {
     setLoading(true);
     try {
       const apiTickets = await fetchMyTicketsApi();
-      if (apiTickets && Array.isArray(apiTickets)) {
+      if (apiTickets && Array.isArray(apiTickets) && apiTickets.length > 0) {
         setTickets(apiTickets);
+        // Merge backend tickets into local storage cache
+        try {
+          const current = getTickets();
+          const merged = [...apiTickets];
+          current.forEach((t) => {
+            if (
+              !merged.some(
+                (m) =>
+                  String(m.id) === String(t.id) ||
+                  String(m.ticketNumber || m.ticket_number) ===
+                    String(t.ticketNumber || t.ticket_number)
+              )
+            ) {
+              merged.push(t);
+            }
+          });
+          saveTickets(merged);
+        } catch (mErr) {
+          console.warn("Storage sync error:", mErr);
+        }
       } else if (user) {
         setTickets(getCustomerTickets(user));
       } else {
@@ -45,6 +70,7 @@ export default function MyTicketsPage() {
       }
     } catch (e) {
       if (user) setTickets(getCustomerTickets(user));
+      else setTickets(getCustomerTickets());
     } finally {
       setLoading(false);
     }
@@ -133,12 +159,12 @@ export default function MyTicketsPage() {
 
         <div className="divide-y divide-[#eef2f0]">
           {tickets.map((ticket) => {
-            const ticketCode = ticket.ticketNumber || ticket.ticket_number || ticket.id;
+            const ticketCode = ticket.ticketNumber || ticket.ticket_number || (typeof ticket.id === "number" ? `TKT-${1000 + ticket.id}` : ticket.id);
             const isResolved = ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(ticket.status);
 
             return (
               <Link
-                key={ticket.id}
+                key={ticket.id || ticketCode}
                 to={`/portal/tickets/${ticketCode}`}
                 className={`flex items-center justify-between gap-4 p-4 no-underline transition hover:bg-[#f8faf9] ${
                   isResolved ? "opacity-75" : ""

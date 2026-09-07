@@ -489,8 +489,9 @@ export default function NewTicketPage() {
 
       const ticket = await createTicket(finalForm, user);
       localStorage.removeItem("supportpilot_ticket_draft");
-      if (ticket && ticket.id) {
-        navigate(`/portal/tickets/${ticket.id}`);
+      const targetId = ticket?.ticketNumber || ticket?.ticket_number || ticket?.id;
+      if (targetId) {
+        navigate(`/portal/tickets/${targetId}`);
       } else {
         navigate("/portal/tickets");
       }

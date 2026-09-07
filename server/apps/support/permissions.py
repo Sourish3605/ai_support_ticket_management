@@ -40,5 +40,18 @@ class IsTicketOwnerOrAgentOrAdmin(permissions.BasePermission):
         if is_user_agent_or_admin(request.user):
             return True
 
-        # Customer can only view/modify their own tickets
-        return obj.created_by_id == request.user.id
+        # Customer can view/modify their own tickets
+        if obj.created_by_id == request.user.id:
+            return True
+
+        # Match by email (case-insensitive)
+        if request.user.email and obj.created_by and obj.created_by.email:
+            if obj.created_by.email.strip().lower() == request.user.email.strip().lower():
+                return True
+
+        # Match by username (case-insensitive)
+        if request.user.username and obj.created_by and obj.created_by.username:
+            if obj.created_by.username.strip().lower() == request.user.username.strip().lower():
+                return True
+
+        return False

@@ -77,19 +77,27 @@ export const getTicketById = (id) => {
   const searchId = String(id).trim().toLowerCase();
   const cleanDigits = searchId.replace(/\D/g, "");
 
-  return tickets.find((ticket) => {
-    if (!ticket) return false;
-    const tId = String(ticket.id || "").trim().toLowerCase();
-    const tNum = String(ticket.ticketNumber || ticket.ticket_number || "").trim().toLowerCase();
-    const tDigits = tId.replace(/\D/g, "") || tNum.replace(/\D/g, "");
+  return (
+    tickets.find((ticket) => {
+      if (!ticket) return false;
+      const tId = String(ticket.id ?? "").trim().toLowerCase();
+      const tNum = String(ticket.ticketNumber || ticket.ticket_number || "").trim().toLowerCase();
+      const tDigits = tId.replace(/\D/g, "") || tNum.replace(/\D/g, "");
 
-    return (
-      tId === searchId ||
-      tNum === searchId ||
-      (cleanDigits && tDigits === cleanDigits) ||
-      (tId && searchId.includes(tId))
-    );
-  }) || null;
+      if (tId === searchId || tNum === searchId) return true;
+      if (cleanDigits && tDigits === cleanDigits) return true;
+      if (cleanDigits && (tId === cleanDigits || tNum === `tkt-${cleanDigits}` || tNum === `tkt${cleanDigits}`)) return true;
+
+      // Handle 1000-offset mapping between DB id and TKT number (e.g. 8 and TKT-1008)
+      if (cleanDigits && tDigits) {
+        const numSearch = Number(cleanDigits);
+        const numTicket = Number(tDigits);
+        if (numSearch > 1000 && String(numSearch - 1000) === tDigits) return true;
+        if (numTicket > 1000 && String(numTicket - 1000) === cleanDigits) return true;
+      }
+      return false;
+    }) || null
+  );
 };
 
 export const getCustomerTickets = (userOrId) => {
@@ -854,12 +862,32 @@ export const fetchTicketByIdApi = async (id) => {
       const t = res.data;
       const agName = t.assignedAgent || t.assignedAgentName;
       const cleanAgName = agName && agName !== "Unassigned" ? agName : null;
-      return {
+      const processedTicket = {
         ...t,
         assignedAgent: cleanAgName,
         assignedAgentName: cleanAgName,
         assignedAgentId: t.assignedAgentId ?? t.assigned_to ?? null,
       };
+
+      // Cache into local storage so offline/subsequent lookups work seamlessly
+      try {
+        const stored = getTickets();
+        const existsIndex = stored.findIndex(
+          (item) =>
+            String(item.id) === String(processedTicket.id) ||
+            String(item.ticketNumber || item.ticket_number) === String(processedTicket.ticket_number || processedTicket.ticketNumber)
+        );
+        if (existsIndex >= 0) {
+          stored[existsIndex] = { ...stored[existsIndex], ...processedTicket };
+          saveTickets([...stored]);
+        } else {
+          saveTickets([processedTicket, ...stored]);
+        }
+      } catch (cacheErr) {
+        console.warn("[ticketService] Cache ticket update error:", cacheErr);
+      }
+
+      return processedTicket;
     }
   } catch (err) {
     if (err?.response?.status === 403) {

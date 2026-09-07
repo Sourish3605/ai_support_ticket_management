@@ -1,5 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
+from django.db import models
+from django.db.models import Q
 from django.contrib.auth import get_user_model
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.views import APIView
@@ -55,7 +57,7 @@ def get_sla_metrics(priority_code: str):
     Calculate SLA response time, resolution time and coverage.
     """
 
-    p_code = str(priority_code).upper()
+    p_code = priority_code.upper() if priority_code else ""
 
     if p_code in ["CRITICAL", "HIGH", "P1"]:
         return {
@@ -131,31 +133,41 @@ def get_ticket_by_id_or_number(lookup_val):
     )
 
     if clean_num.isdigit():
+        # Try exact TKT-<clean_num>
         ticket = Ticket.objects.filter(
             ticket_number__iexact=f"TKT-{clean_num}"
         ).first()
         if ticket:
             return ticket
 
-        ticket = Ticket.objects.filter(
-            ticket_number__icontains=clean_num
-        ).first()
-        if ticket:
-            return ticket
-
+        # Try database ID = clean_num
         ticket = Ticket.objects.filter(
             id=int(clean_num)
         ).first()
         if ticket:
             return ticket
 
-        # Optional fallback: TKT-1001 -> ID 1
+        # If clean_num > 1000: try ID = clean_num - 1000 (e.g. TKT-1008 -> ID 8)
         if int(clean_num) > 1000:
             ticket = Ticket.objects.filter(
                 id=int(clean_num) - 1000
             ).first()
             if ticket:
                 return ticket
+
+        # If clean_num <= 1000: try ticket_number = TKT-(1000 + clean_num) (e.g. ID 8 -> TKT-1008)
+        ticket = Ticket.objects.filter(
+            ticket_number__iexact=f"TKT-{1000 + int(clean_num)}"
+        ).first()
+        if ticket:
+            return ticket
+
+        # Fallback suffix match
+        ticket = Ticket.objects.filter(
+            ticket_number__iendswith=f"-{clean_num}"
+        ).first()
+        if ticket:
+            return ticket
 
     return None
 
@@ -323,10 +335,16 @@ class CustomerTicketListView(generics.ListAPIView):
     ]
 
     def get_queryset(self):
+        user = self.request.user
+        q = models.Q(created_by=user)
+        if getattr(user, "email", None):
+            q |= models.Q(created_by__email__iexact=user.email.strip())
+        if getattr(user, "username", None):
+            q |= models.Q(created_by__username__iexact=user.username.strip())
 
         return (
             Ticket.objects.select_related("created_by", "assigned_to")
-            .filter(created_by=self.request.user)
+            .filter(q)
             .order_by("-created_at")
         )
 
@@ -864,8 +882,7 @@ class NotificationMarkReadView(APIView):
         if not notif:
             return Response({"detail": "Notification not found."}, status=status.HTTP_404_NOT_FOUND)
         notif.is_read = True
-        notif.read_at = datetime.now(timezone.utc)
-        notif.save(update_fields=["is_read", "read_at"])
+        notif.save(update_fields=["is_read"])
         return Response({"status": "success", "is_read": True})
 
 
@@ -878,8 +895,7 @@ class NotificationMarkAllReadView(APIView):
 
     def post(self, request):
         updated = Notification.objects.filter(user=request.user, is_read=False).update(
-            is_read=True,
-            read_at=datetime.now(timezone.utc)
+            is_read=True
         )
         return Response({"status": "success", "updated_count": updated})
 
