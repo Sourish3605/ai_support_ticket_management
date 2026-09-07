@@ -280,13 +280,17 @@ class TicketListCreateView(generics.ListCreateAPIView):
         if req_data.get("sub_category") or req_data.get("subCategory"):
             sub_category = req_data.get("sub_category") or req_data.get("subCategory")
 
-        # 3. Save Ticket with initial status 'OPEN'
+        # 3. Determine Department & Save Ticket with initial status 'OPEN'
+        from .department_assignment import get_department_for_category, auto_assign_ticket_to_department_agent
+        department = get_department_for_category(category)
+
         ticket = serializer.save(
             created_by=self.request.user,
             title=cleaned_title,
             description=cleaned_description,
             category=category,
             sub_category=sub_category,
+            department=department,
             severity=severity,
             priority=priority,
             status="OPEN",
@@ -304,17 +308,24 @@ class TicketListCreateView(generics.ListCreateAPIView):
                 user=self.request.user,
                 ticket=ticket,
                 title=f"Ticket Received: #{ticket.ticket_number}",
-                message=f"Your ticket '{ticket.title}' has been received and queued for AI analysis.",
+                message=f"Your ticket '{ticket.title}' has been routed to {department} and queued for AI analysis.",
                 notification_type="ticket_created",
             )
         except Exception:
             pass
 
-        # 5. Run Milestone 2 & Milestone 3 End-to-End Multi-Agent AI Workflow
+        # 5. Automatic Ticket Assignment to Available Department Agent
+        try:
+            auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True)
+        except Exception as assign_err:
+            print(f"[Auto-Assign Notice] {assign_err}")
+
+        # 6. Run Milestone 2 & Milestone 3 End-to-End Multi-Agent AI Workflow
         try:
             run_multi_agent_workflow(ticket)
         except Exception as e:
             print(f"[Multi-Agent Pipeline Notice] {e}")
+
 
 
 # =========================================================
@@ -1022,26 +1033,52 @@ class TicketAssignView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Enforce Department Boundary: Agent must belong to the Ticket's Department
+        from .department_assignment import get_department_for_category
+        ticket_dept = ticket.department or get_department_for_category(ticket.category)
+        agent_dept = getattr(getattr(agent, "profile", None), "department", None)
+
+        if agent_dept and ticket_dept and agent_dept.lower() != ticket_dept.lower():
+            return Response(
+                {
+                    "detail": f"Department Mismatch: Agent '{agent.get_full_name() or agent.username}' belongs to '{agent_dept}', but ticket #{ticket.ticket_number} belongs to '{ticket_dept}'. Tickets can only be assigned to agents in the same department."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_agent = ticket.assigned_to
+        old_agent_name = (old_agent.get_full_name() or old_agent.username) if old_agent else "Unassigned"
+        new_agent_name = agent.get_full_name() or agent.username
+        is_reassignment = old_agent is not None and old_agent.id != agent.id
+
         ticket.assigned_to = agent
+        ticket.department = ticket_dept
         if ticket.status in ["OPEN", "NEW", "Open", "AI_ANALYZING", "AI_RESPONDED", "AI_RESOLUTION_READY", "DRAFT", "REOPENED"]:
             ticket.status = "ASSIGNED"
 
         ticket.save(
             update_fields=[
                 "assigned_to",
+                "department",
                 "status",
                 "updated_at",
             ]
         )
 
-        # Log assignment activity
+        # Log assignment / reassignment activity
+        action_name = "TICKET_REASSIGNED" if is_reassignment else "TICKET_ASSIGNED"
+        desc = (
+            f"Ticket #{ticket.ticket_number} reassigned from {old_agent_name} to {new_agent_name} ({ticket_dept}) by {request.user.username}."
+            if is_reassignment else
+            f"Ticket #{ticket.ticket_number} assigned to {new_agent_name} ({ticket_dept}) by {request.user.username}."
+        )
         try:
             from .agent_orchestrator import _log_activity
             _log_activity(
                 ticket=ticket,
                 actor=request.user.username,
-                action="TICKET_ASSIGNED",
-                description=f"Ticket #{ticket.ticket_number} assigned to {agent.get_full_name() or agent.username} by {request.user.username}.",
+                action=action_name,
+                description=desc,
             )
         except Exception:
             pass
@@ -1053,10 +1090,20 @@ class TicketAssignView(APIView):
                 notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
                 user=agent,
                 ticket=ticket,
-                title=f"Ticket Assigned: #{ticket.ticket_number}",
-                message=f"You have been assigned to handle ticket '{ticket.title}'.",
+                title=f"Ticket Reassigned: #{ticket.ticket_number}" if is_reassignment else f"Ticket Assigned: #{ticket.ticket_number}",
+                message=f"You have been assigned to handle ticket '{ticket.title}' ({ticket_dept}).",
                 notification_type="assignment",
             )
+            # Notify previous agent if reassigned
+            if is_reassignment and old_agent:
+                Notification.objects.create(
+                    notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
+                    user=old_agent,
+                    ticket=ticket,
+                    title=f"Ticket Reassigned: #{ticket.ticket_number}",
+                    message=f"Ticket #{ticket.ticket_number} was reassigned to {new_agent_name} by manager {request.user.username}.",
+                    notification_type="assignment",
+                )
         except Exception:
             pass
 
@@ -1068,75 +1115,11 @@ class TicketAssignView(APIView):
 
 def auto_assign_single_ticket(ticket, update_status_if_open=True):
     """
-    Automatically assigns a ticket to the most appropriate agent based on category and priority.
-    Balances workload among matching specialists:
-    - Network -> Network Support Specialist (premalatha)
-    - Technical / Product / Software -> Technical Specialist (yogitha)
-    - Billing / Account / Security / General -> Support Desk Specialist (agent)
+    Automatically assigns ticket based on Category -> Department -> Available Agent (Workload/Round-Robin).
     """
-    import uuid
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
+    from .department_assignment import auto_assign_ticket_to_department_agent
+    return auto_assign_ticket_to_department_agent(ticket, update_status_if_open=update_status_if_open)
 
-    cat = (ticket.category or "").strip().lower()
-    prio = (ticket.priority or "").strip().upper()
-
-    # Find staff users who are agents
-    staff_users = list(User.objects.filter(is_staff=True).exclude(username__in=["workflow_manager", "scen_mgr"]))
-    if not staff_users:
-        return None
-
-    # Determine domain keyword
-    if any(k in cat for k in ["network", "wifi", "vpn", "internet", "connectivity"]):
-        candidates = [u for u in staff_users if "premalatha" in u.username.lower() or "network" in u.username.lower()]
-    elif any(k in cat for k in ["tech", "software", "product", "bug", "database", "app", "crash"]):
-        candidates = [u for u in staff_users if "yogitha" in u.username.lower() or "tech" in u.username.lower()]
-    elif any(k in cat for k in ["security", "hack", "auth", "breach"]):
-        candidates = [u for u in staff_users if "agent" in u.username.lower() or "admin" in u.username.lower()]
-    else:
-        candidates = [u for u in staff_users if "agent" in u.username.lower() and "workflow" not in u.username.lower() and "scen" not in u.username.lower()]
-
-    if not candidates:
-        candidates = [u for u in staff_users if "agent" in u.username.lower()] or staff_users
-
-    # Workload balance: pick candidate with lowest active ticket count
-    def active_ticket_count(u):
-        return Ticket.objects.filter(assigned_to=u).exclude(status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]).count()
-
-    best_agent = min(candidates, key=active_ticket_count)
-
-    ticket.assigned_to = best_agent
-    if update_status_if_open and ticket.status in ["OPEN", "NEW", "DRAFT"]:
-        ticket.status = "ASSIGNED"
-
-    ticket.save(update_fields=["assigned_to", "status", "updated_at"])
-
-    # Create ActivityLog
-    try:
-        from .agent_orchestrator import _log_activity
-        _log_activity(
-            ticket=ticket,
-            actor="AI Auto-Router",
-            action="AUTO_ASSIGNED",
-            description=f"Auto-assigned to {best_agent.get_full_name() or best_agent.username} based on Category '{ticket.category}' and Priority '{ticket.priority}'.",
-        )
-    except Exception:
-        pass
-
-    # Create Notification
-    try:
-        Notification.objects.create(
-            notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
-            user=best_agent,
-            ticket=ticket,
-            title=f"Auto-Assigned: #{ticket.ticket_number}",
-            message=f"Ticket '{ticket.title}' ({ticket.priority} - {ticket.category}) auto-assigned to you.",
-            notification_type="assignment",
-        )
-    except Exception:
-        pass
-
-    return best_agent
 
 
 class TicketAutoAssignView(APIView):
@@ -1182,6 +1165,7 @@ class AgentListView(APIView):
     """
     GET /api/agent/list/ or /api/agents/
     List active support agents and staff for ticket assignment.
+    Supports ?department=... and ?available_only=true filters.
     """
     permission_classes = [
         permissions.IsAuthenticated,
@@ -1192,20 +1176,33 @@ class AgentListView(APIView):
         from apps.staff.models import Profile
         from django.db.models import Q
 
-        profile_user_ids = set(Profile.objects.filter(role__in=["Agent", "Manager", "Admin"]).values_list("user_id", flat=True))
+        department_filter = request.query_params.get("department")
+        available_only = request.query_params.get("available_only") in ["true", "1", "True"]
+
+        profile_qs = Profile.objects.filter(role__in=["Agent", "Manager", "Admin", "Support Agent"])
+        if department_filter and department_filter != "ALL":
+            profile_qs = profile_qs.filter(department__iexact=department_filter.strip())
+        if available_only:
+            profile_qs = profile_qs.filter(availability_status="AVAILABLE")
+
+        profile_map = {p.user_id: p for p in profile_qs}
         staff_users = User.objects.filter(
-            Q(id__in=profile_user_ids) | Q(is_staff=True) | Q(is_superuser=True)
+            Q(id__in=list(profile_map.keys())) | Q(is_staff=True) | Q(is_superuser=True)
         ).distinct()
 
         data = []
         for u in staff_users:
-            role = "Agent"
-            if hasattr(u, "profile") and u.profile.role:
-                role = u.profile.role
-            elif u.is_superuser:
-                role = "Admin"
-            elif u.is_staff:
-                role = "Agent"
+            profile = profile_map.get(u.id) or getattr(u, "profile", None)
+            dept = profile.department if profile else "IT Department"
+            if department_filter and department_filter != "ALL" and dept.lower() != department_filter.strip().lower():
+                continue
+
+            avail = profile.availability_status if profile else "AVAILABLE"
+            if available_only and avail != "AVAILABLE":
+                continue
+
+            role = profile.role if profile and profile.role else ("Admin" if u.is_superuser else "Agent")
+            title = profile.title if profile and profile.title else "Support Specialist"
 
             active_tickets = Ticket.objects.filter(assigned_to=u).exclude(
                 status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
@@ -1217,10 +1214,57 @@ class AgentListView(APIView):
                 "name": u.get_full_name() or u.username,
                 "email": u.email,
                 "role": role,
-                "department": getattr(getattr(u, "profile", None), "department", "IT Support"),
+                "department": dept,
+                "availability_status": avail,
+                "title": title,
                 "active_tickets": active_tickets,
             })
         return Response(data, status=status.HTTP_200_OK)
+
+
+class AgentAvailabilityUpdateView(APIView):
+    """
+    PATCH /api/agent/availability/
+    PATCH /api/agent/<id>/availability/
+    Updates an agent's availability status (AVAILABLE, BUSY, UNAVAILABLE, INACTIVE).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk=None, id=None):
+        from apps.staff.models import Profile
+
+        target_id = pk or id or request.data.get("agent_id") or request.data.get("id")
+        target_user = request.user
+        if target_id and (request.user.is_staff or getattr(getattr(request.user, "profile", None), "role", "") in ["Manager", "Admin"]):
+            val_id = str(target_id).strip()
+            if val_id.isdigit():
+                found_user = User.objects.filter(id=int(val_id)).first()
+            else:
+                found_user = User.objects.filter(username__iexact=val_id).first() or User.objects.filter(email__iexact=val_id).first()
+            if found_user:
+                target_user = found_user
+
+        new_status = request.data.get("availability_status") or request.data.get("status")
+        if not new_status:
+            return Response({"detail": "Missing 'availability_status'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_choices = ["AVAILABLE", "BUSY", "UNAVAILABLE", "INACTIVE"]
+        clean_status = str(new_status).strip().upper()
+        if clean_status not in valid_choices:
+            return Response({"detail": f"Invalid status. Must be one of: {', '.join(valid_choices)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        profile, _ = Profile.objects.get_or_create(user=target_user)
+        profile.availability_status = clean_status
+        profile.save(update_fields=["availability_status"])
+
+        return Response({
+            "message": f"Availability for {target_user.username} updated to '{clean_status}'.",
+            "agent_id": target_user.id,
+            "username": target_user.username,
+            "availability_status": clean_status,
+            "department": profile.department,
+        }, status=status.HTTP_200_OK)
+
 
 
 

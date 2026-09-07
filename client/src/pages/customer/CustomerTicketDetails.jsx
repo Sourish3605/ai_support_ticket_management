@@ -7,6 +7,7 @@ import {
   addComment,
   fetchTicketByIdApi,
   addTicketReplyApi,
+  getDepartmentForCategory,
 } from "../../services/ticketService";
 import {
   fetchAgentWorkflowApi,
@@ -479,6 +480,9 @@ export default function CustomerTicketDetails() {
             <span className="font-mono font-bold text-xs bg-[#1c2430] text-white px-2.5 py-1 rounded">
               {ticketCode}
             </span>
+            <span className="bg-blue-100 text-blue-900 border border-blue-200 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1">
+              <span>🏢</span> {ticket.department || getDepartmentForCategory(ticket.category)}
+            </span>
             <span className="bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full text-xs flex items-center gap-1">
               <span>✦</span> AI Resolution Ready
             </span>
@@ -834,6 +838,13 @@ export default function CustomerTicketDetails() {
             </h2>
 
             <div className="space-y-3.5 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">Department</span>
+                <span className="bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded font-bold text-[11px]">
+                  🏢 {ticket.department || getDepartmentForCategory(ticket.category)}
+                </span>
+              </div>
+
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Category</span>
                 <strong className="text-emerald-700 font-semibold">{ticket.category || "Network"}</strong>

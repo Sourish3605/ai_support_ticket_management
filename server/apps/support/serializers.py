@@ -160,9 +160,13 @@ class TicketSerializer(serializers.ModelSerializer):
     title = serializers.CharField(required=False)
     subject = serializers.CharField(source="title", required=False)
     subCategory = serializers.CharField(source="sub_category", required=False, allow_blank=True)
+    department = serializers.CharField(required=False, default="IT Department")
     assignedAgentId = serializers.IntegerField(source="assigned_to_id", required=False, allow_null=True)
     assignedAgentName = serializers.SerializerMethodField()
     assignedAgent = serializers.SerializerMethodField()
+    assignedAgentDepartment = serializers.SerializerMethodField()
+    assignedAgentTitle = serializers.SerializerMethodField()
+    assignedAgentAvailability = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
     replies = TicketReplySerializer(many=True, read_only=True)
@@ -186,6 +190,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "category",
             "sub_category",
             "subCategory",
+            "department",
             "priority",
             "severity",
             "status",
@@ -218,6 +223,9 @@ class TicketSerializer(serializers.ModelSerializer):
             "assignedAgent",
             "assignedAgentId",
             "assignedAgentName",
+            "assignedAgentDepartment",
+            "assignedAgentTitle",
+            "assignedAgentAvailability",
             "createdAt",
             "updatedAt",
             "created_at",
@@ -259,6 +267,9 @@ class TicketSerializer(serializers.ModelSerializer):
             "activity_count",
             "assignedAgent",
             "assignedAgentName",
+            "assignedAgentDepartment",
+            "assignedAgentTitle",
+            "assignedAgentAvailability",
             "suggested_steps",
             "knowledge_source",
             "knowledgeSource",
@@ -280,6 +291,21 @@ class TicketSerializer(serializers.ModelSerializer):
 
     def get_assignedAgent(self, obj):
         return self.get_assignedAgentName(obj)
+
+    def get_assignedAgentDepartment(self, obj):
+        if obj.assigned_to and hasattr(obj.assigned_to, "profile"):
+            return obj.assigned_to.profile.department
+        return obj.department or "IT Department"
+
+    def get_assignedAgentTitle(self, obj):
+        if obj.assigned_to and hasattr(obj.assigned_to, "profile"):
+            return obj.assigned_to.profile.title
+        return "Support Specialist"
+
+    def get_assignedAgentAvailability(self, obj):
+        if obj.assigned_to and hasattr(obj.assigned_to, "profile"):
+            return obj.assigned_to.profile.availability_status
+        return "AVAILABLE"
 
     def get_latest_workflow(self, obj):
         wf = obj.agent_workflows.first()
@@ -397,9 +423,13 @@ class TicketListSerializer(serializers.ModelSerializer):
     customerEmail = serializers.SerializerMethodField()
     subject = serializers.CharField(source="title", read_only=True)
     subCategory = serializers.CharField(source="sub_category", read_only=True)
+    department = serializers.CharField(read_only=True)
     assignedAgentId = serializers.IntegerField(source="assigned_to_id", read_only=True)
     assignedAgentName = serializers.SerializerMethodField()
     assignedAgent = serializers.SerializerMethodField()
+    assignedAgentDepartment = serializers.SerializerMethodField()
+    assignedAgentTitle = serializers.SerializerMethodField()
+    assignedAgentAvailability = serializers.SerializerMethodField()
     suggested_steps = serializers.SerializerMethodField()
     knowledge_source = serializers.SerializerMethodField()
     knowledgeSource = serializers.SerializerMethodField()
@@ -419,6 +449,7 @@ class TicketListSerializer(serializers.ModelSerializer):
             "category",
             "sub_category",
             "subCategory",
+            "department",
             "priority",
             "severity",
             "status",
@@ -443,6 +474,9 @@ class TicketListSerializer(serializers.ModelSerializer):
             "assignedAgent",
             "assignedAgentId",
             "assignedAgentName",
+            "assignedAgentDepartment",
+            "assignedAgentTitle",
+            "assignedAgentAvailability",
             "createdAt",
             "updatedAt",
             "created_at",
@@ -542,6 +576,22 @@ class TicketListSerializer(serializers.ModelSerializer):
 
     def get_assignedAgent(self, obj):
         return self.get_assignedAgentName(obj)
+
+    def get_assignedAgentDepartment(self, obj):
+        if obj.assigned_to and hasattr(obj.assigned_to, "profile"):
+            return obj.assigned_to.profile.department
+        return obj.department or "IT Department"
+
+    def get_assignedAgentTitle(self, obj):
+        if obj.assigned_to and hasattr(obj.assigned_to, "profile"):
+            return obj.assigned_to.profile.title
+        return "Support Specialist"
+
+    def get_assignedAgentAvailability(self, obj):
+        if obj.assigned_to and hasattr(obj.assigned_to, "profile"):
+            return obj.assigned_to.profile.availability_status
+        return "AVAILABLE"
+
 
 
 class TicketStatusUpdateSerializer(serializers.Serializer):

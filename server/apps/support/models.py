@@ -71,6 +71,11 @@ class Ticket(models.Model):
         default="Other",
         blank=True
     )
+    department = models.CharField(
+        max_length=100,
+        default="IT Department",
+        db_index=True
+    )
 
     severity = models.CharField(
         max_length=20,
