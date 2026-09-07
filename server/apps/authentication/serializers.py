@@ -74,19 +74,29 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
             if not matched_user:
                 norm_user = str(username_or_email).strip().lower()
                 demo_configs = {
-                    "admin@gmail.com": ("admin@gmail.com", "Admin", True, True, "Admin"),
-                    "admin": ("admin@gmail.com", "Admin", True, True, "Admin"),
-                    "manager@gmail.com": ("manager@gmail.com", "Support Manager", True, False, "Manager"),
-                    "manager": ("manager@gmail.com", "Support Manager", True, False, "Manager"),
-                    "agent@gmail.com": ("agent@gmail.com", "Agent", True, False, "Agent"),
-                    "agent": ("agent@gmail.com", "Agent", True, False, "Agent"),
-                    "customer@gmail.com": ("customer@gmail.com", "Customer", False, False, "Customer"),
-                    "customer": ("customer@gmail.com", "Customer", False, False, "Customer"),
+                    "admin@gmail.com": ("admin@gmail.com", "Admin", True, True, "Admin", "IT Department"),
+                    "admin": ("admin@gmail.com", "Admin", True, True, "Admin", "IT Department"),
+                    "manager@gmail.com": ("manager@gmail.com", "Support Manager", True, False, "Manager", "IT Department"),
+                    "manager": ("manager@gmail.com", "Support Manager", True, False, "Manager", "IT Department"),
+                    "agent@gmail.com": ("agent@gmail.com", "Alex Agent", True, False, "Agent", "IT Department"),
+                    "agent": ("agent@gmail.com", "Alex Agent", True, False, "Agent", "IT Department"),
+                    "customer@gmail.com": ("customer@gmail.com", "Customer", False, False, "Customer", "IT Department"),
+                    "customer": ("customer@gmail.com", "Customer", False, False, "Customer", "IT Department"),
+                    # IT Agents
+                    "yogitha@gmail.com": ("yogitha@gmail.com", "Yogitha R.", True, False, "Agent", "IT Department"),
+                    "premalatha@gmail.com": ("premalatha@gmail.com", "Premalatha S.", True, False, "Agent", "IT Department"),
+                    "david.it@supportpilot.com": ("david.it@supportpilot.com", "David IT", True, False, "Agent", "IT Department"),
+                    # HR Agents
+                    "sarah.hr@supportpilot.com": ("sarah.hr@supportpilot.com", "Sarah HR", True, False, "Agent", "HR Department"),
+                    "rachel.hr@supportpilot.com": ("rachel.hr@supportpilot.com", "Rachel HR", True, False, "Agent", "HR Department"),
+                    # Finance Agents
+                    "michael.fin@supportpilot.com": ("michael.fin@supportpilot.com", "Michael Finance", True, False, "Agent", "Finance Department"),
+                    "emma.fin@supportpilot.com": ("emma.fin@supportpilot.com", "Emma Finance", True, False, "Agent", "Finance Department"),
                 }
                 if norm_user in demo_configs:
                     try:
                         from apps.staff.models import Profile
-                        email, fname, is_staff, is_superuser, role = demo_configs[norm_user]
+                        email, fname, is_staff, is_superuser, role, dept = demo_configs[norm_user]
                         matched_user, _ = User.objects.get_or_create(
                             username=norm_user,
                             defaults={
@@ -97,10 +107,28 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
                             }
                         )
                         matched_user.set_password("password123")
+                        matched_user.is_staff = is_staff
                         matched_user.save()
-                        Profile.objects.update_or_create(user=matched_user, defaults={"role": role})
+                        Profile.objects.update_or_create(
+                            user=matched_user,
+                            defaults={
+                                "role": role,
+                                "department": dept,
+                                "availability_status": "AVAILABLE",
+                            }
+                        )
                     except Exception:
                         pass
+            elif str(username_or_email).strip().lower() in [
+                "david.it@supportpilot.com", "sarah.hr@supportpilot.com", "rachel.hr@supportpilot.com",
+                "michael.fin@supportpilot.com", "emma.fin@supportpilot.com", "agent@gmail.com", "yogitha@gmail.com", "premalatha@gmail.com"
+            ]:
+                try:
+                    matched_user.set_password("password123")
+                    matched_user.is_staff = True
+                    matched_user.save()
+                except Exception:
+                    pass
 
             if matched_user:
                 attrs['username'] = matched_user.username
@@ -109,12 +137,15 @@ class AuthTokenObtainPairSerializer(TokenObtainPairSerializer):
         current_user = self.user
         if current_user is not None:
             full_name = getattr(current_user, 'get_full_name', lambda: '')()
+            profile = getattr(current_user, 'profile', None)
             data['user'] = {
                 'id': getattr(current_user, 'id', None),
                 'username': getattr(current_user, 'username', ''),
                 'email': getattr(current_user, 'email', ''),
                 'name': full_name or getattr(current_user, 'username', ''),
                 'role': self._resolve_role(current_user),
+                'department': getattr(profile, 'department', '') if profile else '',
+                'availability_status': getattr(profile, 'availability_status', 'AVAILABLE') if profile else 'AVAILABLE',
             }
         return data
 

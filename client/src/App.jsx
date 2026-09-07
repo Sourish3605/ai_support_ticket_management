@@ -88,24 +88,163 @@ function CustomerLayout({ children }) {
 }
 
 /* =====================================================
-   AGENT LAYOUT
+   AGENT LAYOUT & DEPARTMENT SWITCHER
 ===================================================== */
 
+const DEPARTMENT_AGENTS = [
+  // IT Department (4 Agents)
+  {
+    name: "Alex Agent",
+    email: "agent@gmail.com",
+    department: "IT",
+    title: "L1 Support Agent",
+    specialty: "Hardware & Network",
+    deptBadge: "IT",
+    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
+    avatarBg: "bg-blue-600",
+  },
+  {
+    name: "Yogitha",
+    email: "yogitha@gmail.com",
+    department: "IT",
+    title: "IT Support Agent",
+    specialty: "Software & Applications",
+    deptBadge: "IT",
+    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
+    avatarBg: "bg-cyan-600",
+  },
+  {
+    name: "Premalatha",
+    email: "premalatha@gmail.com",
+    department: "IT",
+    title: "IT Support Agent",
+    specialty: "Network & VPN",
+    deptBadge: "IT",
+    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
+    avatarBg: "bg-indigo-600",
+  },
+  {
+    name: "David IT",
+    email: "david.it@supportpilot.com",
+    department: "IT",
+    title: "Senior IT Engineer",
+    specialty: "Infrastructure & Security",
+    deptBadge: "IT",
+    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-400/40",
+    avatarBg: "bg-sky-700",
+  },
+  // HR Department (2 Agents)
+  {
+    name: "Sarah HR",
+    email: "sarah.hr@supportpilot.com",
+    department: "HR",
+    title: "HR Specialist",
+    specialty: "Onboarding & Policies",
+    deptBadge: "HR",
+    badgeColor: "bg-purple-500/20 text-purple-300 border-purple-400/40",
+    avatarBg: "bg-purple-600",
+  },
+  {
+    name: "Rachel HR",
+    email: "rachel.hr@supportpilot.com",
+    department: "HR",
+    title: "HR Representative",
+    specialty: "Benefits & Leaves",
+    deptBadge: "HR",
+    badgeColor: "bg-purple-500/20 text-purple-300 border-purple-400/40",
+    avatarBg: "bg-fuchsia-600",
+  },
+  // Finance Department (2 Agents)
+  {
+    name: "Michael Finance",
+    email: "michael.fin@supportpilot.com",
+    department: "Finance",
+    title: "Finance Specialist",
+    specialty: "Billing & Invoices",
+    deptBadge: "FIN",
+    badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40",
+    avatarBg: "bg-emerald-600",
+  },
+  {
+    name: "Emma Finance",
+    email: "emma.fin@supportpilot.com",
+    department: "Finance",
+    title: "Finance Analyst",
+    specialty: "Payroll & Reimbursements",
+    deptBadge: "FIN",
+    badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40",
+    avatarBg: "bg-teal-600",
+  },
+];
+
 function AgentLayout({ children }) {
-  const { logout, user } = useAuth();
+  const { logout, login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [ticketCounts, setTicketCounts] = useState({ all: 0, open: 0 });
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState("ALL");
+  const [switchingEmail, setSwitchingEmail] = useState(null);
+  const [switchNotice, setSwitchNotice] = useState(null);
 
   useEffect(() => {
     const tickets = getAllTickets();
     const open = tickets.filter((t) => !["Resolved", "Closed"].includes(t.status));
     setTicketCounts({ all: tickets.length, open: open.length });
-  }, [location.pathname]);
+  }, [location.pathname, user?.email, user?.id]);
 
   const handleLogout = () => {
     logout();
     navigate("/login", { replace: true });
+  };
+
+  const isCurrentAgent = (ag) => {
+    if (!user) return false;
+    const userEmail = (user.email || "").toLowerCase().trim();
+    const username = (user.username || "").toLowerCase().trim();
+    const userName = (user.name || "").toLowerCase().trim();
+    const agEmail = ag.email.toLowerCase().trim();
+    const agName = ag.name.toLowerCase().trim();
+
+    return (
+      userEmail === agEmail ||
+      username === agEmail ||
+      username === agName ||
+      userName === agName
+    );
+  };
+
+  const handleSwitchAgent = async (ag) => {
+    if (isCurrentAgent(ag) || switchingEmail) return;
+    setSwitchingEmail(ag.email);
+    try {
+      await login(ag.email, "password123", "agent");
+      setSwitchNotice(`Switched to ${ag.name} (${ag.department})`);
+      setTimeout(() => setSwitchNotice(null), 3500);
+      // Reload tickets or refresh page view smoothly
+      if (location.pathname !== "/dashboard" && location.pathname !== "/tickets" && location.pathname !== "/tickets/queue") {
+        navigate("/dashboard");
+      }
+    } catch (err) {
+      console.error("Agent switch error:", err);
+      setSwitchNotice(`Failed to switch to ${ag.name}`);
+      setTimeout(() => setSwitchNotice(null), 3500);
+    } finally {
+      setSwitchingEmail(null);
+    }
+  };
+
+  const currentDeptAgent = DEPARTMENT_AGENTS.find((ag) => isCurrentAgent(ag));
+  const currentDepartment = user?.department || currentDeptAgent?.department || "IT";
+
+  const filteredAgents = selectedDeptFilter === "ALL"
+    ? DEPARTMENT_AGENTS
+    : DEPARTMENT_AGENTS.filter((ag) => ag.department === selectedDeptFilter);
+
+  const deptCounts = {
+    ALL: DEPARTMENT_AGENTS.length,
+    IT: DEPARTMENT_AGENTS.filter((a) => a.department === "IT").length,
+    HR: DEPARTMENT_AGENTS.filter((a) => a.department === "HR").length,
+    Finance: DEPARTMENT_AGENTS.filter((a) => a.department === "Finance").length,
   };
 
   const pageMeta = location.pathname === "/dashboard"
@@ -132,39 +271,190 @@ function AgentLayout({ children }) {
   return (
     <div className="sp-agent-shell">
       <aside className="sp-agent-sidebar">
+        {/* LOGO */}
         <Link to="/dashboard" className="sp-sidebar-logo">
           <span className="sp-logo-mark">SP</span>
-          <span>
+          <div>
             <span className="sp-logo-name">SupportPilot</span>
             <span className="sp-sidebar-sub">AGENT WORKSPACE</span>
-          </span>
+          </div>
         </Link>
-        <nav className="sp-sidebar-nav">
-          <div className="sp-nav-heading">Work Queue</div>
-          {navigation.map(([to, icon, label, count]) => (
-            <NavLink end key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}>
-              <span>{icon}</span>
-              <span>{label}</span>
-              {count !== null && <span className="sp-sidebar-count">{count}</span>}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sp-sidebar-footer">
-          <div className="flex items-center gap-2">
-            <div className="sp-avatar sp-agent-avatar" title={displayName}>{userInitials}</div>
-            <div>
-              <div className="text-xs font-semibold text-white">{displayName}</div>
-              <div className="text-[10px] text-blue-300">Support Agent</div>
+
+        {/* SCROLLABLE SIDEBAR BODY */}
+        <div className="sp-sidebar-scrollable">
+          {/* WORK QUEUE NAVIGATION */}
+          <nav className="sp-sidebar-nav">
+            <div className="sp-nav-heading">Work Queue</div>
+            {navigation.map(([to, icon, label, count]) => (
+              <NavLink end key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}>
+                <span>{icon}</span>
+                <span>{label}</span>
+                {count !== null && <span className="sp-sidebar-count">{count}</span>}
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* NOTIFICATION BANNER */}
+          {switchNotice && (
+            <div className="mx-3 mt-3 mb-1 rounded-lg bg-emerald-950/80 border border-emerald-500/40 p-2 text-center text-[11px] font-semibold text-emerald-200 shadow-sm animate-fade-in">
+              {switchNotice}
+            </div>
+          )}
+
+          {/* DEPARTMENT AGENTS SWITCHER */}
+          <div className="mt-4 px-3">
+            <div className="flex items-center justify-between px-1 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Department Agents
+              </span>
+              <span className="text-[10px] font-semibold text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded">
+                Switch Profile
+              </span>
+            </div>
+
+            {/* DEPARTMENT FILTER TABS */}
+            <div className="grid grid-cols-4 gap-1 p-1 bg-slate-900/90 rounded-lg border border-slate-800/80 mb-2.5">
+              {[
+                { id: "ALL", label: "All", count: deptCounts.ALL },
+                { id: "IT", label: "IT", count: deptCounts.IT },
+                { id: "HR", label: "HR", count: deptCounts.HR },
+                { id: "Finance", label: "Fin", count: deptCounts.Finance },
+              ].map((tab) => {
+                const isActive = selectedDeptFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSelectedDeptFilter(tab.id)}
+                    className={`py-1 px-1 rounded text-[10px] font-bold transition text-center cursor-pointer ${
+                      isActive
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                    }`}
+                  >
+                    {tab.label} <span className="text-[9px] opacity-75">({tab.count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* AGENT CARDS LIST */}
+            <div className="space-y-1.5">
+              {filteredAgents.map((ag) => {
+                const isCurrent = isCurrentAgent(ag);
+                const isBusy = switchingEmail === ag.email;
+                return (
+                  <button
+                    key={ag.email}
+                    type="button"
+                    disabled={isCurrent || isBusy}
+                    onClick={() => handleSwitchAgent(ag)}
+                    className={`w-full text-left rounded-lg p-2 transition flex items-center gap-2.5 border cursor-pointer ${
+                      isCurrent
+                        ? "bg-blue-950/70 border-blue-500/60 shadow-xs ring-1 ring-blue-500/30 text-white"
+                        : "bg-slate-900/40 border-slate-800 hover:border-slate-700 hover:bg-slate-800/60 text-slate-300"
+                    }`}
+                  >
+                    {/* AVATAR WITH STATUS DOT */}
+                    <div className="relative shrink-0">
+                      <div
+                        className={`h-7 w-7 rounded-md ${ag.avatarBg} text-white font-bold text-[11px] flex items-center justify-center shadow-xs`}
+                      >
+                        {initials(ag.name)}
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-1 ring-slate-900" />
+                    </div>
+
+                    {/* AGENT INFO */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-semibold truncate text-white">
+                          {ag.name}
+                        </span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${ag.badgeColor}`}
+                        >
+                          {ag.deptBadge}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {ag.specialty}
+                      </div>
+                    </div>
+
+                    {/* ACTIVE INDICATOR OR SWITCH STATUS */}
+                    {isCurrent ? (
+                      <span className="shrink-0 text-[10px] font-bold text-emerald-400 flex items-center gap-0.5 bg-emerald-950/60 border border-emerald-500/40 px-1.5 py-0.5 rounded">
+                        ✓
+                      </span>
+                    ) : isBusy ? (
+                      <span className="shrink-0 text-[10px] font-bold text-cyan-400 animate-pulse">
+                        ...
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
+
+        {/* SIDEBAR FOOTER (CURRENT LOGGED-IN AGENT) */}
+        <div className="sp-sidebar-footer">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="sp-avatar sp-agent-avatar shrink-0" title={displayName}>
+                {userInitials}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-white truncate">{displayName}</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className="text-[10px] font-semibold text-cyan-300 truncate">
+                    {currentDepartment} Department
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Sign Out"
+              className="rounded p-1.5 text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            >
+              ⎋
+            </button>
+          </div>
+        </div>
       </aside>
+
+      {/* MAIN VIEWPORT */}
       <main className="sp-agent-main">
         <header className="sp-agent-topbar">
-          <div><div className="sp-breadcrumb">{pageMeta[0]}</div><h1>{pageMeta[1]}</h1></div>
+          <div>
+            <div className="sp-breadcrumb">{pageMeta[0]}</div>
+            <h1>{pageMeta[1]}</h1>
+          </div>
           <div className="flex items-center gap-3">
-            <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer">Logout</button>
-            <div className="sp-avatar sp-agent-avatar" title={displayName}>{userInitials}</div>
+            {/* CURRENT ACTIVE AGENT BADGE */}
+            <div className="hidden sm:flex items-center gap-2 rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="text-xs font-semibold text-slate-700">
+                {displayName}
+              </span>
+              <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded border border-blue-200">
+                {currentDepartment} Dept
+              </span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            >
+              Logout
+            </button>
+            <div className="sp-avatar sp-agent-avatar" title={displayName}>
+              {userInitials}
+            </div>
           </div>
         </header>
         <div className="sp-content">
@@ -994,6 +1284,8 @@ export default function App() {
           />
 
           <Route path="/admin/all-tickets" element={<Navigate to="/tickets" replace />} />
+          <Route path="/agent" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/agent/dashboard" element={<Navigate to="/dashboard" replace />} />
           <Route path="/agent/tickets" element={<Navigate to="/tickets" replace />} />
           <Route path="/agent/all-tickets" element={<Navigate to="/tickets" replace />} />
           <Route path="/agent/my-tickets" element={<Navigate to="/tickets/queue" replace />} />
