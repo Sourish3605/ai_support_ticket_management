@@ -85,6 +85,26 @@ export default function ManagerQueueAndAssignmentPage() {
         setAgents(list);
       }
     });
+
+    const handleSync = () => {
+      loadTickets();
+      fetchAgentsApi().then((list) => {
+        if (list && Array.isArray(list) && list.length > 0) {
+          setAgents(list);
+        } else {
+          setAgents(getDepartmentAgentsList());
+        }
+      });
+    };
+
+    window.addEventListener("supportpilot_users_changed", handleSync);
+    window.addEventListener("supportpilot_user_deleted", handleSync);
+    window.addEventListener("supportpilot_tickets_changed", handleSync);
+    return () => {
+      window.removeEventListener("supportpilot_users_changed", handleSync);
+      window.removeEventListener("supportpilot_user_deleted", handleSync);
+      window.removeEventListener("supportpilot_tickets_changed", handleSync);
+    };
   }, [location.pathname]);
 
   useEffect(() => {

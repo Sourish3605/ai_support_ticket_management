@@ -1,6 +1,7 @@
 const STORAGE_KEYS = {
   tickets: "supportpilot_tickets",
   users: "supportpilot_users",
+  deletedUsers: "supportpilot_deleted_users",
   currentUser: "supportpilot_current_user",
   auditLogs: "supportpilot_audit_logs",
 };

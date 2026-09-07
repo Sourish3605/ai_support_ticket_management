@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { seedUsers } from "../../data/seedData";
 import { storage, STORAGE_KEYS } from "../../services/storageService";
+import {
+  deleteUserEverywhere,
+  isUserDeleted,
+  fetchUsersApi,
+} from "../../services/ticketService";
 
 const emptyForm = {
   name: "",
@@ -18,22 +23,30 @@ export default function UsersPage() {
   const [form, setForm] = useState(emptyForm);
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+  const [deleteToast, setDeleteToast] = useState(null);
 
-  useEffect(() => {
+  const loadAllUsers = async () => {
     const stored = storage.get(STORAGE_KEYS.users, []);
+    let backendUsers = [];
+    try {
+      backendUsers = await fetchUsersApi();
+    } catch (e) {}
 
-    // Combine seedUsers with stored users to ensure EVERY agent and user is present
+    // Combine seedUsers, stored users, and backend users (strictly excluding any deleted users)
     const userMap = new Map();
-    // 1. Seed users first
+
+    // 1. Seed users first (only non-deleted)
     seedUsers.forEach((u) => {
-      userMap.set(u.email.toLowerCase(), { ...u });
+      if (!isUserDeleted(u)) {
+        userMap.set(u.email.toLowerCase(), { ...u });
+      }
     });
-    // 2. Overlay stored users
+
+    // 2. Overlay stored users (only non-deleted)
     if (Array.isArray(stored)) {
       stored.forEach((u) => {
-        if (!u || !u.email) return;
+        if (!u || !u.email || isUserDeleted(u)) return;
         const key = u.email.toLowerCase();
-        // Skip obsolete dummy emails
         if (["arun@company.com", "bala@company.com", "admin@company.com", "employee@supportpilot.com"].includes(key)) {
           return;
         }
@@ -45,18 +58,35 @@ export default function UsersPage() {
       });
     }
 
-    const merged = Array.from(userMap.values());
+    // 3. Overlay backend users
+    if (Array.isArray(backendUsers)) {
+      backendUsers.forEach((bu) => {
+        if (!bu || !bu.email || isUserDeleted(bu)) return;
+        const key = bu.email.toLowerCase();
+        const existing = userMap.get(key) || {};
+        userMap.set(key, { ...existing, ...bu });
+      });
+    }
+
+    const merged = Array.from(userMap.values()).filter((u) => !isUserDeleted(u));
     storage.set(STORAGE_KEYS.users, merged);
     setUsers(merged);
     window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: merged }));
-  }, []);
+  };
 
   useEffect(() => {
-    if (users && users.length > 0) {
-      storage.set(STORAGE_KEYS.users, users);
-      window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: users }));
-    }
-  }, [users]);
+    loadAllUsers();
+
+    const handleUsersChange = () => {
+      loadAllUsers();
+    };
+    window.addEventListener("supportpilot_users_changed", handleUsersChange);
+    window.addEventListener("supportpilot_user_deleted", handleUsersChange);
+    return () => {
+      window.removeEventListener("supportpilot_users_changed", handleUsersChange);
+      window.removeEventListener("supportpilot_user_deleted", handleUsersChange);
+    };
+  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -114,13 +144,35 @@ export default function UsersPage() {
     setShowForm(true);
   };
 
-  const handleDeleteUser = (id) => {
-    setUsers((current) => {
-      const updated = current.filter((user) => user.id !== id);
-      storage.set(STORAGE_KEYS.users, updated);
-      window.dispatchEvent(new CustomEvent("supportpilot_users_changed", { detail: updated }));
-      return updated;
-    });
+  const handleDeleteUser = async (userOrId) => {
+    const target = typeof userOrId === "object" && userOrId !== null
+      ? userOrId
+      : users.find((u) => u.id === userOrId);
+
+    if (!target) return;
+
+    const displayName = target.name || target.email;
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete "${displayName}"?\n\n` +
+      `This will completely remove them across all areas:\n` +
+      `• Removed from All Users list\n` +
+      `• Removed from Agent Directory & Switcher\n` +
+      `• Removed from Manager Queues & Assignments\n` +
+      `• Removed from Auto-Assignment Pools\n` +
+      `• Any active tickets assigned to them will be safely reset to Unassigned.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      await deleteUserEverywhere(target);
+      setUsers((current) => current.filter((u) => u.id !== target.id && u.email?.toLowerCase() !== target.email?.toLowerCase()));
+      setDeleteToast(`✓ User "${displayName}" permanently deleted from all directories, queues, and assignments.`);
+      setTimeout(() => setDeleteToast(null), 5000);
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      setDeleteToast(`Error deleting user: ${err.message}`);
+    }
   };
 
   const totalUsers = users.length;
@@ -158,6 +210,19 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
+      {deleteToast && (
+        <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3.5 text-xs font-bold text-emerald-800 flex items-center justify-between shadow-xs animate-in fade-in">
+          <span>{deleteToast}</span>
+          <button
+            type="button"
+            onClick={() => setDeleteToast(null)}
+            className="text-emerald-700 hover:text-emerald-950 font-bold ml-3"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Breadcrumbs & Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -350,7 +415,7 @@ export default function UsersPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteUser(user.id)}
+                        onClick={() => handleDeleteUser(user)}
                         className="font-bold text-red-600 hover:text-red-800 cursor-pointer"
                       >
                         Delete

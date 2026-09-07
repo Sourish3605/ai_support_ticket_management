@@ -13,7 +13,7 @@ import {
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { getAllTickets, getDepartmentAgentsList, updateAgentAvailabilityApi } from "./services/ticketService";
+import { getAllTickets, getDepartmentAgentsList, updateAgentAvailabilityApi, isUserDeleted } from "./services/ticketService";
 import { storage, STORAGE_KEYS } from "./services/storageService";
 
 import LoginPage from "./pages/auth/LoginPage";
@@ -105,14 +105,20 @@ function AgentLayout({ children }) {
   useEffect(() => {
     const handleSync = () => {
       setAgentsList(getDepartmentAgentsList());
+      if (user && isUserDeleted(user)) {
+        logout();
+        navigate("/login", { replace: true });
+      }
     };
     window.addEventListener("supportpilot_users_changed", handleSync);
+    window.addEventListener("supportpilot_user_deleted", handleSync);
     window.addEventListener("storage", handleSync);
     return () => {
       window.removeEventListener("supportpilot_users_changed", handleSync);
+      window.removeEventListener("supportpilot_user_deleted", handleSync);
       window.removeEventListener("storage", handleSync);
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const tickets = getAllTickets();
