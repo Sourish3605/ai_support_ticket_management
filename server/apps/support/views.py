@@ -9,6 +9,7 @@ from rest_framework.exceptions import NotFound
 from .models import Ticket, TicketReply, Notification
 from .serializers import (
     TicketSerializer,
+    TicketListSerializer,
     TicketReplySerializer,
     TicketStatusUpdateSerializer,
     TicketReplyCreateSerializer,
@@ -316,16 +317,18 @@ class CustomerTicketListView(generics.ListAPIView):
     Customer sees only their own tickets.
     """
 
-    serializer_class = TicketSerializer
+    serializer_class = TicketListSerializer
     permission_classes = [
         permissions.IsAuthenticated
     ]
 
     def get_queryset(self):
 
-        return Ticket.objects.filter(
-            created_by=self.request.user
-        ).order_by("-created_at")
+        return (
+            Ticket.objects.select_related("created_by", "assigned_to")
+            .filter(created_by=self.request.user)
+            .order_by("-created_at")
+        )
 
 
 # =========================================================
@@ -340,7 +343,7 @@ class AgentTicketListView(generics.ListAPIView):
     Agent/Admin can see all tickets.
     """
 
-    serializer_class = TicketSerializer
+    serializer_class = TicketListSerializer
 
     permission_classes = [
         IsSupportAgentOrAdmin
@@ -348,8 +351,10 @@ class AgentTicketListView(generics.ListAPIView):
 
     def get_queryset(self):
 
-        queryset = Ticket.objects.all().order_by(
-            "-created_at"
+        queryset = (
+            Ticket.objects.select_related("created_by", "assigned_to")
+            .all()
+            .order_by("-created_at")
         )
 
         status_filter = (

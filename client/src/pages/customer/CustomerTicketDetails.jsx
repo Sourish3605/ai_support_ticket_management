@@ -19,9 +19,10 @@ export default function CustomerTicketDetails() {
   const { id } = useParams();
   const { user } = useAuth();
 
-  const [ticket, setTicket] = useState(null);
-  const [workflowData, setWorkflowData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const initialTicket = getTicketById(id);
+  const [ticket, setTicket] = useState(initialTicket);
+  const [workflowData, setWorkflowData] = useState(() => initialTicket ? simulateWorkflowLocally(initialTicket) : null);
+  const [loading, setLoading] = useState(!initialTicket);
   const [isForbidden, setIsForbidden] = useState(false);
   const [toast, setToast] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
@@ -29,9 +30,11 @@ export default function CustomerTicketDetails() {
   const [showSources, setShowSources] = useState(false);
 
   const loadTicket = async () => {
-    setLoading(true);
-    setIsForbidden(false);
-    let curTicket = null;
+    let curTicket = getTicketById(id);
+    if (curTicket) {
+      setTicket(curTicket);
+      setLoading(false);
+    }
 
     const isStaffUser = Boolean(
       user &&
@@ -44,6 +47,7 @@ export default function CustomerTicketDetails() {
       const apiTicket = await fetchTicketByIdApi(id);
       if (apiTicket) {
         curTicket = apiTicket;
+        setTicket(apiTicket);
       }
     } catch (err) {
       if (err?.response?.status === 403 && !isStaffUser) {
@@ -69,20 +73,18 @@ export default function CustomerTicketDetails() {
         setLoading(false);
         return;
       }
+      setTicket(curTicket || null);
     }
 
-    if (curTicket) {
-      setTicket(curTicket);
-      try {
-        const wf = await fetchAgentWorkflowApi(curTicket.id);
-        setWorkflowData(wf || simulateWorkflowLocally(curTicket));
-      } catch (e) {
-        setWorkflowData(simulateWorkflowLocally(curTicket));
-      }
-    } else {
-      setTicket(null);
-    }
     setLoading(false);
+
+    if (curTicket) {
+      fetchAgentWorkflowApi(curTicket.id)
+        .then((wf) => {
+          if (wf) setWorkflowData(wf);
+        })
+        .catch(() => {});
+    }
   };
 
   useEffect(() => {
