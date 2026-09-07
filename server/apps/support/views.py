@@ -99,15 +99,18 @@ def get_ticket_by_id_or_number(lookup_val):
     """
     Find ticket using:
     - Database ID
-    - Ticket number such as TKT-1001
+    - Ticket number such as TKT-1001 or TKT1001
     """
+    if lookup_val is None:
+        return None
 
     val_str = str(lookup_val).strip()
+    if not val_str:
+        return None
 
-    # Try database ID
+    # Try database ID directly
     if val_str.isdigit():
         ticket = Ticket.objects.filter(id=int(val_str)).first()
-
         if ticket:
             return ticket
 
@@ -115,34 +118,43 @@ def get_ticket_by_id_or_number(lookup_val):
     ticket = Ticket.objects.filter(
         ticket_number__iexact=val_str
     ).first()
-
     if ticket:
         return ticket
 
-    # Try TKT-1001 / TKT1001
+    # Try TKT-1001 / TKT1001 / TKT001 / TKT15
     clean_num = (
         val_str.upper()
         .replace("TKT-", "")
         .replace("TKT", "")
+        .strip()
     )
 
     if clean_num.isdigit():
+        ticket = Ticket.objects.filter(
+            ticket_number__iexact=f"TKT-{clean_num}"
+        ).first()
+        if ticket:
+            return ticket
 
         ticket = Ticket.objects.filter(
             ticket_number__icontains=clean_num
         ).first()
-
         if ticket:
             return ticket
 
-        # Optional fallback:
-        # TKT-1001 -> ID 1
         ticket = Ticket.objects.filter(
-            id=int(clean_num) - 1000
+            id=int(clean_num)
         ).first()
-
         if ticket:
             return ticket
+
+        # Optional fallback: TKT-1001 -> ID 1
+        if int(clean_num) > 1000:
+            ticket = Ticket.objects.filter(
+                id=int(clean_num) - 1000
+            ).first()
+            if ticket:
+                return ticket
 
     return None
 
@@ -657,8 +669,42 @@ class TicketReplyCreateView(APIView):
             is_internal=serializer.validated_data.get("is_internal", False),
         )
 
+        is_agent_reply = is_user_agent_or_admin(request.user)
+
+        # Agent / Staff reply -> Status moves to IN_PROGRESS and notify customer
+        if is_agent_reply and request.user != ticket.created_by:
+            if ticket.status in ["OPEN", "ASSIGNED", "NEW", "AI_ANALYZING", "AI_RESPONDED", "AI_RESOLUTION_READY"]:
+                ticket.status = "IN_PROGRESS"
+                ticket.save(update_fields=["status", "updated_at"])
+
+            try:
+                from .agent_orchestrator import _log_activity
+                _log_activity(
+                    ticket=ticket,
+                    actor=request.user.username,
+                    action="AGENT_REPLY",
+                    description=f"Support Agent {request.user.get_full_name() or request.user.username} sent a reply to the customer.",
+                )
+            except Exception:
+                pass
+
+            # Notify customer of agent reply
+            try:
+                import uuid
+                if ticket.created_by:
+                    Notification.objects.create(
+                        notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
+                        user=ticket.created_by,
+                        ticket=ticket,
+                        title=f"New Agent Reply on #{ticket.ticket_number}",
+                        message=f"{request.user.get_full_name() or request.user.username}: '{reply.message[:80]}'",
+                        notification_type="agent_response"
+                    )
+            except Exception:
+                pass
+
         # Test Scenario 9: Customer reply to resolved ticket -> status transitions to REOPENED
-        if ticket.status in ["RESOLVED", "Resolved", "AI_RESPONDED"] and request.user == ticket.created_by:
+        elif ticket.status in ["RESOLVED", "Resolved", "AI_RESPONDED", "CLOSED", "Closed"] and request.user == ticket.created_by:
             ticket.status = "REOPENED"
             ticket.save(update_fields=["status", "updated_at"])
             try:
@@ -675,7 +721,11 @@ class TicketReplyCreateView(APIView):
             # Notify support team of reopened ticket
             try:
                 import uuid
-                for staff_user in User.objects.filter(is_staff=True)[:5]:
+                recipients = []
+                if ticket.assigned_to:
+                    recipients.append(ticket.assigned_to)
+                recipients.extend(list(User.objects.filter(is_staff=True)[:5]))
+                for staff_user in set(recipients):
                     Notification.objects.create(
                         notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
                         user=staff_user,
@@ -684,6 +734,17 @@ class TicketReplyCreateView(APIView):
                         message=f"Customer replied: '{reply.message[:60]}...'",
                         notification_type="status_change"
                     )
+            except Exception:
+                pass
+        else:
+            try:
+                from .agent_orchestrator import _log_activity
+                _log_activity(
+                    ticket=ticket,
+                    actor=request.user.username,
+                    action="CUSTOMER_REPLY",
+                    description=f"Customer {request.user.username} posted a follow-up reply.",
+                )
             except Exception:
                 pass
 
@@ -865,49 +926,248 @@ class TicketAssignView(APIView):
         )
 
         agent_id = (
-            serializer.validated_data.get(
-                "agent_id"
-            )
-            or
-            serializer.validated_data.get(
-                "assignedAgentId"
-            )
+            serializer.validated_data.get("agent_id")
+            or serializer.validated_data.get("assignedAgentId")
+            or request.data.get("agent_id")
+            or request.data.get("assignedAgentId")
+        )
+        agent_name = (
+            serializer.validated_data.get("agent_name")
+            or serializer.validated_data.get("agentName")
+            or request.data.get("agent_name")
+            or request.data.get("agentName")
+            or request.data.get("selectedAgent")
         )
 
+        agent = None
         if agent_id:
-
-            agent = User.objects.filter(
-                id=agent_id
-            ).first()
-
+            val_agent = str(agent_id).strip()
+            if val_agent.isdigit():
+                agent = User.objects.filter(id=int(val_agent)).first()
             if not agent:
+                agent = User.objects.filter(username__iexact=val_agent).first() or \
+                        User.objects.filter(email__iexact=val_agent).first()
 
-                return Response(
-                    {
-                        "error":
-                            "Assigned agent "
-                            "not found."
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        if not agent and agent_name:
+            val_name = str(agent_name).strip()
+            clean_name = val_name.split("(")[0].strip()
+            agent = User.objects.filter(username__iexact=clean_name).first() or \
+                    User.objects.filter(email__iexact=clean_name).first() or \
+                    User.objects.filter(first_name__iexact=clean_name).first() or \
+                    User.objects.filter(username__icontains=clean_name).first()
 
-            ticket.assigned_to = agent
+        if not agent and not agent_id and not agent_name:
+            agent = request.user
 
-        else:
+        if not agent:
+            return Response(
+                {
+                    "error":
+                        f"Assigned agent '{agent_id or agent_name}' not found."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-            ticket.assigned_to = request.user
+        ticket.assigned_to = agent
+        if ticket.status in ["OPEN", "NEW", "Open", "AI_ANALYZING", "AI_RESPONDED", "AI_RESOLUTION_READY", "DRAFT", "REOPENED"]:
+            ticket.status = "ASSIGNED"
 
         ticket.save(
             update_fields=[
                 "assigned_to",
+                "status",
                 "updated_at",
             ]
         )
+
+        # Log assignment activity
+        try:
+            from .agent_orchestrator import _log_activity
+            _log_activity(
+                ticket=ticket,
+                actor=request.user.username,
+                action="TICKET_ASSIGNED",
+                description=f"Ticket #{ticket.ticket_number} assigned to {agent.get_full_name() or agent.username} by {request.user.username}.",
+            )
+        except Exception:
+            pass
+
+        # Send notification to assigned agent
+        try:
+            import uuid
+            Notification.objects.create(
+                notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
+                user=agent,
+                ticket=ticket,
+                title=f"Ticket Assigned: #{ticket.ticket_number}",
+                message=f"You have been assigned to handle ticket '{ticket.title}'.",
+                notification_type="assignment",
+            )
+        except Exception:
+            pass
 
         return Response(
             TicketSerializer(ticket).data,
             status=status.HTTP_200_OK,
         )
+
+
+def auto_assign_single_ticket(ticket, update_status_if_open=True):
+    """
+    Automatically assigns a ticket to the most appropriate agent based on category and priority.
+    Balances workload among matching specialists:
+    - Network -> Network Support Specialist (premalatha)
+    - Technical / Product / Software -> Technical Specialist (yogitha)
+    - Billing / Account / Security / General -> Support Desk Specialist (agent)
+    """
+    import uuid
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+    cat = (ticket.category or "").strip().lower()
+    prio = (ticket.priority or "").strip().upper()
+
+    # Find staff users who are agents
+    staff_users = list(User.objects.filter(is_staff=True).exclude(username__in=["workflow_manager", "scen_mgr"]))
+    if not staff_users:
+        return None
+
+    # Determine domain keyword
+    if any(k in cat for k in ["network", "wifi", "vpn", "internet", "connectivity"]):
+        candidates = [u for u in staff_users if "premalatha" in u.username.lower() or "network" in u.username.lower()]
+    elif any(k in cat for k in ["tech", "software", "product", "bug", "database", "app", "crash"]):
+        candidates = [u for u in staff_users if "yogitha" in u.username.lower() or "tech" in u.username.lower()]
+    elif any(k in cat for k in ["security", "hack", "auth", "breach"]):
+        candidates = [u for u in staff_users if "agent" in u.username.lower() or "admin" in u.username.lower()]
+    else:
+        candidates = [u for u in staff_users if "agent" in u.username.lower() and "workflow" not in u.username.lower() and "scen" not in u.username.lower()]
+
+    if not candidates:
+        candidates = [u for u in staff_users if "agent" in u.username.lower()] or staff_users
+
+    # Workload balance: pick candidate with lowest active ticket count
+    def active_ticket_count(u):
+        return Ticket.objects.filter(assigned_to=u).exclude(status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]).count()
+
+    best_agent = min(candidates, key=active_ticket_count)
+
+    ticket.assigned_to = best_agent
+    if update_status_if_open and ticket.status in ["OPEN", "NEW", "DRAFT"]:
+        ticket.status = "ASSIGNED"
+
+    ticket.save(update_fields=["assigned_to", "status", "updated_at"])
+
+    # Create ActivityLog
+    try:
+        from .agent_orchestrator import _log_activity
+        _log_activity(
+            ticket=ticket,
+            actor="AI Auto-Router",
+            action="AUTO_ASSIGNED",
+            description=f"Auto-assigned to {best_agent.get_full_name() or best_agent.username} based on Category '{ticket.category}' and Priority '{ticket.priority}'.",
+        )
+    except Exception:
+        pass
+
+    # Create Notification
+    try:
+        Notification.objects.create(
+            notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
+            user=best_agent,
+            ticket=ticket,
+            title=f"Auto-Assigned: #{ticket.ticket_number}",
+            message=f"Ticket '{ticket.title}' ({ticket.priority} - {ticket.category}) auto-assigned to you.",
+            notification_type="assignment",
+        )
+    except Exception:
+        pass
+
+    return best_agent
+
+
+class TicketAutoAssignView(APIView):
+    """
+    POST /api/tickets/auto-assign/
+    POST /api/tickets/<lookup>/auto-assign/
+    Automatically assigns unassigned tickets or a specific ticket based on category & priority.
+    """
+    permission_classes = [IsSupportAgentOrAdmin]
+
+    def post(self, request, pk=None, id=None):
+        lookup = pk or id or request.data.get("ticket_id") or request.data.get("id")
+
+        if lookup:
+            ticket = get_ticket_by_id_or_number(lookup)
+            if not ticket:
+                return Response({"detail": f"Ticket '{lookup}' not found."}, status=status.HTTP_404_NOT_FOUND)
+            agent = auto_assign_single_ticket(ticket, update_status_if_open=True)
+            return Response({
+                "message": f"Ticket #{ticket.ticket_number} auto-assigned to {agent.get_full_name() or agent.username} based on category '{ticket.category}' and priority '{ticket.priority}'.",
+                "ticket": TicketSerializer(ticket).data
+            })
+
+        # Batch auto-assign unassigned tickets
+        unassigned_tickets = Ticket.objects.filter(assigned_to__isnull=True).exclude(
+            status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
+        )
+        assigned_list = []
+        for t in unassigned_tickets:
+            ag = auto_assign_single_ticket(t, update_status_if_open=True)
+            if ag:
+                assigned_list.append(t)
+
+        return Response({
+            "message": f"Successfully auto-assigned {len(assigned_list)} tickets based on category and priority.",
+            "assigned_count": len(assigned_list),
+            "tickets": TicketSerializer(assigned_list, many=True).data,
+        })
+
+
+
+class AgentListView(APIView):
+    """
+    GET /api/agent/list/ or /api/agents/
+    List active support agents and staff for ticket assignment.
+    """
+    permission_classes = [
+        permissions.IsAuthenticated,
+        IsSupportAgentOrAdmin,
+    ]
+
+    def get(self, request):
+        from apps.staff.models import Profile
+        from django.db.models import Q
+
+        profile_user_ids = set(Profile.objects.filter(role__in=["Agent", "Manager", "Admin"]).values_list("user_id", flat=True))
+        staff_users = User.objects.filter(
+            Q(id__in=profile_user_ids) | Q(is_staff=True) | Q(is_superuser=True)
+        ).distinct()
+
+        data = []
+        for u in staff_users:
+            role = "Agent"
+            if hasattr(u, "profile") and u.profile.role:
+                role = u.profile.role
+            elif u.is_superuser:
+                role = "Admin"
+            elif u.is_staff:
+                role = "Agent"
+
+            active_tickets = Ticket.objects.filter(assigned_to=u).exclude(
+                status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
+            ).count()
+
+            data.append({
+                "id": u.id,
+                "username": u.username,
+                "name": u.get_full_name() or u.username,
+                "email": u.email,
+                "role": role,
+                "department": getattr(getattr(u, "profile", None), "department", "IT Support"),
+                "active_tickets": active_tickets,
+            })
+        return Response(data, status=status.HTTP_200_OK)
+
 
 
 # =========================================================

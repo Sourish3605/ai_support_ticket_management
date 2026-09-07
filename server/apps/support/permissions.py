@@ -8,7 +8,7 @@ def is_user_agent_or_admin(user):
         return True
     if hasattr(user, "profile"):
         role = getattr(user.profile, "role", "")
-        if str(role).lower() in ["admin", "agent", "support_agent", "support agent", "engineer", "lead"]:
+        if str(role).lower() in ["admin", "agent", "support_agent", "support agent", "engineer", "lead", "manager", "support manager", "support_manager"]:
             return True
     return False
 

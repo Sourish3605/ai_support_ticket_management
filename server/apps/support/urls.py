@@ -14,6 +14,8 @@ from .views import (
     NotificationListView,
     NotificationMarkReadView,
     NotificationMarkAllReadView,
+    AgentListView,
+    TicketAutoAssignView,
 )
 from .views_m3 import (
     AgentWorkflowStartView,
@@ -46,6 +48,10 @@ urlpatterns = [
     # Agent Queue Route
     path("agent/tickets", AgentTicketListView.as_view(), name="agent-tickets-no-slash"),
     path("agent/tickets/", AgentTicketListView.as_view(), name="agent-tickets"),
+    path("agent/list", AgentListView.as_view(), name="agent-list-no-slash"),
+    path("agent/list/", AgentListView.as_view(), name="agent-list"),
+    path("agents", AgentListView.as_view(), name="agents-no-slash"),
+    path("agents/", AgentListView.as_view(), name="agents"),
 
     # Individual Ticket Operations (by numeric ID or string ticket_number like TKT-1001)
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/status/?$", TicketStatusUpdateView.as_view(), name="ticket-status-update"),
@@ -53,6 +59,9 @@ urlpatterns = [
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/confirm-resolution/?$", ConfirmResolutionView.as_view(), name="ticket-confirm-resolution"),
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/reopen/?$", ReopenTicketView.as_view(), name="ticket-reopen"),
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/assign/?$", TicketAssignView.as_view(), name="ticket-assign"),
+    path("tickets/auto-assign", TicketAutoAssignView.as_view(), name="tickets-auto-assign-no-slash"),
+    path("tickets/auto-assign/", TicketAutoAssignView.as_view(), name="tickets-auto-assign"),
+    re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/auto-assign/?$", TicketAutoAssignView.as_view(), name="ticket-auto-assign"),
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/?$", TicketDetailView.as_view(), name="ticket-detail"),
 
     # Notification Routes

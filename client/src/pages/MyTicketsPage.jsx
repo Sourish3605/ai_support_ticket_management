@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 
 import {
   getTickets,
+  getCustomerTickets,
 } from "../services/ticketService";
 
 const priorityStyle = {

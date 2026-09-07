@@ -254,8 +254,8 @@ const LoginPage = () => {
     if (isSafePath) {
       if (fromPath.startsWith("/admin") && canonicalRole === "admin") isPermittedForFrom = true;
       else if (fromPath.startsWith("/manager") && (canonicalRole === "manager" || canonicalRole === "admin")) isPermittedForFrom = true;
-      else if ((fromPath.startsWith("/dashboard") || fromPath.startsWith("/tickets")) && (canonicalRole === "agent" || canonicalRole === "manager")) isPermittedForFrom = true;
-      else if (fromPath.startsWith("/portal") && canonicalRole === "customer") isPermittedForFrom = true;
+      else if ((fromPath.startsWith("/dashboard") || fromPath.startsWith("/tickets")) && (canonicalRole === "agent" || canonicalRole === "manager" || canonicalRole === "admin")) isPermittedForFrom = true;
+      else if (fromPath.startsWith("/portal") && (canonicalRole === "customer" || canonicalRole === "admin" || canonicalRole === "agent" || canonicalRole === "manager")) isPermittedForFrom = true;
     }
 
     navigate(isPermittedForFrom ? fromPath : targetHome, { replace: true });

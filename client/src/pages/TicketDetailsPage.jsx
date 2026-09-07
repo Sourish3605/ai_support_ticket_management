@@ -24,9 +24,12 @@ const TicketDetailsPage = () => {
     useState(null);
 
   useEffect(() => {
-    getTicketById(ticketId).then(
-      setTicket
-    );
+    const data = getTicketById(ticketId);
+    if (data && typeof data.then === "function") {
+      data.then(setTicket);
+    } else {
+      setTicket(data || null);
+    }
   }, [ticketId]);
 
   const updateStatus = async (

@@ -162,6 +162,7 @@ class TicketSerializer(serializers.ModelSerializer):
     subCategory = serializers.CharField(source="sub_category", required=False, allow_blank=True)
     assignedAgentId = serializers.IntegerField(source="assigned_to_id", required=False, allow_null=True)
     assignedAgentName = serializers.SerializerMethodField()
+    assignedAgent = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
     replies = TicketReplySerializer(many=True, read_only=True)
@@ -206,6 +207,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "customerName",
             "customerEmail",
             "assigned_to",
+            "assignedAgent",
             "assignedAgentId",
             "assignedAgentName",
             "createdAt",
@@ -247,6 +249,8 @@ class TicketSerializer(serializers.ModelSerializer):
             "latest_workflow",
             "jira_integration",
             "activity_count",
+            "assignedAgent",
+            "assignedAgentName",
         ]
 
     def get_customerName(self, obj):
@@ -261,6 +265,9 @@ class TicketSerializer(serializers.ModelSerializer):
         if obj.assigned_to:
             return obj.assigned_to.get_full_name() or obj.assigned_to.username
         return "Unassigned"
+
+    def get_assignedAgent(self, obj):
+        return self.get_assignedAgentName(obj)
 
     def get_latest_workflow(self, obj):
         wf = obj.agent_workflows.first()
@@ -320,8 +327,10 @@ class TicketReplyCreateSerializer(serializers.Serializer):
 
 
 class TicketAssignSerializer(serializers.Serializer):
-    agent_id = serializers.IntegerField(required=False, allow_null=True)
-    assignedAgentId = serializers.IntegerField(required=False, allow_null=True)
+    agent_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    assignedAgentId = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    agent_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    agentName = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
 
 class NotificationSerializer(serializers.ModelSerializer):

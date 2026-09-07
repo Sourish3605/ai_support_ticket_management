@@ -2,6 +2,12 @@ import { Link } from "react-router-dom";
 
 const modules = [
   {
+    title: "All Support Tickets",
+    description:
+      "Monitor, triage, assign, and resolve all incoming support tickets.",
+    path: "/tickets",
+  },
+  {
     title: "Classification Master Data",
     description:
       "Manage categories, sub-categories and priorities for the AI engine.",
