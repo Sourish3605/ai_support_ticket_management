@@ -10,6 +10,7 @@ import {
   addTicketReplyApi,
 } from "../../services/ticketService";
 import {
+  startAgentWorkflowApi,
   fetchAgentWorkflowApi,
   fetchJiraTicketApi,
   syncJiraStatusApi,
@@ -43,6 +44,8 @@ export default function AgentTicketDetails() {
   const [editing, setEditing] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [toast, setToast] = useState(null);
+  const [isCheckingAI, setIsCheckingAI] = useState(false);
+  const [aiDecisionNotice, setAiDecisionNotice] = useState(null);
 
   // Milestone 3 State
   const [workflowData, setWorkflowData] = useState(() => initialTicket ? simulateWorkflowLocally(initialTicket) : null);
@@ -267,6 +270,87 @@ export default function AgentTicketDetails() {
     setEditing(false);
   };
 
+  const handleCheckAI = async () => {
+    if (!ticket) return;
+    setIsCheckingAI(true);
+    setAiDecisionNotice(null);
+    try {
+      const res = await startAgentWorkflowApi(ticket.id);
+      if (res && res.success) {
+        setWorkflowData(res);
+        if (res.final_decision === "AUTOMATE_RESOLUTION") {
+          // AI resolved on its own!
+          const updated = updateTicket(ticket.id, {
+            status: "AI_RESPONDED",
+            auto_resolved: true,
+            timelineEvent: {
+              type: "ai_action",
+              title: "AI Autonomous Resolution Ready",
+              description: `AI multi-agent pipeline verified and formulated resolution autonomously (${Math.round((res.final_confidence || 0.9) * 100)}% confidence).`,
+            },
+          });
+          setTicket((prev) => ({ ...prev, ...updated, status: "AI_RESPONDED", auto_resolved: true }));
+          setAiDecisionNotice({
+            type: "success",
+            title: "AI Resolved Autonomously",
+            confidence: Math.round((res.final_confidence || 0.9) * 100),
+            message: "The AI Multi-Agent pipeline validated this ticket against knowledge bases and generated resolution steps without requiring human intervention.",
+          });
+          setToast({ type: "success", message: "AI autonomous resolution completed!" });
+        } else {
+          // AI cannot resolve on its own -> Escalated to Human Agent
+          const assignedAgentName = res?.escalation?.assigned_to_name || res?.escalation?.assigned_to || "Human Specialist";
+          const assignedQueue = res?.escalation?.target_team || "Technical Support";
+          const updated = updateTicket(ticket.id, {
+            status: "ESCALATED",
+            escalated: true,
+            assignedAgent: assignedAgentName,
+            assignedAgentName: assignedAgentName,
+            assigned_queue: assignedQueue,
+            timelineEvent: {
+              type: "escalation",
+              title: "AI Escalated to Human Specialist",
+              description: `AI cannot safely resolve autonomously. Escalated to ${assignedQueue} and assigned to ${assignedAgentName}. Reason: ${res?.escalation?.escalation_reason || "Confidence below threshold / High complexity"}.`,
+            },
+          });
+          setTicket((prev) => ({
+            ...prev,
+            ...updated,
+            status: "ESCALATED",
+            escalated: true,
+            assignedAgent: assignedAgentName,
+            assignedAgentName: assignedAgentName,
+            assigned_queue: assignedQueue,
+          }));
+          setAiDecisionNotice({
+            type: "warning",
+            title: "AI Cannot Resolve Autonomously — Escalated to Human Specialist",
+            confidence: Math.round((res.final_confidence || 0.6) * 100),
+            message: `AI confidence threshold not met (${Math.round((res.final_confidence || 0.6) * 100)}%). Ticket auto-escalated to ${assignedQueue} and assigned to ${assignedAgentName}.`,
+            reason: res?.escalation?.escalation_reason || res?.validation?.failure_reasons?.[0] || "AI confidence below 75% or complex issue requiring human specialist.",
+            assignedTo: assignedAgentName,
+            queue: assignedQueue,
+          });
+          setToast({ type: "warning", message: `AI check: Escalated to ${assignedAgentName}` });
+        }
+
+        try {
+          const apiTicket = await fetchTicketByIdApi(ticket.id);
+          if (apiTicket) setTicket((prev) => ({ ...prev, ...apiTicket }));
+        } catch (e) {}
+      } else {
+        const sim = simulateWorkflowLocally(ticket);
+        setWorkflowData(sim);
+        setToast({ type: "info", message: "Simulated AI multi-agent check completed." });
+      }
+    } catch (err) {
+      console.warn("AI Check error:", err);
+      setToast({ type: "error", message: "Could not execute AI check." });
+    } finally {
+      setIsCheckingAI(false);
+    }
+  };
+
   const citations = ticket.ai?.citations || ticket.citations || workflowData?.knowledge_retrieval?.citations || [];
   const ticketCode = ticket.ticketNumber || ticket.ticket_number || `TKT-${ticket.id}`;
   const isEscalated = ticket.status === "ESCALATED" || workflowData?.workflow_status === "ESCALATED";
@@ -297,6 +381,17 @@ export default function AgentTicketDetails() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Milestone 3: Agent AI Evaluation Trigger */}
+          <button
+            onClick={handleCheckAI}
+            disabled={isCheckingAI}
+            className="rounded-xl border border-[#15803d] bg-emerald-50 px-3.5 py-2 text-xs font-bold text-[#15803d] hover:bg-emerald-100 transition cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            title="Check if AI can resolve autonomously; if not, automatically escalate and assign to human specialist"
+          >
+            <span className={`inline-block ${isCheckingAI ? "animate-spin" : ""}`}>✨</span>
+            <span>{isCheckingAI ? "AI Evaluating Ticket..." : "Check with AI"}</span>
+          </button>
+
           <button
             onClick={handleAssignToMe}
             className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
@@ -311,6 +406,7 @@ export default function AgentTicketDetails() {
           >
             <option value="NEW">NEW</option>
             <option value="AI_RESOLUTION_READY">AI_RESOLUTION_READY</option>
+            <option value="AI_RESPONDED">AI_RESPONDED</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
             <option value="ESCALATED">ESCALATED</option>
             <option value="RESOLVED">RESOLVED</option>
@@ -327,6 +423,50 @@ export default function AgentTicketDetails() {
           )}
         </div>
       </div>
+
+      {/* AI Decision & Escalation Status Banner */}
+      {aiDecisionNotice && (
+        <div
+          className={`rounded-2xl border p-4 shadow-sm transition-all ${
+            aiDecisionNotice.type === "success"
+              ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+              : "bg-amber-50 border-amber-300 text-amber-900"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="text-xl">
+                {aiDecisionNotice.type === "success" ? "🤖✅" : "⚠️👤"}
+              </span>
+              <div>
+                <div className="font-bold text-sm flex items-center gap-2">
+                  <span>{aiDecisionNotice.title}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-white/70 border border-current">
+                    Confidence: {aiDecisionNotice.confidence}%
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed opacity-90">{aiDecisionNotice.message}</p>
+                {aiDecisionNotice.reason && (
+                  <div className="mt-2 text-xs font-semibold bg-white/60 p-2.5 rounded-xl border border-current/20">
+                    <span className="font-bold text-amber-900">Escalation Reason:</span> {aiDecisionNotice.reason}
+                    {aiDecisionNotice.assignedTo && (
+                      <div className="mt-1 text-[11px] text-slate-700">
+                        Assigned Specialist: <span className="font-bold text-[#14532d]">{aiDecisionNotice.assignedTo}</span> · Queue: <span className="font-bold">{aiDecisionNotice.queue}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setAiDecisionNotice(null)}
+              className="text-xs font-bold opacity-60 hover:opacity-100 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid: Left Ticket & AI Multi-Agent Flow | Right Integrations & Audit */}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getAllTickets, updateTicket, fetchAgentTicketsApi, assignTicketApi } from "../../services/ticketService";
 import { useAuth } from "../../context/AuthContext";
 
@@ -11,8 +11,11 @@ function minutesToBreach(ticket) {
 }
 
 export default function WorkQueuePage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const isAssignedToMe = (ticket) => {
     if (!user) return false;
@@ -37,7 +40,8 @@ export default function WorkQueuePage() {
     return !tAgentId && (!tAgent || tAgent === "unassigned" || tAgent === "support desk");
   };
 
-  const load = async () => {
+  const load = async (manual = false) => {
+    if (manual) setIsRefreshing(true);
     let all = [];
     try {
       const apiTickets = await fetchAgentTicketsApi();
@@ -53,11 +57,16 @@ export default function WorkQueuePage() {
       .sort((a, b) => minutesToBreach(a) - minutesToBreach(b));
 
     setTickets(actionable);
+    if (manual) {
+      setIsRefreshing(false);
+      setToast(`Queue refreshed with ${actionable.length} actionable tickets.`);
+      setTimeout(() => setToast(null), 3000);
+    }
   };
 
   useEffect(() => {
     load();
-    const timer = setInterval(load, 5000);
+    const timer = setInterval(() => load(false), 8000);
     return () => clearInterval(timer);
   }, [user]);
 
@@ -80,11 +89,30 @@ export default function WorkQueuePage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-r-lg border border-[#dfe5e1] border-l-4 border-l-[#1f7a45] bg-[#eef4ef] p-3.5 text-xs">
-        <strong>Ordered by time-to-breach, not by creation date</strong>
-        <div className="mt-1 text-[#4b5563]">
-          Shows only tickets assigned to you and unassigned tickets ready for claim. Tickets assigned to other agents are excluded.
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div className="rounded-xl bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-2xl border border-slate-700">
+            {toast}
+          </div>
         </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#eef4ef] p-4 rounded-xl border border-[#dfe5e1] border-l-4 border-l-[#1f7a45]">
+        <div className="text-xs">
+          <strong className="text-[#14532d]">Ordered by time-to-breach, not by creation date</strong>
+          <div className="mt-0.5 text-[#4b5563]">
+            Shows only tickets assigned to you and unassigned tickets ready for claim. Tickets assigned to other agents are excluded.
+          </div>
+        </div>
+        <button
+          className="sp-btn sp-btn-primary shadow flex items-center gap-1.5 text-xs cursor-pointer disabled:opacity-60"
+          onClick={() => load(true)}
+          disabled={isRefreshing}
+          title="Refresh Work Queue"
+        >
+          <span className={`inline-block text-xs ${isRefreshing ? "animate-spin" : ""}`}>🔄</span>
+          <span>{isRefreshing ? "Refreshing..." : "Refresh Queue"}</span>
+        </button>
       </div>
 
       <div className="sp-card overflow-hidden">
@@ -108,13 +136,31 @@ export default function WorkQueuePage() {
                 const ticketCode = ticket.ticketNumber || ticket.ticket_number || ticket.id;
 
                 return (
-                  <tr className={minutes < 30 ? "bg-[#fffbeb]" : ""} key={ticket.id}>
+                  <tr
+                    className={`cursor-pointer group hover:bg-[#f0fdf4] transition-colors ${minutes < 30 ? "bg-[#fffbeb]" : ""}`}
+                    key={ticket.id}
+                    onClick={(e) => {
+                      if (e.target.closest("button, select, input, a")) return;
+                      navigate(`/tickets/${ticketCode}`);
+                    }}
+                    title="Click to view ticket details"
+                  >
                     <td className="px-3 py-3 font-bold text-[#8b95a1]">{index + 1}</td>
                     <td className="px-3 py-3">
-                      <Link to={`/tickets/${ticketCode}`} className="font-semibold text-[#1c2430] hover:underline">
+                      <Link
+                        to={`/tickets/${ticketCode}`}
+                        className="font-semibold text-[#1c2430] group-hover:text-[#15803d] hover:underline block"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {ticket.subject || ticket.title}
                       </Link>
-                      <div className="font-mono text-[10px] text-[#8b95a1]">{ticketCode}</div>
+                      <Link
+                        to={`/tickets/${ticketCode}`}
+                        className="font-mono text-[10px] text-[#8b95a1] group-hover:text-[#15803d] hover:underline inline-block font-bold"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {ticketCode}
+                      </Link>
                     </td>
                     <td className="px-3 py-3">
                       <span className="sp-tag sp-tag-brand">{ticket.category || "Unclassified"}</span>

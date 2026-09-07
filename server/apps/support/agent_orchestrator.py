@@ -531,11 +531,23 @@ def run_multi_agent_workflow(
                 "sla_response_due", "sla_resolution_due", "updated_at"
             ])
 
+            # Auto-assign specialized human agent
+            assigned_human = None
+            try:
+                from .views import auto_assign_single_ticket
+                assigned_human = auto_assign_single_ticket(ticket, update_status_if_open=False)
+                if assigned_human:
+                    escalation_res["assigned_to"] = assigned_human.username
+                    escalation_res["assigned_to_name"] = assigned_human.get_full_name() or assigned_human.username
+            except Exception as assign_err:
+                logger.warning(f"Failed to auto-assign human specialist on escalation: {assign_err}")
+
+            human_name = (assigned_human.get_full_name() or assigned_human.username) if assigned_human else "Human Specialist Queue"
             _log_activity(
                 ticket=ticket,
                 actor="Escalation Agent",
                 action="TICKET_ESCALATED",
-                description=f"Ticket escalated to {ticket.assigned_queue}. Reason: {ticket.escalation_reason}.",
+                description=f"Ticket escalated to {ticket.assigned_queue} (Assigned to {human_name}). Reason: {ticket.escalation_reason}.",
                 metadata=escalation_res,
             )
 
