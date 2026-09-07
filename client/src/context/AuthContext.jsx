@@ -319,6 +319,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = (updates) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      try {
+        localStorage.setItem("supportpilot-user", JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
   const logout = () => {
     setUser(null);
     setTokens(null);
@@ -343,6 +354,7 @@ export const AuthProvider = ({ children }) => {
       loginWithGoogle,
       register,
       logout,
+      updateUser,
       startFreshSession,
     }),
     [user, tokens, isLoading, isAuthenticated]

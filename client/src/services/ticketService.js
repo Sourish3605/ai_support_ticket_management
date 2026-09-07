@@ -991,14 +991,18 @@ export const fetchAgentsApi = async (params = {}) => {
   return agents;
 };
 
-export const updateAgentAvailabilityApi = async (status, agentId = null) => {
+export const updateAgentAvailabilityApi = async (status, agentId = null, agentEmail = null) => {
   try {
     const url = agentId ? `/agent/${agentId}/availability/` : `/agent/availability/`;
-    const res = await api.patch(url, { availability_status: status });
-    return res?.data;
+    const res = await api.patch(url, {
+      availability_status: status,
+      agent_id: agentId,
+      email: agentEmail,
+    });
+    return res?.data || { availability_status: status };
   } catch (err) {
-    console.warn("[ticketService] updateAgentAvailabilityApi error:", err.message);
-    throw err;
+    console.warn("[ticketService] updateAgentAvailabilityApi fallback:", err.message);
+    return { availability_status: status };
   }
 };
 

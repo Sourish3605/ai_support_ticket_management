@@ -194,6 +194,34 @@ function AgentLayout({ children }) {
   const userInitials = initials(user?.name);
   const displayName = user?.name || user?.username || "Agent";
 
+  const getAvailabilityDot = (status) => {
+    switch (String(status || "").toUpperCase()) {
+      case "BUSY":
+        return "bg-amber-400";
+      case "UNAVAILABLE":
+        return "bg-orange-400";
+      case "INACTIVE":
+        return "bg-slate-400";
+      case "AVAILABLE":
+      default:
+        return "bg-emerald-400";
+    }
+  };
+
+  const getAvailabilityLabel = (status) => {
+    switch (String(status || "").toUpperCase()) {
+      case "BUSY":
+        return "Busy";
+      case "UNAVAILABLE":
+        return "Unavailable";
+      case "INACTIVE":
+        return "Inactive";
+      case "AVAILABLE":
+      default:
+        return "Working / Available";
+    }
+  };
+
   return (
     <div className="sp-agent-shell">
       <aside className="sp-agent-sidebar">
@@ -269,6 +297,9 @@ function AgentLayout({ children }) {
               {filteredAgents.map((ag) => {
                 const isCurrent = isCurrentAgent(ag);
                 const isBusy = switchingEmail === ag.email;
+                const effectiveStatus = isCurrent
+                  ? (user?.availability_status || user?.availabilityStatus || ag.availabilityStatus)
+                  : ag.availabilityStatus;
                 return (
                   <button
                     key={ag.email}
@@ -288,7 +319,7 @@ function AgentLayout({ children }) {
                       >
                         {initials(ag.name)}
                       </div>
-                      <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-1 ring-slate-900" />
+                      <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ${getAvailabilityDot(effectiveStatus)} ring-1 ring-slate-900`} />
                     </div>
 
                     {/* AGENT INFO */}
@@ -335,9 +366,9 @@ function AgentLayout({ children }) {
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-white truncate">{displayName}</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className={`h-1.5 w-1.5 rounded-full ${getAvailabilityDot(user?.availability_status || user?.availabilityStatus)}`} />
                   <span className="text-[10px] font-semibold text-cyan-300 truncate">
-                    {currentDepartment} Department
+                    {currentDepartment} Dept &bull; {getAvailabilityLabel(user?.availability_status || user?.availabilityStatus)}
                   </span>
                 </div>
               </div>
@@ -364,12 +395,12 @@ function AgentLayout({ children }) {
           <div className="flex items-center gap-3">
             {/* CURRENT ACTIVE AGENT BADGE */}
             <div className="hidden sm:flex items-center gap-2 rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className={`h-2 w-2 rounded-full ${getAvailabilityDot(user?.availability_status || user?.availabilityStatus)}`} />
               <span className="text-xs font-semibold text-slate-700">
                 {displayName}
               </span>
               <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded border border-blue-200">
-                {currentDepartment} Dept
+                {currentDepartment} Dept &bull; {getAvailabilityLabel(user?.availability_status || user?.availabilityStatus)}
               </span>
             </div>
             <button
