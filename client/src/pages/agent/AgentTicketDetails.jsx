@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   getTicketById,
@@ -228,32 +228,93 @@ export default function AgentTicketDetails() {
     }
   };
 
+  const agentConversationList = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    (ticket?.replies || []).forEach((r) => {
+      const key = `${r.id || ""}-${r.message}-${r.created_at || ""}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const role = (r.author_role || "").toUpperCase();
+        const isCustomer = role.includes("CUSTOMER") || (!role.includes("AGENT") && !role.includes("ADMIN") && !role.includes("STAFF"));
+        list.push({
+          id: r.id,
+          author_name: r.author_name || (isCustomer ? (ticket?.customerName || "Customer") : (agentName || "Support Agent")),
+          author_role: r.author_role || (isCustomer ? "CUSTOMER" : "SUPPORT_AGENT"),
+          message: r.message || "",
+          created_at: r.created_at || new Date().toISOString(),
+          isCustomer,
+        });
+      }
+    });
+
+    (ticket?.comments || []).forEach((c) => {
+      const key = `${c.id || ""}-${c.message || c.text || ""}-${c.timestamp || c.created_at || ""}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const role = (c.authorRole || c.author_role || "").toUpperCase();
+        const isCustomer = role.includes("CUSTOMER");
+        list.push({
+          id: c.id,
+          author_name: c.author || c.author_name || (isCustomer ? (ticket?.customerName || "Customer") : (agentName || "Support Agent")),
+          author_role: c.authorRole || c.author_role || (isCustomer ? "CUSTOMER" : "SUPPORT_AGENT"),
+          message: c.message || c.text || "",
+          created_at: c.timestamp || c.created_at || new Date().toISOString(),
+          isCustomer,
+        });
+      }
+    });
+
+    return list.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }, [ticket?.replies, ticket?.comments, ticket?.customerName, agentName]);
+
   const postComment = async () => {
     if (!comment.trim()) return;
 
     const replyText = comment.trim();
     setComment("");
 
+    const targetId = ticket?.ticket_number || ticket?.ticketNumber || ticket?.id || id;
     let savedReply = null;
     try {
-      savedReply = await addTicketReplyApi(ticket.id, replyText);
+      savedReply = await addTicketReplyApi(targetId, replyText);
     } catch (e) {}
 
-    const updated = addComment(ticket.id, {
-      author: agentName,
+    const replyObj = savedReply || {
+      id: `reply-${Date.now()}`,
+      author_name: agentName || "Support Agent",
+      author_role: "SUPPORT_AGENT",
+      message: replyText,
+      created_at: new Date().toISOString(),
+    };
+
+    const updatedComment = {
+      id: replyObj.id,
+      author: agentName || "Support Agent",
       authorRole: "SUPPORT_AGENT",
       visibility: "Public",
       message: replyText,
-    });
+      timestamp: replyObj.created_at,
+    };
 
-    if (savedReply) {
-      setTicket((prev) => ({
-        ...prev,
-        ...updated,
-        replies: [...(prev?.replies || []), savedReply],
-      }));
-    } else {
-      setTicket(updated);
+    setTicket((prev) => ({
+      ...prev,
+      replies: [...(prev?.replies || []), replyObj],
+      comments: [...(prev?.comments || []), updatedComment],
+    }));
+
+    // Cache locally
+    try {
+      const stored = getTicketById(targetId) || getTicketById(id);
+      if (stored) {
+        updateTicket(stored.id || targetId, {
+          replies: [...(stored.replies || []), replyObj],
+          comments: [...(stored.comments || []), updatedComment],
+        });
+      }
+    } catch (cacheErr) {
+      console.warn("Local storage cache notice:", cacheErr);
     }
 
     setToast({ type: "success", message: "✓ Reply sent to customer portal." });
@@ -670,34 +731,63 @@ export default function AgentTicketDetails() {
 
           {/* 4. Replies & Human Interaction */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-slate-900">Conversation & Agent Replies</h3>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Conversation & Support Replies</h3>
+                <p className="text-[11px] text-slate-500">Live communication thread between customer and assigned agents.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
+                  {agentConversationList.length} {agentConversationList.length === 1 ? "Message" : "Messages"}
+                </span>
+                <button
+                  type="button"
+                  onClick={loadTicket}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  title="Refresh conversation"
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+            </div>
 
-            {/* Existing replies */}
-            {((Array.isArray(ticket.replies) && ticket.replies.length > 0) || (Array.isArray(ticket.comments) && ticket.comments.length > 0)) && (
-              <div className="space-y-3 mb-4 pb-4 border-b border-slate-100">
-                {(ticket.replies && ticket.replies.length > 0
-                  ? ticket.replies
-                  : ticket.comments.map((c) => ({
-                      id: c.id,
-                      author_name: c.author || c.author_name || "Support Agent",
-                      author_role: c.authorRole || c.author_role || "SUPPORT_AGENT",
-                      message: c.message || c.text || "",
-                      created_at: c.timestamp || c.created_at || new Date().toISOString(),
-                    }))
-                ).map((reply) => (
+            {/* Conversation Feed */}
+            {agentConversationList.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400 bg-slate-50/50">
+                No replies posted yet. Send an agent reply below to update the customer.
+              </div>
+            ) : (
+              <div className="space-y-3 mb-4 pb-2 max-h-[420px] overflow-y-auto pr-1">
+                {agentConversationList.map((reply, idx) => (
                   <div
-                    key={reply.id}
+                    key={reply.id || idx}
                     className={`p-3.5 rounded-xl border text-xs ${
-                      reply.author_role === "CUSTOMER"
-                        ? "bg-slate-50 border-slate-200"
-                        : "bg-blue-50/50 border-blue-200"
+                      reply.isCustomer
+                        ? "bg-slate-50 border-slate-200 shadow-xs"
+                        : "bg-blue-50/60 border-blue-200 shadow-xs"
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-semibold text-slate-800">{reply.author_name} ({reply.author_role})</span>
-                      <span className="text-[10px] text-slate-400">{new Date(reply.created_at).toLocaleString()}</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-5 w-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                          reply.isCustomer ? "bg-slate-200 text-slate-700" : "bg-blue-600 text-white"
+                        }`}>
+                          {reply.isCustomer ? "👤" : "👨‍💼"}
+                        </span>
+                        <span className="font-bold text-slate-800">{reply.author_name}</span>
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                          reply.isCustomer ? "bg-slate-200 text-slate-700" : "bg-blue-100 text-blue-800"
+                        }`}>
+                          {reply.isCustomer ? "Customer Reply" : "Support Agent"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {new Date(reply.created_at).toLocaleString()}
+                      </span>
                     </div>
-                    <p className="text-slate-700 whitespace-pre-wrap">{reply.message}</p>
+                    <p className="text-slate-800 whitespace-pre-wrap leading-relaxed pl-7">
+                      {reply.message}
+                    </p>
                   </div>
                 ))}
               </div>

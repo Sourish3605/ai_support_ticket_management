@@ -229,34 +229,44 @@ export default function CustomerTicketDetails() {
     const authorName = user?.name || user?.username || "Customer";
 
     try {
-      const apiRes = await addTicketReplyApi(ticket.id, text);
-      if (apiRes) {
-        setTicket((prev) => ({
-          ...prev,
-          replies: [...(prev.replies || []), apiRes],
-          comments: [
-            ...(prev.comments || []),
-            {
-              id: apiRes.id,
-              author: apiRes.author_name || authorName,
-              authorRole: "CUSTOMER",
-              message: text,
-              timestamp: apiRes.created_at || new Date().toISOString(),
-            },
-          ],
-        }));
-      } else {
-        const newC = addComment(ticket.id, {
-          author: authorName,
-          authorRole: "CUSTOMER",
-          visibility: "Public",
-          message: text,
-        });
-        setTicket((prev) => ({
-          ...prev,
-          comments: [...(prev.comments || []), newC],
-        }));
+      const targetId = ticket?.ticket_number || ticket?.ticketNumber || ticket?.id || id;
+      const apiRes = await addTicketReplyApi(targetId, text);
+      const replyObj = apiRes || {
+        id: `reply-${Date.now()}`,
+        author_name: authorName,
+        author_role: "CUSTOMER",
+        message: text,
+        created_at: new Date().toISOString(),
+      };
+
+      const commentObj = {
+        id: replyObj.id,
+        author: replyObj.author_name || authorName,
+        authorRole: "CUSTOMER",
+        visibility: "Public",
+        message: text,
+        timestamp: replyObj.created_at || new Date().toISOString(),
+      };
+
+      setTicket((prev) => ({
+        ...prev,
+        replies: [...(prev?.replies || []), replyObj],
+        comments: [...(prev?.comments || []), commentObj],
+      }));
+
+      // Cache into local storage
+      try {
+        const stored = getTicketById(targetId) || getTicketById(id);
+        if (stored) {
+          updateTicket(stored.id || targetId, {
+            replies: [...(stored.replies || []), replyObj],
+            comments: [...(stored.comments || []), commentObj],
+          });
+        }
+      } catch (cacheErr) {
+        console.warn("Local storage cache notice:", cacheErr);
       }
+
       setToast({ type: "success", message: "Your reply has been sent to the support team." });
       setReplyMessage("");
     } catch (err) {

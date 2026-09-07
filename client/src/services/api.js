@@ -25,7 +25,7 @@ export const api = axios.create({
   },
 });
 
-// Request Interceptor: inject Bearer token from localStorage
+// Request Interceptor: inject Bearer token and user context from localStorage
 api.interceptors.request.use(
   (config) => {
     try {
@@ -35,6 +35,14 @@ api.interceptors.request.use(
         if (tokens?.access) {
           config.headers.Authorization = `Bearer ${tokens.access}`;
         }
+      }
+      const userData = localStorage.getItem('supportpilot-user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        if (user?.email) config.headers['X-User-Email'] = user.email;
+        if (user?.id) config.headers['X-User-Id'] = String(user.id);
+        if (user?.username) config.headers['X-User-Username'] = user.username;
+        if (user?.role) config.headers['X-User-Role'] = user.role;
       }
     } catch (err) {
       console.warn('Could not parse auth tokens for request:', err);
