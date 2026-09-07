@@ -299,6 +299,70 @@ class TicketSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class TicketListSerializer(serializers.ModelSerializer):
+    ticketNumber = serializers.CharField(source="ticket_number", read_only=True)
+    customerId = serializers.IntegerField(source="created_by_id", read_only=True)
+    customerName = serializers.SerializerMethodField()
+    customerEmail = serializers.SerializerMethodField()
+    subject = serializers.CharField(source="title", read_only=True)
+    subCategory = serializers.CharField(source="sub_category", read_only=True)
+    assignedAgentId = serializers.IntegerField(source="assigned_to_id", read_only=True)
+    assignedAgentName = serializers.SerializerMethodField()
+    assignedAgent = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
+
+    class Meta:
+        model = Ticket
+        fields = [
+            "id",
+            "ticket_number",
+            "ticketNumber",
+            "title",
+            "subject",
+            "description",
+            "category",
+            "sub_category",
+            "subCategory",
+            "priority",
+            "severity",
+            "status",
+            "assigned_queue",
+            "sla_response_due",
+            "sla_resolution_due",
+            "sla_breached",
+            "sla_warning",
+            "created_by",
+            "customerId",
+            "customerName",
+            "customerEmail",
+            "assigned_to",
+            "assignedAgent",
+            "assignedAgentId",
+            "assignedAgentName",
+            "createdAt",
+            "updatedAt",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_customerName(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return "Unknown"
+
+    def get_customerEmail(self, obj):
+        return obj.created_by.email if obj.created_by else ""
+
+    def get_assignedAgentName(self, obj):
+        if obj.assigned_to:
+            return obj.assigned_to.get_full_name() or obj.assigned_to.username
+        return "Unassigned"
+
+    def get_assignedAgent(self, obj):
+        return self.get_assignedAgentName(obj)
+
+
 class TicketStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=[

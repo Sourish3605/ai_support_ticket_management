@@ -38,7 +38,7 @@ const statusClass = {
 
 export default function AgentAllTicketsPage() {
   const { user } = useAuth();
-  const [tickets, setTickets] = useState([]);
+  const [tickets, setTickets] = useState(() => getAllTickets());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All statuses");
   const [priority, setPriority] = useState("All priorities");

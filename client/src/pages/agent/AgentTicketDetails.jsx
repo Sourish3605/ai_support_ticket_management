@@ -35,8 +35,9 @@ const priorityClass = {
 export default function AgentTicketDetails() {
   const { id } = useParams();
   const { user } = useAuth();
-  const [ticket, setTicket] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const initialTicket = getTicketById(id);
+  const [ticket, setTicket] = useState(initialTicket);
+  const [loading, setLoading] = useState(!initialTicket);
   const [comment, setComment] = useState("");
   const [override, setOverride] = useState("");
   const [editing, setEditing] = useState(false);
@@ -44,7 +45,7 @@ export default function AgentTicketDetails() {
   const [toast, setToast] = useState(null);
 
   // Milestone 3 State
-  const [workflowData, setWorkflowData] = useState(null);
+  const [workflowData, setWorkflowData] = useState(() => initialTicket ? simulateWorkflowLocally(initialTicket) : null);
   const [jiraData, setJiraData] = useState(null);
   const [emailLogs, setEmailLogs] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
@@ -52,79 +53,85 @@ export default function AgentTicketDetails() {
   const [selectedEmailModal, setSelectedEmailModal] = useState(null);
 
   const loadTicket = async () => {
-    setLoading(true);
-    let curTicket = null;
+    let curTicket = getTicketById(id);
+    if (curTicket) {
+      setTicket(curTicket);
+      setLoading(false);
+    }
 
     try {
       const apiTicket = await fetchTicketByIdApi(id);
       if (apiTicket) {
         curTicket = apiTicket;
+        setTicket(apiTicket);
       }
     } catch (e) {}
 
     if (!curTicket) {
       curTicket = getTicketById(id);
-    }
-
-    setTicket(curTicket);
-
-    if (curTicket) {
-      // Load M3 Data
-      const wf = await fetchAgentWorkflowApi(curTicket.id);
-      const jira = await fetchJiraTicketApi(curTicket.id);
-      const emails = await fetchEmailLogsApi(curTicket.id);
-      const activities = await fetchActivityLogsApi(curTicket.id);
-
-      if (wf) {
-        setWorkflowData(wf);
-      } else {
-        setWorkflowData(simulateWorkflowLocally(curTicket));
-      }
-
-      if (jira) {
-        setJiraData(jira);
-      } else {
-        const ticketNumClean = String(curTicket.id || "1001").replace("TKT-", "").replace("TKT", "");
-        setJiraData({
-          jira_issue_key: `SP-${ticketNumClean}`,
-          jira_status: curTicket.status === "ESCALATED" ? "ESCALATED" : curTicket.status === "RESOLVED" ? "RESOLVED" : "IN_PROGRESS",
-          assignee: curTicket.assignedAgent || "SupportPilot AI Engine",
-          team: `${curTicket.category || "General"} Support`,
-          synced_at: new Date().toISOString(),
-        });
-      }
-
-      if (emails && emails.length > 0) {
-        setEmailLogs(emails);
-      } else {
-        setEmailLogs([
-          {
-            email_id: `EML-${curTicket.id || 1001}-1`,
-            email_type: "ticket_created",
-            recipient: curTicket.customerEmail || "customer@example.com",
-            subject: `[SupportPilot] Ticket Received - #${curTicket.ticketNumber || curTicket.ticket_number || curTicket.id}`,
-            status: "SENT",
-            sent_at: curTicket.createdAt || new Date().toISOString(),
-            body: `Hello,\n\nWe have received your ticket #${curTicket.ticketNumber || curTicket.id}. Our AI multi-agent system is reviewing your request.`,
-          },
-          {
-            email_id: `EML-${curTicket.id || 1001}-2`,
-            email_type: curTicket.status === "ESCALATED" ? "escalation" : "resolution",
-            recipient: curTicket.customerEmail || "customer@example.com",
-            subject: `[SupportPilot] ${curTicket.status === "ESCALATED" ? "Escalation Notice" : "AI Resolution Ready"} - #${curTicket.ticketNumber || curTicket.id}`,
-            status: "SENT",
-            sent_at: curTicket.updatedAt || new Date().toISOString(),
-            body: `Hello,\n\n${curTicket.status === "ESCALATED" ? "Your ticket has been escalated to Tier-2 support." : "Your AI resolution steps have been prepared."}`,
-          },
-        ]);
-      }
-
-      if (activities && activities.length > 0) {
-        setActivityLogs(activities);
-      }
+      setTicket(curTicket);
     }
 
     setLoading(false);
+
+    if (curTicket) {
+      const targetId = curTicket.id;
+      // Fetch M3 data concurrently in parallel
+      Promise.allSettled([
+        fetchAgentWorkflowApi(targetId),
+        fetchJiraTicketApi(targetId),
+        fetchEmailLogsApi(targetId),
+        fetchActivityLogsApi(targetId),
+      ]).then(([wfRes, jiraRes, emailRes, actRes]) => {
+        if (wfRes.status === "fulfilled" && wfRes.value) {
+          setWorkflowData(wfRes.value);
+        } else {
+          setWorkflowData(simulateWorkflowLocally(curTicket));
+        }
+
+        if (jiraRes.status === "fulfilled" && jiraRes.value) {
+          setJiraData(jiraRes.value);
+        } else {
+          const ticketNumClean = String(curTicket.id || "1001").replace("TKT-", "").replace("TKT", "");
+          setJiraData({
+            jira_issue_key: `SP-${ticketNumClean}`,
+            jira_status: curTicket.status === "ESCALATED" ? "ESCALATED" : curTicket.status === "RESOLVED" ? "RESOLVED" : "IN_PROGRESS",
+            assignee: curTicket.assignedAgent || "SupportPilot AI Engine",
+            team: `${curTicket.category || "General"} Support`,
+            synced_at: new Date().toISOString(),
+          });
+        }
+
+        if (emailRes.status === "fulfilled" && emailRes.value && emailRes.value.length > 0) {
+          setEmailLogs(emailRes.value);
+        } else {
+          setEmailLogs([
+            {
+              email_id: `EML-${curTicket.id || 1001}-1`,
+              email_type: "ticket_created",
+              recipient: curTicket.customerEmail || "customer@example.com",
+              subject: `[SupportPilot] Ticket Received - #${curTicket.ticketNumber || curTicket.ticket_number || curTicket.id}`,
+              status: "SENT",
+              sent_at: curTicket.createdAt || new Date().toISOString(),
+              body: `Hello,\n\nWe have received your ticket #${curTicket.ticketNumber || curTicket.id}. Our AI multi-agent system is reviewing your request.`,
+            },
+            {
+              email_id: `EML-${curTicket.id || 1001}-2`,
+              email_type: curTicket.status === "ESCALATED" ? "escalation" : "resolution",
+              recipient: curTicket.customerEmail || "customer@example.com",
+              subject: `[SupportPilot] ${curTicket.status === "ESCALATED" ? "Escalation Notice" : "AI Resolution Ready"} - #${curTicket.ticketNumber || curTicket.id}`,
+              status: "SENT",
+              sent_at: curTicket.updatedAt || new Date().toISOString(),
+              body: `Hello,\n\n${curTicket.status === "ESCALATED" ? "Your ticket has been escalated to Tier-2 support." : "Your AI resolution steps have been prepared."}`,
+            },
+          ]);
+        }
+
+        if (actRes.status === "fulfilled" && actRes.value && actRes.value.length > 0) {
+          setActivityLogs(actRes.value);
+        }
+      });
+    }
   };
 
   useEffect(() => {
