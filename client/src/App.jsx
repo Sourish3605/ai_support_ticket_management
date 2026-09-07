@@ -360,8 +360,16 @@ function AgentLayout({ children }) {
                     {/* AGENT INFO */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-semibold truncate text-white">
-                          {ag.name}
+                        <span className="text-xs font-semibold truncate text-white flex items-center gap-1">
+                          <span className="truncate">{ag.name}</span>
+                          {ag.isTeamLead && (
+                            <span
+                              className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold shrink-0"
+                              title="Team Lead: Dedicated to escalations and manual queue (exempt from auto-assignment)"
+                            >
+                              👑 Lead
+                            </span>
+                          )}
                         </span>
                         <span
                           className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${ag.badgeColor}`}
@@ -369,8 +377,13 @@ function AgentLayout({ children }) {
                           {ag.deptBadge}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-400 truncate">
-                        {ag.specialty}
+                      <div className="text-[10px] text-slate-400 truncate flex items-center justify-between">
+                        <span className="truncate">{ag.specialty}</span>
+                        {ag.isTeamLead ? (
+                          <span className="text-[9px] text-amber-400/80 font-medium shrink-0 ml-1">Manual Queue</span>
+                        ) : (
+                          <span className="text-[9px] text-emerald-400/80 font-medium shrink-0 ml-1">Auto-routed</span>
+                        )}
                       </div>
                     </div>
 

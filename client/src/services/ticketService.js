@@ -627,6 +627,11 @@ export const createTicket = async (form, user) => {
   const finalId = backendTicket?.id != null ? backendTicket.id : ticketId;
   const finalTicketNumber = backendTicket?.ticket_number || backendTicket?.ticketNumber || (typeof finalId === "number" ? `TKT-${1000 + finalId}` : ticketId);
 
+  // Auto-assign available regular agent if backend didn't already stamp assignment
+  const autoAssigned = (!backendTicket?.assigned_to && !backendTicket?.assignedAgentName)
+    ? autoAssignDepartmentAgent(department, category)
+    : null;
+
   const ticket = {
     id: finalId,
     ticketNumber: finalTicketNumber,
@@ -638,7 +643,7 @@ export const createTicket = async (form, user) => {
     subCategory,
     severity,
     priority,
-    status: backendTicket?.status || "OPEN",
+    status: backendTicket?.status || (autoAssigned ? "ASSIGNED" : "OPEN"),
 
     customerId: backendTicket?.customerId != null ? backendTicket.customerId : customerId,
     customerName: backendTicket?.customerName || customerName,
@@ -657,13 +662,13 @@ export const createTicket = async (form, user) => {
     bestTime: form.bestTime || "",
     attachments: form.attachments || [],
 
-    assignedTo: backendTicket?.assigned_to || null,
-    assignedAgent: backendTicket?.assignedAgentName || backendTicket?.assignedAgent || "Unassigned",
-    assignedAgentName: backendTicket?.assignedAgentName || backendTicket?.assignedAgent || "Unassigned",
-    assignedAgentId: backendTicket?.assignedAgentId || backendTicket?.assigned_to || null,
-    assignedAgentDepartment: backendTicket?.assignedAgentDepartment || null,
-    assignedAgentTitle: backendTicket?.assignedAgentTitle || null,
-    assignedAgentAvailability: backendTicket?.assignedAgentAvailability || null,
+    assignedTo: backendTicket?.assigned_to || autoAssigned?.id || null,
+    assignedAgent: backendTicket?.assignedAgentName || backendTicket?.assignedAgent || autoAssigned?.name || "Unassigned",
+    assignedAgentName: backendTicket?.assignedAgentName || backendTicket?.assignedAgent || autoAssigned?.name || "Unassigned",
+    assignedAgentId: backendTicket?.assignedAgentId || backendTicket?.assigned_to || autoAssigned?.id || null,
+    assignedAgentDepartment: backendTicket?.assignedAgentDepartment || autoAssigned?.rawDepartment || null,
+    assignedAgentTitle: backendTicket?.assignedAgentTitle || autoAssigned?.title || null,
+    assignedAgentAvailability: backendTicket?.assignedAgentAvailability || autoAssigned?.availabilityStatus || null,
     team: classification?.team || "Support",
 
     createdAt: backendTicket?.created_at || backendTicket?.createdAt || createdAt.toISOString(),
@@ -1137,6 +1142,69 @@ export const deleteTicketApi = async (id) => {
   }
 };
 
+export const isTeamLeadAgent = (userOrAgent) => {
+  if (!userOrAgent) return false;
+  if (userOrAgent.isTeamLead === true || userOrAgent.is_team_lead === true) return true;
+  const role = String(userOrAgent.role || "").toLowerCase();
+  if (role.includes("lead") || role.includes("manager") || role.includes("admin") || role.includes("supervisor")) return true;
+  const title = String(userOrAgent.title || "").toLowerCase();
+  if (title.includes("lead") || title.includes("manager") || title.includes("supervisor") || title.includes("director") || title.includes("head")) return true;
+  const email = String(userOrAgent.email || "").toLowerCase().trim();
+  if (email === "agent@gmail.com" || email === "admin@gmail.com" || email === "manager@gmail.com" || email.startsWith("agent@") || email.startsWith("lead@")) return true;
+  const username = String(userOrAgent.username || "").toLowerCase().trim();
+  if (username === "agent" || username === "admin" || username === "manager") return true;
+  return false;
+};
+
+export const autoAssignDepartmentAgent = (departmentName, category = null) => {
+  const allAgents = getDepartmentAgentsList();
+
+  // Normalize target department
+  let targetDept = "IT";
+  const raw = String(departmentName || "").toLowerCase();
+  if (raw.includes("hr") || raw.includes("human") || raw.includes("payroll")) targetDept = "HR";
+  else if (raw.includes("fin") || raw.includes("pay") || raw.includes("bill")) targetDept = "Finance";
+  else targetDept = "IT";
+
+  // Filter department agents
+  const deptAgents = allAgents.filter((ag) => ag.department === targetDept);
+
+  // STRICT RULE: Exclude Team Leads and Admins/Managers from automatic assignment
+  const regularAgents = deptAgents.filter((ag) => !isTeamLeadAgent(ag));
+
+  // Filter for available agents only
+  const availableAgents = regularAgents.filter((ag) => {
+    const status = (ag.availabilityStatus || ag.availability_status || "AVAILABLE").toUpperCase();
+    return status === "AVAILABLE";
+  });
+
+  // If no regular agents are available, return null (ticket stays Unassigned for manager review)
+  if (availableAgents.length === 0) {
+    return null;
+  }
+
+  // Workload balancing across available regular agents
+  const allTickets = getTickets();
+  const candidatesWithCounts = availableAgents.map((ag) => {
+    const activeTicketCount = allTickets.filter((t) => {
+      if (!t) return false;
+      const isClosed = ["resolved", "closed", "auto_resolved"].includes(String(t.status || "").toLowerCase());
+      if (isClosed) return false;
+      const assigned = String(t.assignedTo || t.assignedAgentId || t.assignedAgent || "").toLowerCase();
+      return (
+        assigned === String(ag.id).toLowerCase() ||
+        assigned === String(ag.email).toLowerCase() ||
+        assigned === String(ag.name).toLowerCase()
+      );
+    }).length;
+    return { agent: ag, count: activeTicketCount };
+  });
+
+  // Sort by lowest active tickets
+  candidatesWithCounts.sort((a, b) => a.count - b.count);
+  return candidatesWithCounts[0].agent;
+};
+
 export const getDepartmentAgentsList = () => {
   const users = storage.get(STORAGE_KEYS.users, seedUsers);
 
@@ -1182,6 +1250,7 @@ export const getDepartmentAgentsList = () => {
       }
 
       const conf = deptColors[dept] || deptColors.IT;
+      const isLead = isTeamLeadAgent(u);
 
       return {
         id: u.id,
@@ -1194,9 +1263,12 @@ export const getDepartmentAgentsList = () => {
         deptBadge: conf.badge,
         badgeColor: conf.color,
         avatarBg: conf.avatar,
-        availabilityStatus: u.availabilityStatus || "AVAILABLE",
+        availabilityStatus: u.availabilityStatus || u.availability_status || "AVAILABLE",
+        isTeamLead: isLead,
+        is_team_lead: isLead,
       };
     });
 };
+
 
 

@@ -10,6 +10,8 @@ import {
   autoAssignTicketsApi,
   getDepartmentForCategory,
   getDepartmentAgentsList,
+  autoAssignDepartmentAgent,
+  isTeamLeadAgent,
 } from "../../services/ticketService";
 import { seedUsers } from "../../data/seedData";
 
@@ -116,27 +118,22 @@ export default function ManagerQueueAndAssignmentPage() {
         });
         await loadTickets();
       } else {
-        // Local fallback auto-assignment
+        // Local fallback auto-assignment using autoAssignDepartmentAgent (strictly excludes Team Leads)
         const unassigned = tickets.filter(
           (t) => !(t.assignedAgent || t.assignedAgentName) && !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
         );
+        let assignedCount = 0;
         for (const t of unassigned) {
-          const cat = (t.category || "").toLowerCase();
           const targetDept = t.department || getDepartmentForCategory(t.category);
-          const eligibleAgents = agents.filter(
-            (a) =>
-              (a.department || "").toLowerCase().includes(targetDept.toLowerCase().replace(" department", "")) &&
-              ["AVAILABLE", "Working / Available"].includes(a.availability_status || a.availabilityStatus || "AVAILABLE")
-          );
-          const targetAgent = eligibleAgents[0] || agents[0];
-
+          const targetAgent = autoAssignDepartmentAgent(targetDept, t.category);
           if (targetAgent) {
             await assignTicketApi(t.id, targetAgent.id, targetAgent.name);
+            assignedCount++;
           }
         }
         setToast({
           type: "success",
-          message: `✓ Auto-assigned ${unassigned.length} tickets to available department agents.`,
+          message: `✓ Auto-assigned ${assignedCount} ticket(s) to available department agents (Team Leads excluded).`,
         });
         await loadTickets();
       }
@@ -362,6 +359,14 @@ export default function ManagerQueueAndAssignmentPage() {
                     <div>
                       <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
                         <span>{ag.name || ag.username}</span>
+                        {(ag.is_team_lead || ag.isTeamLead || isTeamLeadAgent(ag)) && (
+                          <span
+                            className="rounded bg-amber-100 border border-amber-300 px-1.5 py-0.2 text-[9px] font-bold text-amber-800"
+                            title="Team Lead: Dedicated to escalations and approvals (exempt from auto-assignment)"
+                          >
+                            👑 Lead
+                          </span>
+                        )}
                         {isSelected && <span className="text-amber-600 text-xs">✓ Active</span>}
                       </h3>
                       <div className="flex flex-wrap items-center gap-1 mt-1">
