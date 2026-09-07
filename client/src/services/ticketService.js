@@ -770,32 +770,33 @@ export const addComment = (
 ) => {
   const ticket = getTicketById(ticketId);
 
+  const newComment = {
+    id: comment.id || Date.now(),
+    ...comment,
+    timestamp: comment.timestamp || comment.created_at || new Date().toISOString(),
+  };
+
   if (!ticket) {
-    throw new Error("Ticket not found");
+    return newComment;
   }
 
-  const comments = [
-    ...ticket.comments,
-    {
-      id: Date.now(),
-      ...comment,
-      timestamp: new Date().toISOString(),
-    },
-  ];
+  const existingComments = Array.isArray(ticket.comments) ? ticket.comments : [];
+  const comments = [...existingComments, newComment];
 
-  // Also push to backend if available
-  try {
-    api.post(`/tickets/${ticketId}/reply/`, {
-      message: comment.message || comment.text || "",
-      attachment: comment.attachment || null,
-      is_internal: Boolean(comment.is_internal || comment.isInternal),
-    }).catch(() => {
-      // Fallback endpoint
-      api.post(`/support/tickets/${ticketId}/reply/`, {
+  // Only sync to backend if not already dispatched by an API call
+  if (!comment._skipBackendSync) {
+    try {
+      api.post(`/tickets/${ticketId}/reply/`, {
         message: comment.message || comment.text || "",
-      }).catch(() => {});
-    });
-  } catch (e) {}
+        attachment: comment.attachment || null,
+        is_internal: Boolean(comment.is_internal || comment.isInternal),
+      }).catch(() => {
+        api.post(`/support/tickets/${ticketId}/reply/`, {
+          message: comment.message || comment.text || "",
+        }).catch(() => {});
+      });
+    } catch (e) {}
+  }
 
   return updateTicket(ticketId, {
     comments,
@@ -931,24 +932,92 @@ export const fetchAgentsApi = async () => {
   return seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
 };
 
-export const addTicketReplyApi = async (id, message, attachment = null, isInternal = false) => {
+export const syncTicketToBackendApi = async (localTicket) => {
+  if (!localTicket) return null;
   try {
-    const res = await api.post(`/tickets/${id}/reply/`, {
-      message,
-      attachment,
-      is_internal: isInternal,
+    const rawSubject = localTicket.title || localTicket.subject || "Support Ticket";
+    const rawDesc = localTicket.description || localTicket.subject || "Issue reported by customer";
+    const res = await api.post("/tickets/", {
+      subject: rawSubject,
+      title: rawSubject,
+      description: rawDesc,
+      category: localTicket.category || "General",
+      sub_category: localTicket.subCategory || localTicket.sub_category || "General",
+      severity: localTicket.severity || "Medium",
+      priority: localTicket.priority || "P3",
+      attachment: localTicket.attachment || null,
     });
     if (res?.data) {
-      const reply = res.data;
-      addComment(id, {
-        id: reply.id,
-        author: reply.author_name,
-        authorRole: reply.author_role,
-        message: reply.message,
-        attachment: reply.attachment,
-        timestamp: reply.created_at,
-        created_at: reply.created_at,
+      const backendTicket = res.data;
+      const stored = getTickets();
+      const idx = stored.findIndex(
+        (t) =>
+          t &&
+          (String(t.id) === String(localTicket.id) ||
+            String(t.ticketNumber) === String(localTicket.ticketNumber || localTicket.ticket_number))
+      );
+      if (idx >= 0) {
+        stored[idx] = {
+          ...stored[idx],
+          ...backendTicket,
+          id: backendTicket.id,
+          ticketNumber: backendTicket.ticket_number,
+          ticket_number: backendTicket.ticket_number,
+        };
+        saveTickets(stored);
+      }
+      return backendTicket;
+    }
+  } catch (err) {
+    console.warn("[ticketService] syncTicketToBackendApi error:", err?.message);
+  }
+  return null;
+};
+
+export const addTicketReplyApi = async (id, message, attachment = null, isInternal = false) => {
+  if (!id || !message) return null;
+
+  try {
+    let res = null;
+    try {
+      res = await api.post(`/tickets/${id}/reply/`, {
+        message,
+        attachment,
+        is_internal: isInternal,
       });
+    } catch (postErr) {
+      // If 404 Not Found, ticket might only exist locally in browser storage
+      if (postErr?.response?.status === 404) {
+        const localTicket = getTicketById(id);
+        if (localTicket) {
+          const synced = await syncTicketToBackendApi(localTicket);
+          if (synced) {
+            const newLookup = synced.ticket_number || synced.id;
+            res = await api.post(`/tickets/${newLookup}/reply/`, {
+              message,
+              attachment,
+              is_internal: isInternal,
+            });
+          }
+        }
+      }
+      if (!res) throw postErr;
+    }
+
+    if (res?.data) {
+      const reply = res.data;
+      try {
+        addComment(id, {
+          id: reply.id,
+          author: reply.author_name,
+          authorRole: reply.author_role,
+          message: reply.message,
+          attachment: reply.attachment,
+          timestamp: reply.created_at,
+          created_at: reply.created_at,
+          _skipBackendSync: true,
+        });
+      } catch (e) {}
       return res.data;
     }
   } catch (err) {

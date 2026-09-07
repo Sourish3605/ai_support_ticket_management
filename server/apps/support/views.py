@@ -727,7 +727,12 @@ class TicketReplyCreateView(APIView):
                 pass
 
         # Test Scenario 9: Customer reply to resolved ticket -> status transitions to REOPENED
-        elif ticket.status in ["RESOLVED", "Resolved", "AI_RESPONDED", "CLOSED", "Closed"] and request.user == ticket.created_by:
+        elif ticket.status in ["RESOLVED", "Resolved", "AI_RESPONDED", "CLOSED", "Closed"] and (
+            request.user == ticket.created_by
+            or (ticket.created_by and request.user.email and request.user.email.lower() == ticket.created_by.email.lower())
+            or (ticket.created_by and request.user.username and request.user.username.lower() == ticket.created_by.username.lower())
+            or not is_agent_reply
+        ):
             ticket.status = "REOPENED"
             ticket.save(update_fields=["status", "updated_at"])
             try:
@@ -760,6 +765,13 @@ class TicketReplyCreateView(APIView):
             except Exception:
                 pass
         else:
+            # Customer reply on active ticket -> Update timestamp & notify assigned agent / support staff
+            try:
+                ticket.updated_at = datetime.now(timezone.utc)
+                ticket.save(update_fields=["updated_at"])
+            except Exception:
+                pass
+
             try:
                 from .agent_orchestrator import _log_activity
                 _log_activity(
@@ -770,6 +782,27 @@ class TicketReplyCreateView(APIView):
                 )
             except Exception:
                 pass
+
+            # Notify assigned agent or support staff of customer reply
+            try:
+                import uuid
+                recipients = []
+                if ticket.assigned_to:
+                    recipients.append(ticket.assigned_to)
+                if not recipients:
+                    recipients.extend(list(User.objects.filter(is_staff=True)[:5]))
+                sender_name = request.user.get_full_name() or request.user.username
+                for agent_user in set(recipients):
+                    Notification.objects.create(
+                        notification_id=f"NOTIF-{uuid.uuid4().hex[:8].upper()}",
+                        user=agent_user,
+                        ticket=ticket,
+                        title=f"Customer Reply on #{ticket.ticket_number}",
+                        message=f"{sender_name}: '{reply.message[:100]}'",
+                        notification_type="customer_reply"
+                    )
+            except Exception as notif_err:
+                print(f"[TicketReply] Notification error: {notif_err}")
 
         return Response(
             TicketReplySerializer(reply).data,
