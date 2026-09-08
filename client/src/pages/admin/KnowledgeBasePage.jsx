@@ -101,6 +101,8 @@ export default function KnowledgeBasePage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const retryTimerRef = useRef(null);
+  const retryCountRef = useRef(0);
 
   // PDF Upload States
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
@@ -132,18 +134,25 @@ export default function KnowledgeBasePage() {
         setCategories(catRes.data);
       }
       setError("");
+      retryCountRef.current = 0;
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       if (isRetry) {
         showNotification("✓ Successfully synchronized Knowledge Base with live database.");
       }
     } catch (err) {
       console.warn("[KnowledgeBase Notice]: Using fallback articles due to network:", err);
-      if (!isRetry) {
-        setTimeout(() => fetchData(true), 3500);
-      }
       if (err?.code === "ECONNABORTED" || !err?.response) {
         setError("Backend server is waking up (cold start). Displaying Knowledge Base cache.");
       } else {
         setError("Could not reach remote database. Displaying local Knowledge Base cache.");
+      }
+      if (retryCountRef.current < 15) {
+        retryCountRef.current += 1;
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(() => fetchData(true), 4000);
       }
     } finally {
       setLoading(false);
@@ -152,6 +161,9 @@ export default function KnowledgeBasePage() {
 
   useEffect(() => {
     fetchData();
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
   }, []);
 
   const showNotification = (msg) => {
@@ -372,12 +384,24 @@ export default function KnowledgeBasePage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => fetchData(true)}
-              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm"
+              onClick={() => {
+                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+                retryCountRef.current = 0;
+                fetchData(true);
+              }}
+              disabled={loading}
+              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 disabled:opacity-60 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm flex items-center gap-1.5"
             >
-              🔄 Retry Connection
+              <span className={loading ? "inline-block animate-spin" : ""}>🔄</span>
+              {loading ? "Reconnecting..." : "Retry Connection"}
             </button>
-            <button onClick={() => setError("")} className="text-amber-700 hover:text-amber-900 font-bold px-1">
+            <button
+              onClick={() => {
+                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+                setError("");
+              }}
+              className="text-amber-700 hover:text-amber-900 font-bold px-1"
+            >
               ✕
             </button>
           </div>
