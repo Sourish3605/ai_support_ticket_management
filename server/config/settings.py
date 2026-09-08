@@ -69,7 +69,14 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
 CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
     'http://localhost:4173',
     'http://127.0.0.1:4173',
     'http://localhost:5173',
@@ -89,8 +96,14 @@ if extra_cors_origins:
     CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS + extra_cors_origins))
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r'^[https://.\*](https://.*\\.vercel\\.app$)[**\\.**](https://.*\\.vercel\\.app$)[vercel](https://.*\\.vercel\\.app$)[**\\.**](https://.*\\.vercel\\.app$)[app$](https://.*\\.vercel\\.app$)',
+    r'^https://.*\.vercel\.app$',
+]
 
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-user-email',
+    'x-user-id',
+    'x-user-username',
+    'x-user-role',
 ]
 
 REST_FRAMEWORK = {

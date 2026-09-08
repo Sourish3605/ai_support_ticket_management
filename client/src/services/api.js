@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const resolveBaseUrl = () => {
+export const FALLBACK_REMOTE_URL = 'https://ai-support-ticket-management.onrender.com/api';
+
+export const resolveBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
     let cleanUrl = envUrl.trim().replace(/\/+$/, '');
@@ -13,13 +15,15 @@ const resolveBaseUrl = () => {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       return 'http://localhost:8000/api';
     }
+    // When hosted on Vercel or any web domain, use relative '/api' proxy rewrite
+    return '/api';
   }
-  return 'https://ai-support-ticket-management.onrender.com/api';
+  return FALLBACK_REMOTE_URL;
 };
 
 export const api = axios.create({
   baseURL: resolveBaseUrl(),
-  timeout: 30000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -71,6 +75,25 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Automatic failover for local development when localhost:8000 is not running
+    if (
+      originalRequest &&
+      !originalRequest._hasFallenBack &&
+      (!error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') &&
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      !import.meta.env.VITE_API_URL &&
+      (api.defaults.baseURL?.includes(':8000') || originalRequest.baseURL?.includes(':8000'))
+    ) {
+      console.info(
+        `[SupportPilot] Local backend port 8000 unreachable. Auto-failing over to live API (${FALLBACK_REMOTE_URL}).`
+      );
+      api.defaults.baseURL = FALLBACK_REMOTE_URL;
+      originalRequest.baseURL = FALLBACK_REMOTE_URL;
+      originalRequest._hasFallenBack = true;
+      return api(originalRequest);
+    }
 
     // Avoid infinite loops on auth endpoints
     if (

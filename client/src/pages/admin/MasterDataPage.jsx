@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../services/api";
 
 const FALLBACK_CATEGORIES = [
@@ -89,6 +89,8 @@ export default function MasterDataPage() {
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
+  const retryTimerRef = useRef(null);
+  const retryCountRef = useRef(0);
 
   // Modal States
   const [showCatModal, setShowCatModal] = useState(false);
@@ -117,18 +119,26 @@ export default function MasterDataPage() {
         setPriorities(prioRes.data);
       }
       setError("");
+      retryCountRef.current = 0;
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       if (isRetry) {
         showNotification("✓ Successfully synchronized Master Data with live database.");
       }
     } catch (err) {
       console.warn("Failed to load master data from API:", err);
-      if (!isRetry) {
-        setTimeout(() => fetchData(true), 3500);
-      }
       if (err?.code === "ECONNABORTED" || !err?.response) {
         setError("Backend server is waking up (cold start). Displaying Master Data cache.");
       } else {
         setError("Could not reach remote database. Displaying Master Data cache.");
+      }
+      // Continue polling periodically until server responds
+      if (retryCountRef.current < 15) {
+        retryCountRef.current += 1;
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(() => fetchData(true), 4000);
       }
     } finally {
       setLoading(false);
@@ -137,6 +147,9 @@ export default function MasterDataPage() {
 
   useEffect(() => {
     fetchData();
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
   }, []);
 
   const showNotification = (msg) => {
@@ -401,12 +414,24 @@ export default function MasterDataPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => fetchData(true)}
-              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm"
+              onClick={() => {
+                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+                retryCountRef.current = 0;
+                fetchData(true);
+              }}
+              disabled={loading}
+              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 disabled:opacity-60 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm flex items-center gap-1.5"
             >
-              🔄 Retry Connection
+              <span className={loading ? "inline-block animate-spin" : ""}>🔄</span>
+              {loading ? "Reconnecting..." : "Retry Connection"}
             </button>
-            <button onClick={() => setError("")} className="text-amber-700 hover:text-amber-900 font-bold px-1">
+            <button
+              onClick={() => {
+                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+                setError("");
+              }}
+              className="text-amber-700 hover:text-amber-900 font-bold px-1"
+            >
               ✕
             </button>
           </div>
