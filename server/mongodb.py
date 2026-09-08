@@ -12,7 +12,8 @@ except ImportError:
 DEFAULT_MONGO_URI = "mongodb+srv://support_admin:Support12345@cluster0.kzld13c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 raw_uri = config("MONGO_URI", default=os.environ.get("MONGO_URI", DEFAULT_MONGO_URI))
 MONGO_URI = raw_uri.strip().strip("'\"") if raw_uri else DEFAULT_MONGO_URI
-MONGO_TIMEOUT_MS = int(config("MONGO_TIMEOUT_MS", default="200"))
+MONGO_TIMEOUT_MS = int(config("MONGO_TIMEOUT_MS", default="10000"))
+print(f"[MongoDB] MONGO_TIMEOUT_MS = {MONGO_TIMEOUT_MS}")
 
 _client = None
 _db = None
