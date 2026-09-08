@@ -89,7 +89,8 @@ if extra_cors_origins:
     CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS + extra_cors_origins))
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r'^https://.*\.vercel\.app$',
+    r'^[https://.\*](https://.*\\.vercel\\.app$)[**\\.**](https://.*\\.vercel\\.app$)[vercel](https://.*\\.vercel\\.app$)[**\\.**](https://.*\\.vercel\\.app$)[app$](https://.*\\.vercel\\.app$)',
+
 ]
 
 REST_FRAMEWORK = {
