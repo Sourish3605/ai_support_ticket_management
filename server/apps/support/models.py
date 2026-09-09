@@ -13,6 +13,10 @@ class Ticket(models.Model):
         ("ASSIGNED", "ASSIGNED"),
         ("IN_PROGRESS", "IN_PROGRESS"),
         ("WAITING_FOR_CUSTOMER", "WAITING_FOR_CUSTOMER"),
+        ("AWAITING_CUSTOMER_INFO", "AWAITING_CUSTOMER_INFO"),
+        ("PENDING_AGENT_REVIEW", "PENDING_AGENT_REVIEW"),
+        ("PENDING_CONFIRMATION", "PENDING_CONFIRMATION"),
+        ("ON_HOLD", "ON_HOLD"),
         ("RESOLVED", "RESOLVED"),
         ("CLOSED", "CLOSED"),
         ("ESCALATED", "ESCALATED"),
@@ -444,3 +448,110 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.notification_type} -> {self.user.username}: {self.title}"
+
+
+# =====================================================
+# Milestone 4 Database Models (Validation, Escalation, Confirmation, Feedback)
+# =====================================================
+
+class AgentReview(models.Model):
+    """Stores human validation of AI-suggested resolutions (Milestone 4)."""
+    ACTION_CHOICES = [
+        ("SEND_AI_RESPONSE", "Send AI Response"),
+        ("EDIT_AND_SEND", "Edit & Send"),
+        ("MANUAL_RESPONSE", "Manual Response"),
+        ("REQUEST_INFO", "Request Info"),
+        ("ESCALATE", "Escalate"),
+        ("RESOLVE", "Resolve"),
+        ("CLOSE", "Close"),
+    ]
+
+    review_id = models.CharField(max_length=64, unique=True, db_index=True)
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="m4_reviews")
+    agent = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="agent_reviews")
+    agent_name = models.CharField(max_length=150, default="Support Agent")
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    checklist_results = models.JSONField(default=dict, blank=True)
+    original_suggestion = models.TextField(blank=True, default="")
+    final_response = models.TextField(blank=True, default="")
+    is_edited = models.BooleanField(default=False)
+    remarks = models.TextField(blank=True, default="")
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-reviewed_at"]
+
+    def __str__(self):
+        return f"M4 Review {self.review_id} on {self.ticket.ticket_number} ({self.action})"
+
+
+class EscalationRecord(models.Model):
+    """Tracks controlled escalation workflow and specialist handoffs (Milestone 4)."""
+    escalation_id = models.CharField(max_length=64, unique=True, db_index=True)
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="m4_escalations")
+    from_team = models.CharField(max_length=100, default="Tier-1 Frontline")
+    to_team = models.CharField(max_length=100)
+    assigned_specialist = models.CharField(max_length=150, blank=True, default="")
+    reason = models.TextField()
+    escalated_by = models.CharField(max_length=150, default="Agent")
+    escalated_at = models.DateTimeField(auto_now_add=True)
+    is_resolved = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-escalated_at"]
+
+    def __str__(self):
+        return f"Escalation {self.escalation_id} -> {self.to_team} ({self.ticket.ticket_number})"
+
+
+class CustomerFeedback(models.Model):
+    """Stores customer CSAT ratings and satisfaction feedback (Milestone 4)."""
+    feedback_id = models.CharField(max_length=64, unique=True, db_index=True)
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name="m4_feedback")
+    customer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="customer_feedbacks")
+    customer_name = models.CharField(max_length=150, default="Customer")
+    rating = models.IntegerField(default=5)  # 1 to 5 stars
+    comment = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"CSAT {self.rating}/5 for Ticket {self.ticket.ticket_number}"
+
+
+class TicketStatusHistory(models.Model):
+    """Full chronological audit trail of all ticket status changes and lifecycle actions."""
+    history_id = models.CharField(max_length=64, unique=True, db_index=True)
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="m4_status_history")
+    old_status = models.CharField(max_length=50)
+    new_status = models.CharField(max_length=50)
+    actor_name = models.CharField(max_length=150, default="System")
+    actor_role = models.CharField(max_length=50, default="System")
+    action = models.CharField(max_length=100, default="STATUS_CHANGE")
+    description = models.TextField(blank=True, default="")
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["timestamp"]
+
+    def __str__(self):
+        return f"{self.ticket.ticket_number}: {self.old_status} -> {self.new_status} by {self.actor_name}"
+
+
+class M4PolicyConfig(models.Model):
+    """Admin-configurable confidence thresholds and resolution policies (Milestone 4)."""
+    auto_response_threshold = models.FloatField(default=0.90)
+    agent_review_threshold = models.FloatField(default=0.70)
+    escalate_threshold = models.FloatField(default=0.70)
+    sensitive_categories = models.JSONField(
+        default=list,
+        blank=True
+    )
+    allow_autonomous_send = models.BooleanField(default=False)
+    auto_close_days = models.IntegerField(default=3)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"M4 Policy Config (Auto: {self.auto_response_threshold * 100}%, Review: {self.agent_review_threshold * 100}%)"
