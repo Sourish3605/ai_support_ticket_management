@@ -18,7 +18,8 @@ import {
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getDepartmentAgentsList } from "../services/ticketService";
+import { getDepartmentAgentsList, getAllTickets } from "../services/ticketService";
+import AgentHoldTicketsModal from "./AgentHoldTicketsModal";
 
 const Sidebar = ({
   isOpen,
@@ -26,12 +27,64 @@ const Sidebar = ({
   theme,
   toggleTheme,
 }) => {
-  const { user, logout, login } = useAuth();
+  const { user, logout, login, fastSwitchUser } = useAuth();
   const navigate = useNavigate();
   const role = user?.role;
   const [selectedDept, setSelectedDept] = useState("ALL");
   const [switchingEmail, setSwitchingEmail] = useState(null);
   const [agentsList, setAgentsList] = useState(() => getDepartmentAgentsList());
+  const [inspectingAgent, setInspectingAgent] = useState(null);
+  const [allTickets, setAllTickets] = useState(() => getAllTickets());
+
+  useEffect(() => {
+    const handleSyncTickets = () => {
+      setAllTickets(getAllTickets());
+    };
+    window.addEventListener("storage", handleSyncTickets);
+    window.addEventListener("supportpilot_tickets_changed", handleSyncTickets);
+    return () => {
+      window.removeEventListener("storage", handleSyncTickets);
+      window.removeEventListener("supportpilot_tickets_changed", handleSyncTickets);
+    };
+  }, []);
+
+  const isTicketAssignedToAgent = (ticket, agent) => {
+    if (!ticket || !agent) return false;
+    const tAgentName = String(ticket.assignedAgentName || ticket.assignedAgent || "").toLowerCase();
+    const tAgentId = String(ticket.assignedAgentId ?? ticket.assigned_to ?? ticket.assignedTo ?? "").toLowerCase();
+    const agId = String(agent.id || "").toLowerCase();
+    const agName = String(agent.name || "").toLowerCase();
+    const agUsername = String(agent.username || "").toLowerCase();
+    const agEmail = String(agent.email || "").toLowerCase();
+
+    if (agId && tAgentId && agId === tAgentId) return true;
+    if (agName && (tAgentName.includes(agName) || agName.includes(tAgentName))) return true;
+    if (agUsername && (tAgentName.includes(agUsername) || tAgentId === agUsername)) return true;
+    if (agEmail && (tAgentName.includes(agEmail) || tAgentId === agEmail)) return true;
+    return false;
+  };
+
+  const getAgentTicketCounts = (agent) => {
+    if (!agent) return { hold: 0, incomplete: 0, total: 0 };
+    const agentTickets = allTickets.filter((t) => isTicketAssignedToAgent(t, agent));
+    const hold = agentTickets.filter((t) => {
+      const s = String(t.status || "").toUpperCase();
+      return (
+        s === "ON_HOLD" ||
+        s === "ON HOLD" ||
+        s === "HOLD" ||
+        s === "PENDING" ||
+        s === "WAITING" ||
+        s.includes("HOLD") ||
+        s.includes("WAIT")
+      );
+    }).length;
+    const incomplete = agentTickets.filter((t) => {
+      const s = String(t.status || "").toUpperCase();
+      return s !== "RESOLVED" && s !== "CLOSED";
+    }).length;
+    return { hold, incomplete, total: agentTickets.length };
+  };
 
   useEffect(() => {
     const handleSync = () => {
@@ -58,11 +111,19 @@ const Sidebar = ({
     if (isCurrentAgent(ag) || switchingEmail) return;
     setSwitchingEmail(ag.email);
     try {
-      await login(ag.email, "password123", "agent");
-      navigate("/dashboard");
+      if (fastSwitchUser) {
+        await fastSwitchUser(ag, ag.role || (ag.department === "Admin" ? "admin" : "agent"));
+      } else {
+        await login(ag.email, "password123", ag.role || (ag.department === "Admin" ? "admin" : "agent"));
+      }
+      if (ag.department === "Admin" || ag.role?.toLowerCase() === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
       if (onClose) onClose();
     } catch (err) {
-      console.error(err);
+      console.error("Agent switch error:", err);
     } finally {
       setSwitchingEmail(null);
     }
@@ -290,8 +351,8 @@ const Sidebar = ({
               </div>
 
               {/* TABS */}
-              <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg mb-2 text-center text-[10px] font-bold">
-                {["ALL", "IT", "HR", "Finance"].map((d) => (
+              <div className="grid grid-cols-5 gap-1 p-1 bg-slate-100 rounded-lg mb-2 text-center text-[10px] font-bold">
+                {["ALL", "IT", "HR", "Finance", "Admin"].map((d) => (
                   <button
                     key={d}
                     type="button"
@@ -302,41 +363,57 @@ const Sidebar = ({
                         : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
-                    {d === "Finance" ? "Fin" : d}
+                    {d === "Finance" ? "Fin" : d === "Admin" ? "Adm" : d}
                   </button>
                 ))}
               </div>
 
               {/* LIST */}
-              <div className="space-y-1 max-h-48 overflow-y-auto">
+              <div className="space-y-1.5 max-h-52 overflow-y-auto pr-0.5">
                 {agentsList.filter((ag) => selectedDept === "ALL" || ag.department === selectedDept).map((ag) => {
                   const isCurrent = isCurrentAgent(ag);
-                  const isBusy = switchingEmail === ag.email;
+                  const counts = getAgentTicketCounts(ag);
+
                   return (
                     <button
                       key={ag.email}
                       type="button"
-                      disabled={isCurrent || isBusy}
-                      onClick={() => handleSwitchAgent(ag)}
-                      className={`w-full text-left p-2 rounded-xl text-xs flex items-center justify-between gap-1 border transition cursor-pointer ${
+                      onClick={() => setInspectingAgent(ag)}
+                      className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between gap-2 border transition cursor-pointer ${
                         isCurrent
-                          ? "bg-emerald-50 border-emerald-300 font-bold text-emerald-900"
-                          : "border-slate-100 hover:bg-slate-50 text-slate-700"
+                          ? "bg-emerald-50/90 border-emerald-300 font-bold text-emerald-950 shadow-xs"
+                          : "border-slate-100 hover:bg-slate-50 hover:border-slate-200 text-slate-700"
                       }`}
+                      title={`Click to inspect tickets (${counts.hold} Hold, ${counts.incomplete} Incomplete)`}
                     >
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold flex items-center gap-1">
-                          <span>{ag.name}</span>
-                          {ag.isTeamLead && (
-                            <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-800 font-bold">
-                              👑 Lead
-                            </span>
-                          )}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`h-7 w-7 rounded-lg shrink-0 flex items-center justify-center text-[10px] font-black text-white bg-gradient-to-br ${ag.avatarGradient || "from-blue-600 to-indigo-700"} shadow-xs`}>
+                          {(ag.name || "A").split(" ").map(w => w[0]).slice(0, 2).join("")}
                         </div>
-                        <div className="text-[10px] text-slate-400 truncate">{ag.specialty}</div>
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold flex items-center gap-1">
+                            <span className="truncate">{ag.name}</span>
+                            {ag.isTeamLead && (
+                              <span className="text-[8px] px-1 rounded bg-amber-100 text-amber-800 font-black">
+                                Lead
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate">{ag.specialty || ag.title}</div>
+                          <div className="flex items-center gap-1 mt-1">
+                            {counts.hold > 0 ? (
+                              <span className="text-[9px] font-extrabold px-1 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                                ⏸️ {counts.hold} Hold
+                              </span>
+                            ) : null}
+                            <span className="text-[9px] font-semibold px-1 rounded bg-slate-100 text-slate-600">
+                              {counts.incomplete} Pending
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">
-                        {isCurrent ? "Active" : ag.department}
+                      <span className="text-[10px] text-slate-400 shrink-0 font-bold">
+                        ↗
                       </span>
                     </button>
                   );
@@ -369,6 +446,16 @@ const Sidebar = ({
         </button>
 
       </aside>
+
+      {/* AGENT WORKLOAD & HOLD TICKETS INSPECTOR MODAL */}
+      <AgentHoldTicketsModal
+        agent={inspectingAgent}
+        isOpen={Boolean(inspectingAgent)}
+        onClose={() => setInspectingAgent(null)}
+        allTickets={allTickets}
+        onTicketStatusChange={() => setAllTickets(getAllTickets())}
+        onSwitchUser={handleSwitchAgent}
+      />
     </>
   );
 };

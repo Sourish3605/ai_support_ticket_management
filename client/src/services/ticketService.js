@@ -57,13 +57,26 @@ export const getTickets = () => {
       return seedTickets;
     }
     // Automatically purge ghost/stub tickets (e.g., ticket 13 and 14)
-    const cleaned = stored.filter((ticket) => {
+    let cleaned = stored.filter((ticket) => {
       if (!ticket) return false;
       const tId = String(ticket.id ?? "").trim();
       const tNum = String(ticket.ticketNumber || ticket.ticket_number || "").trim();
       return tId !== "13" && tId !== "14" && tNum !== "13" && tNum !== "14";
     });
-    if (cleaned.length !== stored.length) {
+    
+    // Ensure new seed tickets (e.g. hold tickets) are merged in
+    const existingIds = new Set(cleaned.map((t) => String(t.id || t.ticketNumber || "").toUpperCase()));
+    let needsUpdate = cleaned.length !== stored.length;
+    seedTickets.forEach((st) => {
+      const stId = String(st.id || st.ticketNumber || "").toUpperCase();
+      if (stId && !existingIds.has(stId)) {
+        cleaned.push(st);
+        existingIds.add(stId);
+        needsUpdate = true;
+      }
+    });
+
+    if (needsUpdate) {
       storage.set(STORAGE_KEYS.tickets, cleaned);
       stored = cleaned;
     }
@@ -1375,7 +1388,7 @@ export const getDepartmentAgentsList = () => {
   seedUsers.forEach((u) => {
     if (isUserDeleted(u)) return;
     const r = String(u.role || "").toLowerCase();
-    if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead")) {
+    if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead") || r === "admin") {
       userMap.set(u.email.toLowerCase(), { ...u });
     }
   });
@@ -1384,7 +1397,7 @@ export const getDepartmentAgentsList = () => {
     users.forEach((u) => {
       if (!u || !u.email || isUserDeleted(u)) return;
       const r = String(u.role || "").toLowerCase();
-      if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead")) {
+      if (r === "agent" || r.includes("agent") || r.includes("engineer") || r.includes("lead") || r === "admin") {
         const key = u.email.toLowerCase();
         const existing = userMap.get(key) || {};
         userMap.set(key, { ...existing, ...u });
@@ -1393,9 +1406,10 @@ export const getDepartmentAgentsList = () => {
   }
 
   const deptColors = {
-    IT: { badge: "IT", color: "bg-blue-500/20 text-blue-300 border-blue-400/40", avatar: "bg-blue-600" },
-    HR: { badge: "HR", color: "bg-purple-500/20 text-purple-300 border-purple-400/40", avatar: "bg-purple-600" },
-    Finance: { badge: "FIN", color: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40", avatar: "bg-emerald-600" },
+    IT: { badge: "IT", color: "bg-cyan-500/20 text-cyan-300 border-cyan-400/40", avatar: "bg-gradient-to-br from-blue-600 to-cyan-500" },
+    HR: { badge: "HR", color: "bg-purple-500/20 text-purple-300 border-purple-400/40", avatar: "bg-gradient-to-br from-purple-600 to-pink-500" },
+    Finance: { badge: "FIN", color: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40", avatar: "bg-gradient-to-br from-emerald-600 to-teal-500" },
+    Admin: { badge: "ADMIN", color: "bg-amber-500/20 text-amber-300 border-amber-400/40", avatar: "bg-gradient-to-br from-amber-500 to-orange-600" },
   };
 
   return Array.from(userMap.values())
@@ -1403,7 +1417,10 @@ export const getDepartmentAgentsList = () => {
     .map((u) => {
       let dept = "IT";
       const rawDept = String(u.department || "").toLowerCase();
-      if (rawDept.includes("hr") || rawDept.includes("human") || rawDept.includes("payroll")) {
+      const rawRole = String(u.role || "").toLowerCase();
+      if (rawRole === "admin" || rawDept.includes("admin")) {
+        dept = "Admin";
+      } else if (rawDept.includes("hr") || rawDept.includes("human") || rawDept.includes("payroll")) {
         dept = "HR";
       } else if (rawDept.includes("fin") || rawDept.includes("pay") || rawDept.includes("bill")) {
         dept = "Finance";
@@ -1418,10 +1435,11 @@ export const getDepartmentAgentsList = () => {
         id: u.id,
         name: u.name || u.username || "Support Agent",
         email: u.email,
+        role: u.role || (dept === "Admin" ? "Admin" : "Agent"),
         department: dept,
-        rawDepartment: u.department || `${dept} Department`,
-        title: u.title || `${dept} Support Agent`,
-        specialty: u.specialty || u.title || u.team || `${dept} Operations`,
+        rawDepartment: u.department || (dept === "Admin" ? "System Administration" : `${dept} Department`),
+        title: u.title || (dept === "Admin" ? "System Administrator" : `${dept} Support Specialist`),
+        specialty: u.specialty || u.title || u.team || (dept === "Admin" ? "Full System & Security Access" : `${dept} Operations`),
         deptBadge: conf.badge,
         badgeColor: conf.color,
         avatarBg: conf.avatar,

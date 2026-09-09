@@ -36,6 +36,8 @@ const statusClass = {
   Closed: "sp-tag-neutral",
   CLASSIFIED: "sp-tag-brand",
   AI_RESOLUTION_READY: "sp-tag-brand font-bold bg-emerald-50 text-emerald-800 border border-emerald-300",
+  ON_HOLD: "bg-amber-100 text-amber-900 border border-amber-400 font-bold",
+  "On Hold": "bg-amber-100 text-amber-900 border border-amber-400 font-bold",
 };
 
 const AVAILABILITY_OPTIONS = [
@@ -538,6 +540,7 @@ export default function AgentDashboard() {
                               <option value="NEW">NEW</option>
                               <option value="ASSIGNED">ASSIGNED</option>
                               <option value="IN_PROGRESS">IN_PROGRESS</option>
+                              <option value="ON_HOLD">ON_HOLD</option>
                               <option value="RESOLVED">RESOLVED</option>
                               <option value="CLOSED">CLOSED</option>
                             </select>

@@ -32,6 +32,8 @@ const statusClass = {
   ESCALATED: "sp-tag-danger font-bold bg-red-100 text-red-800 border border-red-300",
   RESOLVED: "sp-tag-success font-semibold",
   CLOSED: "sp-tag-neutral",
+  ON_HOLD: "bg-amber-100 text-amber-900 border border-amber-400 font-bold",
+  "On Hold": "bg-amber-100 text-amber-900 border border-amber-400 font-bold",
   Open: "sp-tag-info",
   "In Progress": "sp-tag-warning font-semibold",
   Resolved: "sp-tag-success font-semibold",
@@ -304,6 +306,7 @@ export default function AgentAllTicketsPage() {
             <option>All statuses</option>
             <option value="NEW">NEW</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="ON_HOLD">ON_HOLD</option>
             <option value="RESOLVED">RESOLVED</option>
             <option value="CLOSED">CLOSED</option>
           </select>
@@ -432,6 +435,7 @@ export default function AgentAllTicketsPage() {
                           >
                             <option value="NEW">NEW</option>
                             <option value="IN_PROGRESS">IN_PROGRESS</option>
+                            <option value="ON_HOLD">ON_HOLD</option>
                             <option value="RESOLVED">RESOLVED</option>
                             <option value="CLOSED">CLOSED</option>
                           </select>

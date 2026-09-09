@@ -382,6 +382,74 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const fastSwitchUser = async (target, expectedRole = null) => {
+    let targetEmail = "";
+    let targetName = "";
+    let targetRole = expectedRole || "agent";
+    let targetDept = "IT Department";
+    let targetId = null;
+
+    if (typeof target === "string") {
+      targetEmail = target.trim();
+    } else if (typeof target === "object" && target !== null) {
+      targetEmail = target.email || target.username || "";
+      targetName = target.name || target.username || "";
+      targetRole = target.role || expectedRole || "agent";
+      targetDept = target.rawDepartment || target.department || "IT Department";
+      targetId = target.id || null;
+    }
+
+    const storedUsersRaw = localStorage.getItem("supportpilot_users");
+    const storedUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+    const matchStored = Array.isArray(storedUsers)
+      ? storedUsers.find((u) => (targetEmail && u.email?.toLowerCase() === targetEmail.toLowerCase()) || (targetId && u.id === targetId))
+      : null;
+    const matchSeed = seedUsers.find((u) => (targetEmail && u.email?.toLowerCase() === targetEmail.toLowerCase()) || (targetId && u.id === targetId));
+
+    const baseObj = matchStored || matchSeed || (typeof target === "object" ? target : {});
+    const resolvedRole = normalizeRole(baseObj.role || targetRole);
+    const resolvedDept = baseObj.department || baseObj.rawDepartment || targetDept;
+    const resolvedName = baseObj.name || baseObj.username || targetName || targetEmail.split("@")[0] || "Agent";
+    const resolvedAvail = baseObj.availability_status || baseObj.availabilityStatus || "AVAILABLE";
+
+    const account = {
+      id: baseObj.id || targetId || `USR-${Date.now()}`,
+      username: baseObj.username || targetEmail.split("@")[0] || "agent",
+      email: targetEmail || baseObj.email || "agent@gmail.com",
+      name: resolvedName,
+      role: resolvedRole,
+      department: resolvedDept,
+      availability_status: resolvedAvail,
+      availabilityStatus: resolvedAvail,
+    };
+
+    // Instant zero-latency memory + localStorage update (NO isLoading, NO unmounting)
+    localStorage.setItem("supportpilot-user", JSON.stringify(account));
+    setUser(account);
+
+    if (account.email) api.defaults.headers.common["X-User-Email"] = account.email;
+    if (account.id) api.defaults.headers.common["X-User-Id"] = String(account.id);
+    if (account.role) api.defaults.headers.common["X-User-Role"] = account.role;
+
+    window.dispatchEvent(new CustomEvent("supportpilot_user_changed", { detail: account }));
+
+    // Non-blocking background JWT sync
+    api.post("/auth/login/", { username: account.email, password: "password123" })
+      .then((res) => {
+        if (res.data?.access) {
+          const authTokens = { access: res.data.access, refresh: res.data.refresh };
+          localStorage.setItem("supportpilot-tokens", JSON.stringify(authTokens));
+          api.defaults.headers.common["Authorization"] = `Bearer ${authTokens.access}`;
+          setTokens(authTokens);
+        }
+      })
+      .catch(() => {
+        // Fallback demo auth remains seamlessly active
+      });
+
+    return account;
+  };
+
   const logout = () => {
     setUser(null);
     setTokens(null);
@@ -403,6 +471,7 @@ export const AuthProvider = ({ children }) => {
       isLoading,
       isAuthenticated,
       login,
+      fastSwitchUser,
       loginWithGoogle,
       register,
       logout,
