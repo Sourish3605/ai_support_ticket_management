@@ -14,6 +14,12 @@ import {
   simulateWorkflowLocally,
 } from "../../services/m3AgentService";
 import GmailComposeButton from "../../components/GmailComposeButton";
+import {
+  M4_STATUSES,
+  M4_STATUS_LABELS,
+  customerConfirmResolution,
+  submitCustomerFeedback,
+} from "../../services/m4WorkflowService";
 
 
 export default function CustomerTicketDetails() {
@@ -29,6 +35,101 @@ export default function CustomerTicketDetails() {
   const [replyMessage, setReplyMessage] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [showSources, setShowSources] = useState(false);
+
+  // Milestone 4 Customer Workflow State
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [showUnsolvedModal, setShowUnsolvedModal] = useState(false);
+  const [unsolvedReason, setUnsolvedReason] = useState("I followed the troubleshooting instructions, but the problem persists.");
+  const [isConfirmingResolution, setIsConfirmingResolution] = useState(false);
+  const [providedInfoMessage, setProvidedInfoMessage] = useState("");
+  const [isSubmittingInfo, setIsSubmittingInfo] = useState(false);
+
+  const handleConfirmSolved = async () => {
+    setIsConfirmingResolution(true);
+    try {
+      const updated = await customerConfirmResolution(ticket.id, true, {}, user);
+      setTicket(updated);
+      setToast({
+        type: "success",
+        message: "🎉 Thank you! Your resolution has been verified and ticket is moved to CLOSED.",
+      });
+    } catch (e) {
+      setToast({ type: "error", message: "Failed to confirm resolution." });
+    } finally {
+      setIsConfirmingResolution(false);
+    }
+  };
+
+  const handleConfirmNotSolved = async () => {
+    setIsConfirmingResolution(true);
+    try {
+      const updated = await customerConfirmResolution(
+        ticket.id,
+        false,
+        { reason: unsolvedReason },
+        user
+      );
+      setTicket(updated);
+      setShowUnsolvedModal(false);
+      setToast({
+        type: "warning",
+        message: "Ticket has been REOPENED and returned to support agents for further investigation.",
+      });
+    } catch (e) {
+      setToast({ type: "error", message: "Failed to update ticket status." });
+    } finally {
+      setIsConfirmingResolution(false);
+    }
+  };
+
+  const handleSubmitCSATFeedback = async (e) => {
+    e?.preventDefault();
+    if (isSubmittingFeedback) return;
+    setIsSubmittingFeedback(true);
+    try {
+      const updated = await submitCustomerFeedback(
+        ticket.id,
+        feedbackRating,
+        feedbackComment,
+        user
+      );
+      setTicket(updated);
+      setToast({
+        type: "success",
+        message: "⭐ Thank you! Feedback submitted. Ticket status updated to CLOSED (Completed) and stored in Admin & Agent timelines.",
+      });
+    } catch (e) {
+      setToast({ type: "error", message: "Could not submit rating." });
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  const handleProvideCustomerInfo = async (e) => {
+    e?.preventDefault();
+    if (!providedInfoMessage.trim() || isSubmittingInfo) return;
+    setIsSubmittingInfo(true);
+    try {
+      const targetId = ticket?.ticket_number || ticket?.ticketNumber || ticket?.id || id;
+      await addTicketReplyApi(targetId, `[CUSTOMER INFO PROVIDED]: ${providedInfoMessage}`);
+      const updated = updateTicket(ticket.id, {
+        status: "IN_PROGRESS",
+        awaitingInfoPrompt: null,
+      });
+      setTicket(updated);
+      setProvidedInfoMessage("");
+      setToast({
+        type: "success",
+        message: "Information provided to support agent. Ticket moved to IN_PROGRESS.",
+      });
+    } catch (e) {
+      setToast({ type: "error", message: "Failed to submit info." });
+    } finally {
+      setIsSubmittingInfo(false);
+    }
+  };
 
   const loadTicket = async () => {
     let curTicket = getTicketById(id);
@@ -320,6 +421,51 @@ export default function CustomerTicketDetails() {
       }
     });
 
+    // Automatically synthesize agent resolution message in chat if ticket is resolved/closed and no agent reply exists yet
+    const hasAgentMsg = list.some((m) => m.isAgent);
+    const isResolvedOrClosed = ["RESOLVED", "CLOSED", "WAITING_FOR_CUSTOMER"].includes(String(ticket?.status || "").toUpperCase()) || ticket?.selfResolved || ticket?.resolvedAt;
+
+    if (!hasAgentMsg && isResolvedOrClosed) {
+      const agentName = ticket?.assignedAgentName || ticket?.assignedAgent || "Support Specialist";
+      const resolutionText = ticket?.resolution?.solution ||
+        (Array.isArray(ticket?.suggestedResolution) && ticket.suggestedResolution.length > 0
+          ? `Troubleshooting resolution instructions:\n${ticket.suggestedResolution.map((s, i) => `${i + 1}. ${s}`).join("\n")}`
+          : ticket?.suggested_resolution || "Your support request has been investigated and marked as resolved. Please follow the instructions to complete setup.");
+
+      list.push({
+        id: "agent-auto-resolution",
+        author: agentName,
+        authorRole: "Support Agent",
+        isAgent: true,
+        message: `Hello! I have reviewed and resolved your support ticket:\n\n${resolutionText}\n\nPlease confirm if this completely solves your issue.`,
+        timestamp: ticket?.resolvedAt || ticket?.updatedAt || ticket?.createdAt || new Date().toISOString(),
+      });
+    }
+
+    // Automatically synthesize customer confirmation / CSAT message if confirmed or feedback exists
+    const hasFeedbackMsg = list.some((m) => m.isFeedback || (m.message && m.message.includes("CSAT")));
+    if (!hasFeedbackMsg && (ticket?.customerFeedback || ticket?.feedback)) {
+      const fb = ticket.customerFeedback || ticket.feedback;
+      list.push({
+        id: "customer-auto-feedback",
+        author: fb.customerName || ticket?.customerName || user?.name || "Customer",
+        authorRole: "Customer",
+        isCustomer: true,
+        isFeedback: true,
+        message: `⭐ Customer Satisfaction Feedback (CSAT): ${fb.rating || 5}/5 Stars\n${fb.comment ? `"${fb.comment}"\n` : ""}Status: Verified, Completed & Closed.`,
+        timestamp: fb.submittedAt || new Date().toISOString(),
+      });
+    } else if (ticket?.customerConfirmed && !list.some((m) => m.message && m.message.includes("confirmed that my issue has been completely resolved"))) {
+      list.push({
+        id: "customer-auto-confirmed",
+        author: ticket?.customerName || user?.name || "Customer",
+        authorRole: "Customer",
+        isCustomer: true,
+        message: "✓ Customer Confirmation: I confirmed that my issue has been completely resolved. Thank you!",
+        timestamp: ticket?.customerConfirmedAt || ticket?.updatedAt || new Date().toISOString(),
+      });
+    }
+
     // Sort chronologically
     list.sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
     return list;
@@ -578,12 +724,49 @@ export default function CustomerTicketDetails() {
               })}
             </div>
 
-            {/* Bottom Actions Row */}
+            {/* Bottom Actions Row: Milestone 4 Resolution Confirmation */}
             <div className="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
-              {ticket.selfResolved || ticket.status === "RESOLVED" || ticket.status === "Resolved" ? (
-                <div className="text-xs text-emerald-300 font-semibold flex items-center gap-2">
-                  <span>🎉</span>
-                  <span><strong>Marked as Solved:</strong> You confirmed this issue was resolved.</span>
+              {ticket.status === "CLOSED" || ticket.customerConfirmed ? (
+                <div className="w-full flex items-center justify-between bg-emerald-950/60 p-3 rounded-xl border border-emerald-500/30 text-xs text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <span>🎉</span>
+                    <span><strong>Resolution Verified & Closed:</strong> You confirmed this issue was solved.</span>
+                  </div>
+                  <span className="text-[10px] font-mono bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-200">
+                    Status: CLOSED
+                  </span>
+                </div>
+              ) : ticket.status === "RESOLVED" || ticket.status === "PENDING_CONFIRMATION" || ticket.status === "WAITING_FOR_CUSTOMER" ? (
+                <div className="w-full space-y-2.5 bg-[#0f281e] p-3.5 rounded-xl border border-emerald-500/40">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-emerald-200 font-bold flex items-center gap-1.5">
+                      <span>🛡️</span> Please Confirm Support Resolution:
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      Phase: {ticket.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-300">
+                    Our AI and support team have provided a resolution. Please confirm if your problem has been resolved:
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      disabled={isConfirmingResolution}
+                      onClick={handleConfirmSolved}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow-md disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <span>✓ Yes, Issue Confirmed Solved</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isConfirmingResolution}
+                      onClick={() => setShowUnsolvedModal(true)}
+                      className="bg-rose-950/70 hover:bg-rose-900 text-rose-200 border border-rose-700/60 font-semibold px-4 py-2 rounded-xl text-xs transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <span>✕ Not Solved / Need More Help</span>
+                    </button>
+                  </div>
                 </div>
               ) : ticket.assistanceRequested || ticket.status === "IN_PROGRESS" || ticket.status === "In Progress" ? (
                 <div className="text-xs text-amber-200 font-semibold flex items-center gap-2">
@@ -598,23 +781,153 @@ export default function CustomerTicketDetails() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={handleYesSolved}
+                      disabled={isConfirmingResolution}
+                      onClick={handleConfirmSolved}
                       className="bg-[#10b981] hover:bg-[#059669] text-[#0a1b14] font-extrabold px-4 py-2 rounded-lg text-xs transition cursor-pointer"
                     >
                       ✓ Yes, Solved
                     </button>
                     <button
                       type="button"
-                      onClick={handleNeedAssistance}
+                      disabled={isConfirmingResolution}
+                      onClick={() => setShowUnsolvedModal(true)}
                       className="bg-[#153427] hover:bg-[#1c4534] text-gray-200 border border-[#265942] font-semibold px-4 py-2 rounded-lg text-xs transition cursor-pointer"
                     >
-                      Need Agent Assistance
+                      Need More Help
                     </button>
                   </div>
                 </>
               )}
             </div>
           </section>
+
+          {/* PROVIDE INFORMATION CARD (When Awaiting Customer Info) */}
+          {ticket.status === "AWAITING_CUSTOMER_INFO" && (
+            <section className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 shadow-sm space-y-3">
+              <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                <span className="text-lg">ℹ️</span>
+                <span>Action Needed: Additional Information Requested</span>
+              </div>
+              <p className="text-xs text-amber-900 leading-relaxed">
+                The support team needs extra details to proceed with your ticket.
+                {ticket.awaitingInfoPrompt && (
+                  <span className="block mt-1 font-semibold p-2 bg-amber-100 rounded-lg">
+                    "{ticket.awaitingInfoPrompt}"
+                  </span>
+                )}
+              </p>
+              <form onSubmit={handleProvideCustomerInfo} className="space-y-2 pt-1">
+                <textarea
+                  rows={3}
+                  value={providedInfoMessage}
+                  onChange={(e) => setProvidedInfoMessage(e.target.value)}
+                  placeholder="Type requested details, system logs or error text here..."
+                  className="w-full rounded-xl border border-amber-300 p-3 text-xs text-slate-900 bg-white outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmittingInfo || !providedInfoMessage.trim()}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingInfo ? "Submitting..." : "Submit Information → Return to In Progress"}
+                </button>
+              </form>
+            </section>
+          )}
+
+          {/* CUSTOMER FEEDBACK & CSAT RATING CARD */}
+          {(ticket.status === "CLOSED" || ticket.status === "RESOLVED" || ticket.customerConfirmed || ticket.customerFeedback) && (
+            <section className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⭐</span>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Support Satisfaction & CSAT Feedback</h3>
+                    <p className="text-[11px] text-slate-500">Rate your resolution experience with SupportPilot AI</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                  Milestone 4 Learning Loop
+                </span>
+              </div>
+
+              {ticket.customerFeedback || ticket.feedback ? (
+                <div className="p-4 bg-white rounded-xl border border-emerald-300 shadow-xs text-xs space-y-2">
+                  <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+                      <span className="text-emerald-600">✓</span>
+                      <span>Feedback Submitted & Ticket Completed</span>
+                    </div>
+                    <span className="bg-emerald-100 text-emerald-800 font-mono font-bold text-[10px] px-2 py-0.5 rounded">
+                      STATUS: CLOSED (COMPLETED)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 font-bold text-slate-800">
+                    <span>Rating:</span>
+                    <span className="text-amber-500 text-sm">
+                      {"★".repeat((ticket.customerFeedback || ticket.feedback).rating || 5)}{"☆".repeat(5 - ((ticket.customerFeedback || ticket.feedback).rating || 5))}
+                    </span>
+                    <span className="text-slate-500 font-mono">({(ticket.customerFeedback || ticket.feedback).rating || 5}/5 Stars)</span>
+                  </div>
+                  {(ticket.customerFeedback || ticket.feedback).comment && (
+                    <p className="text-slate-600 italic bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      "{(ticket.customerFeedback || ticket.feedback).comment}"
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between text-[10px] text-emerald-700 font-medium pt-1">
+                    <span>✓ Stored in Admin & Agent Records & Activity Timeline.</span>
+                    <span className="font-mono text-slate-400">
+                      {new Date((ticket.customerFeedback || ticket.feedback).submittedAt || Date.now()).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitCSATFeedback} className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1.5">How satisfied are you with this resolution?</label>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setFeedbackRating(star)}
+                          className={`h-9 w-9 rounded-xl font-bold text-sm transition cursor-pointer border ${
+                            feedbackRating >= star
+                              ? "bg-amber-400 text-white border-amber-400 shadow-sm"
+                              : "bg-white text-slate-400 border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                      <span className="text-xs font-bold text-slate-700 ml-2">
+                        {feedbackRating === 5 ? "5/5 - Excellent!" : `${feedbackRating}/5`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Additional Comments or Suggestions:</label>
+                    <textarea
+                      rows={2}
+                      value={feedbackComment}
+                      onChange={(e) => setFeedbackComment(e.target.value)}
+                      placeholder="Let us know what went well or how we can improve..."
+                      className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-800 bg-white outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingFeedback}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {isSubmittingFeedback ? "Submitting..." : "Submit CSAT Feedback"}
+                  </button>
+                </form>
+              )}
+            </section>
+          )}
 
           {/* 2. REPORTED PROBLEM DESCRIPTION CARD */}
           <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm space-y-2">
@@ -794,11 +1107,23 @@ export default function CustomerTicketDetails() {
 
           {/* 4. TICKET WORKFLOW TIMELINE CARD */}
           <section className="bg-white border border-[#dfe5e1] rounded-2xl p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-bold text-[#1c2430]">
-              Ticket Workflow Timeline
-            </h2>
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h2 className="text-base font-bold text-[#1c2430] flex items-center gap-2">
+                <span>📋</span> Ticket Workflow Timeline
+              </h2>
+              <span className={`px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold ${
+                ticket.status === "CLOSED" || ticket.customerFeedback || ticket.feedback
+                  ? "bg-emerald-100 text-emerald-800"
+                  : ticket.status === "RESOLVED"
+                  ? "bg-teal-100 text-teal-800"
+                  : "bg-blue-100 text-blue-800"
+              }`}>
+                {ticket.status === "CLOSED" || ticket.customerFeedback || ticket.feedback ? "✓ WORKFLOW COMPLETED" : `STATUS: ${ticket.status}`}
+              </span>
+            </div>
 
             <div className="space-y-4 pl-2 relative border-l-2 border-slate-200 ml-2">
+              {/* 1. Ticket Created */}
               <div className="relative pl-4">
                 <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
                 <div className="text-xs font-bold text-[#1c2430]">Ticket created</div>
@@ -806,6 +1131,7 @@ export default function CustomerTicketDetails() {
                 <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
               </div>
 
+              {/* 2. AI Classification */}
               <div className="relative pl-4">
                 <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
                 <div className="text-xs font-bold text-[#1c2430]">AI Classified & Categorized</div>
@@ -813,19 +1139,85 @@ export default function CustomerTicketDetails() {
                 <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
               </div>
 
+              {/* 3. AI Resolution Guide */}
               <div className="relative pl-4">
                 <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
                 <div className="text-xs font-bold text-[#1c2430]">AI Automated Resolution Guide Ready</div>
-                <div className="text-[11px] text-gray-500">Knowledge retrieved from: Enterprise Knowledge Store.</div>
+                <div className="text-[11px] text-gray-500">Knowledge retrieved from: {resolvedSource || "Enterprise Knowledge Store"}.</div>
                 <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
               </div>
 
+              {/* 4. Ticket Assigned */}
               <div className="relative pl-4">
                 <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
                 <div className="text-xs font-bold text-[#1c2430]">Ticket assigned</div>
                 <div className="text-[11px] text-gray-500">Assigned to {ticket.assignedAgentName || ticket.assignedAgent || "Support Desk"}.</div>
                 <div className="text-[10px] text-gray-400 mt-0.5">{dateDisplay}</div>
               </div>
+
+              {/* 5. Issue Resolved by Support Agent */}
+              {(["RESOLVED", "CLOSED", "WAITING_FOR_CUSTOMER"].includes(String(ticket.status || "").toUpperCase()) || ticket.resolvedAt || ticket.selfResolved || ticket.customerConfirmed) && (
+                <div className="relative pl-4 animate-fade-in">
+                  <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[#1c2430]">Issue Resolved by Support Team</span>
+                    <span className="bg-teal-100 text-teal-800 text-[9px] font-bold px-1.5 py-0.2 rounded font-mono">RESOLVED</span>
+                  </div>
+                  <div className="text-[11px] text-gray-600 mt-0.5">
+                    {ticket.resolution?.solution || "Verified resolution steps delivered to customer."}
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    {ticket.resolvedAt ? new Date(ticket.resolvedAt).toLocaleString() : dateDisplay}
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Customer Confirmation */}
+              {(ticket.customerConfirmed || ticket.customerFeedback || ticket.feedback || ticket.status === "CLOSED") && (
+                <div className="relative pl-4 animate-fade-in">
+                  <div className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full bg-[#10b981] border-2 border-white shadow-sm" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[#1c2430]">Customer Confirmed Resolution</span>
+                    <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded font-mono">CONFIRMED</span>
+                  </div>
+                  <div className="text-[11px] text-gray-600 mt-0.5">
+                    Customer verified that the resolution solved the reported problem.
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    {ticket.customerConfirmedAt ? new Date(ticket.customerConfirmedAt).toLocaleString() : dateDisplay}
+                  </div>
+                </div>
+              )}
+
+              {/* 7. CSAT Feedback & Ticket Completed */}
+              {(ticket.status === "CLOSED" || ticket.customerFeedback || ticket.feedback || ticket.isCompleted) ? (
+                <div className="relative pl-4 animate-fade-in">
+                  <div className="absolute -left-[10px] top-1.5 h-3.5 w-3.5 rounded-full bg-emerald-600 border-2 border-white shadow-md ring-2 ring-emerald-300" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-extrabold text-emerald-950">Ticket Completed & Closed</span>
+                    <span className="bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">COMPLETED</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                    ✓ Full workflow completed. CSAT Rating: {(ticket.customerFeedback || ticket.feedback)?.rating || 5}/5 Stars ⭐
+                  </div>
+                  {(ticket.customerFeedback || ticket.feedback)?.comment && (
+                    <div className="text-[11px] text-gray-600 italic mt-0.5">
+                      "{(ticket.customerFeedback || ticket.feedback).comment}"
+                    </div>
+                  )}
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    {(ticket.customerFeedback || ticket.feedback)?.submittedAt
+                      ? new Date((ticket.customerFeedback || ticket.feedback).submittedAt).toLocaleString()
+                      : dateDisplay}
+                  </div>
+                </div>
+              ) : (
+                <div className="relative pl-4 opacity-75">
+                  <div className="absolute -left-[8px] top-1.5 h-2.5 w-2.5 rounded-full bg-slate-300 border-2 border-white" />
+                  <div className="text-xs font-semibold text-slate-500">Awaiting Customer Confirmation & Closure</div>
+                  <div className="text-[11px] text-gray-400">Final ticket completion occurs once customer confirms resolution or submits feedback.</div>
+                </div>
+              )}
             </div>
           </section>
         </div>
@@ -892,6 +1284,61 @@ export default function CustomerTicketDetails() {
           </section>
         </div>
       </div>
+
+      {/* UNSOLVED CONFIRMATION / REOPEN MODAL */}
+      {showUnsolvedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Issue Not Resolved</h3>
+                  <p className="text-[11px] text-slate-500">Ticket will be reopened and returned to active investigation</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUnsolvedModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <label className="font-bold text-slate-800 block">
+                Please tell us what happened or why the solution did not resolve your issue:
+              </label>
+              <textarea
+                rows={4}
+                value={unsolvedReason}
+                onChange={(e) => setUnsolvedReason(e.target.value)}
+                placeholder="Describe what error or obstacle remains..."
+                className="w-full rounded-xl border border-slate-300 p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowUnsolvedModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isConfirmingResolution || !unsolvedReason.trim()}
+                onClick={handleConfirmNotSolved}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white transition shadow cursor-pointer disabled:opacity-50"
+              >
+                {isConfirmingResolution ? "Updating..." : "Reopen Ticket → REOPENED"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

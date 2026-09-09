@@ -132,23 +132,23 @@ const Sidebar = ({
   const menuItems = {
     customer: [
       {
-        to: "/customer/dashboard",
+        to: "/portal/tickets",
         label: "Dashboard",
         icon: FiHome,
       },
       {
-        to: "/customer/my-tickets",
+        to: "/portal/tickets/new",
+        label: "Create Ticket",
+        icon: FiPlusCircle,
+      },
+      {
+        to: "/portal/tickets",
         label: "My Tickets",
         icon: FiClipboard,
       },
       {
-        to: "/customer/create-ticket",
-        label: "Raise a Ticket",
-        icon: FiPlusCircle,
-      },
-      {
-        to: "/customer/all-tickets",
-        label: "All Tickets",
+        to: "/portal/self-help",
+        label: "Knowledge Base",
         icon: FiList,
       },
       {
@@ -160,56 +160,66 @@ const Sidebar = ({
 
     agent: [
       {
-        to: "/agent/dashboard",
+        to: "/dashboard",
         label: "Dashboard",
         icon: FiHome,
       },
       {
-        to: "/agent/my-tickets",
-        label: "My Tickets",
+        to: "/tickets/queue",
+        label: "My Queue",
         icon: FiClipboard,
       },
       {
-        to: "/agent/all-tickets",
+        to: "/tickets/ai-review",
+        label: "AI Review Queue",
+        icon: FiClipboard,
+      },
+      {
+        to: "/tickets",
         label: "All Tickets",
         icon: FiList,
       },
       {
-        to: "/agent/ai-assistant",
-        label: "AI Assistant",
+        to: "/ai-agent/workbench",
+        label: "AI Suggestions",
         icon: FiMessageSquare,
       },
       {
-        to: "/agent/reports",
-        label: "Reports",
-        icon: FiBarChart2,
-      },
-      {
-        to: "/agent/settings",
-        label: "Settings",
+        to: "/jira",
+        label: "Jira Sync",
         icon: FiSettings,
       },
     ],
 
     admin: [
       {
-        to: "/admin/dashboard",
+        to: "/admin",
         label: "Dashboard",
         icon: FiHome,
       },
       {
-        to: "/admin/all-tickets",
+        to: "/admin/users",
+        label: "Users & Roles",
+        icon: FiUsers,
+      },
+      {
+        to: "/tickets",
         label: "All Tickets",
         icon: FiList,
       },
       {
-        to: "/admin/reports",
-        label: "Reports",
-        icon: FiBarChart2,
+        to: "/tickets/ai-review",
+        label: "AI Review Queue",
+        icon: FiClipboard,
       },
       {
-        to: "/admin/settings",
-        label: "Settings",
+        to: "/admin/knowledge",
+        label: "Knowledge Base",
+        icon: FiClipboard,
+      },
+      {
+        to: "/admin/config",
+        label: "AI Configuration",
         icon: FiSettings,
       },
     ],

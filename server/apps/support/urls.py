@@ -38,6 +38,14 @@ from .views_m3 import (
     EmailLogsView,
     ActivityLogsView,
 )
+from .views_m4 import (
+    M4ReviewQueueView,
+    M4ValidateAgentActionView,
+    M4CustomerConfirmationView,
+    M4CustomerFeedbackView,
+    M4ConfigView,
+    M4AnalyticsView,
+)
 
 urlpatterns = [
     # Customer / General Ticket Routes
@@ -127,4 +135,20 @@ urlpatterns = [
     # Milestone 3 Activity Logs Routes
     # =====================================================
     re_path(r"^activity/logs/(?P<ticketId>[A-Za-z0-9_-]+)/?$", ActivityLogsView.as_view(), name="activity-logs-ticket"),
+
+    # =====================================================
+    # Milestone 4 Human-in-the-loop & Closure Workflow Routes
+    # =====================================================
+    path("m4/review-queue", M4ReviewQueueView.as_view(), name="m4-review-queue-no-slash"),
+    path("m4/review-queue/", M4ReviewQueueView.as_view(), name="m4-review-queue"),
+    path("m4/validate-agent-action", M4ValidateAgentActionView.as_view(), name="m4-validate-agent-action-no-slash"),
+    path("m4/validate-agent-action/", M4ValidateAgentActionView.as_view(), name="m4-validate-agent-action"),
+    path("m4/customer-confirmation", M4CustomerConfirmationView.as_view(), name="m4-customer-confirmation-no-slash"),
+    path("m4/customer-confirmation/", M4CustomerConfirmationView.as_view(), name="m4-customer-confirmation"),
+    path("m4/customer-feedback", M4CustomerFeedbackView.as_view(), name="m4-customer-feedback-no-slash"),
+    path("m4/customer-feedback/", M4CustomerFeedbackView.as_view(), name="m4-customer-feedback"),
+    path("m4/config", M4ConfigView.as_view(), name="m4-config-no-slash"),
+    path("m4/config/", M4ConfigView.as_view(), name="m4-config"),
+    path("m4/analytics", M4AnalyticsView.as_view(), name="m4-analytics-no-slash"),
+    path("m4/analytics/", M4AnalyticsView.as_view(), name="m4-analytics"),
 ]

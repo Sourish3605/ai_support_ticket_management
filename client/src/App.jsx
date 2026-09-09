@@ -28,6 +28,7 @@ import AgentDashboard from "./pages/agent/AgentDashboard";
 import WorkQueuePage from "./pages/agent/WorkQueuePage";
 import AgentTicketDetails from "./pages/agent/AgentTicketDetails";
 import AgentAllTicketsPage from "./pages/agent/AgentAllTicketsPage";
+import AiReviewQueuePage from "./pages/agent/AiReviewQueuePage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -266,10 +267,16 @@ function AgentLayout({ children }) {
           ? [`Tickets / ${location.pathname.split("/").pop()}`, "Ticket detail"]
           : ["Tickets", "All tickets"];
 
+  const pendingReviewCount = allTickets.filter((t) => {
+    const s = String(t.status || "").toUpperCase();
+    return s === "PENDING_AGENT_REVIEW" || s === "AI_RESOLUTION_READY" || s.includes("REVIEW");
+  }).length;
+
   const navigation = [
     ["/dashboard", "▦", "Dashboard", null],
     ["/tickets", "▤", "All tickets", ticketCounts.all],
     ["/tickets/queue", "◉", "My queue / Assigned", ticketCounts.open],
+    ["/tickets/ai-review", "🛡️", "AI Review Queue", pendingReviewCount],
     ["/ai-agent/workbench", "🤖", "AI Suggestions", null],
     ["/jira", "🔗", "Jira Sync", null],
   ];
@@ -1284,6 +1291,18 @@ export default function App() {
               >
                 <AgentLayout>
                   <WorkQueuePage />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Milestone 4: AI Review Queue */}
+          <Route
+            path="/tickets/ai-review"
+            element={
+              <ProtectedRoute allowedRoles={["agent", "admin", "manager"]}>
+                <AgentLayout>
+                  <AiReviewQueuePage />
                 </AgentLayout>
               </ProtectedRoute>
             }

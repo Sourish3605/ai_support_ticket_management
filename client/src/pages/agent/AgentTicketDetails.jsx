@@ -20,6 +20,13 @@ import {
 } from "../../services/m3AgentService";
 import { useAuth } from "../../context/AuthContext";
 import GmailComposeButton from "../../components/GmailComposeButton";
+import {
+  M4_STATUSES,
+  M4_STATUS_LABELS,
+  executeAgentAction,
+  flagKnowledgeOutdated,
+  evaluateM4Strategy,
+} from "../../services/m4WorkflowService";
 
 
 const priorityClass = {
@@ -54,6 +61,33 @@ export default function AgentTicketDetails() {
   const [activityLogs, setActivityLogs] = useState([]);
   const [isSyncingJira, setIsSyncingJira] = useState(false);
   const [selectedEmailModal, setSelectedEmailModal] = useState(null);
+
+  // Milestone 4 State: 9-Point Validation Checklist & Action Modals
+  const [checklist, setChecklist] = useState({
+    issueUnderstanding: "Correct",
+    classification: "Confirm",
+    priority: "Confirm",
+    aiAnswer: "Use",
+    knowledgeSource: "Valid",
+    security: "Safe",
+    completeness: "Complete",
+    customerContext: "Relevant",
+    escalation: "No",
+  });
+  const [activeActionModal, setActiveActionModal] = useState(null); // 'edit' | 'manual' | 'request_info' | 'escalate' | 'resolve'
+  const [actionPayload, setActionPayload] = useState({
+    editedResponse: "",
+    editReason: "Personalized greeting, confirmed environment variables, and tailored security steps.",
+    manualResponse: "",
+    manualReason: "Provided direct administrative fix based on system console logs.",
+    requestInfoMessage: "Please provide the exact error message or screenshot you encountered when testing the solution.",
+    escalateTeam: "Tier-2 Technical Support",
+    escalateSpecialist: "SUP-201 Senior Systems Lead",
+    escalateReason: "Requires direct database access and manual OAuth token revocation.",
+    resolveNotes: "Issue thoroughly investigated, solution applied and confirmed working.",
+    outdatedArticleReason: "Documentation contains superseded endpoints or instructions.",
+  });
+  const [isPerformingAction, setIsPerformingAction] = useState(false);
 
   const loadTicket = async () => {
     let curTicket = getTicketById(id);
@@ -194,25 +228,105 @@ export default function AgentTicketDetails() {
       await updateTicketStatusApi(ticket.id, newStatus);
     } catch (e) {}
 
-    const updated = updateTicket(ticket.id, {
+    const now = new Date().toISOString();
+    const updates = {
       status: newStatus,
       timelineEvent: {
         type: "status",
         title: `Status moved to ${newStatus}`,
-        description: `Agent updated ticket status to ${newStatus}.`,
+        description: `Agent ${agentName} updated ticket status to ${newStatus}.`,
       },
-    });
-    setTicket(updated);
-    setToast({ type: "success", message: `Status updated to ${newStatus}.` });
+    };
 
-    // Sync Jira
     if (newStatus === "RESOLVED" || newStatus === "Resolved") {
+      const solution = ticket.resolution?.solution || getAiSuggestedText() || "Resolution instructions verified and delivered.";
+      updates.resolvedAt = now;
+      updates.resolution = {
+        solution,
+        resolvedBy: agentName,
+        resolvedAt: now,
+        method: "Support Agent Resolution",
+      };
+
+      const replies = Array.isArray(ticket.replies) ? [...ticket.replies] : [];
+      replies.push({
+        id: `REP-${Date.now()}`,
+        author_name: `${agentName} (Resolution Team)`,
+        author_role: "SUPPORT_AGENT",
+        isCustomer: false,
+        isAgent: true,
+        message: `Hello! I have resolved this issue:\n\n${solution}\n\nPlease verify if this solves your problem.`,
+        created_at: now,
+      });
+      updates.replies = replies;
       syncJiraStatusApi(ticket.id, "RESOLVED");
     }
+
+    const updated = updateTicket(ticket.id, updates);
+    setTicket(updated);
+    setToast({ type: "success", message: `Status updated to ${newStatus}.` });
   };
 
   const handleQuickResolve = async () => {
     await handleStatusChange("RESOLVED");
+  };
+
+  const getAiSuggestedText = () => {
+    if (Array.isArray(ticket?.ai?.suggestedResolution)) {
+      return ticket.ai.suggestedResolution.map((s, i) => `${i + 1}. ${s}`).join("\n");
+    }
+    if (Array.isArray(workflowData?.resolution?.troubleshooting_steps)) {
+      return workflowData.resolution.troubleshooting_steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+    }
+    return ticket?.ai?.suggestedResolution || "Verify user credentials and review system troubleshooting guide.";
+  };
+
+  const handleExecuteM4Action = async (actionType, customPayload = {}) => {
+    setIsPerformingAction(true);
+    try {
+      const updated = await executeAgentAction(
+        ticket.id,
+        actionType,
+        {
+          checklist,
+          ...customPayload,
+        },
+        user
+      );
+      setTicket(updated);
+      setActiveActionModal(null);
+      setToast({
+        type: "success",
+        message: `M4 Action: ${actionType.replace(/_/g, " ")} applied. Status: ${updated.status}`,
+      });
+      if (actionType === "RESOLVE") {
+        syncJiraStatusApi(ticket.id, "RESOLVED");
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({ type: "error", message: err.message || "Failed to execute M4 action" });
+    } finally {
+      setIsPerformingAction(false);
+    }
+  };
+
+  const handleFlagOutdatedKB = async (articleId, title) => {
+    try {
+      await flagKnowledgeOutdated(
+        articleId,
+        title,
+        ticket.id,
+        actionPayload.outdatedArticleReason,
+        user
+      );
+      setChecklist((prev) => ({ ...prev, knowledgeSource: "Outdated" }));
+      setToast({
+        type: "warning",
+        message: `Article "${title}" flagged as Outdated for KB review.`,
+      });
+    } catch (e) {
+      setToast({ type: "error", message: "Failed to flag article." });
+    }
   };
 
   const handleManualJiraSync = async () => {
@@ -467,12 +581,16 @@ export default function AgentTicketDetails() {
           >
             <option value="NEW">NEW</option>
             <option value="AI_RESOLUTION_READY">AI_RESOLUTION_READY</option>
-            <option value="AI_RESPONDED">AI_RESPONDED</option>
+            <option value="PENDING_AGENT_REVIEW">PENDING_AGENT_REVIEW</option>
+            <option value="WAITING_FOR_CUSTOMER">WAITING_FOR_CUSTOMER</option>
+            <option value="AWAITING_CUSTOMER_INFO">AWAITING_CUSTOMER_INFO</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
             <option value="ON_HOLD">ON_HOLD</option>
             <option value="ESCALATED">ESCALATED</option>
             <option value="RESOLVED">RESOLVED</option>
+            <option value="PENDING_CONFIRMATION">PENDING_CONFIRMATION</option>
             <option value="CLOSED">CLOSED</option>
+            <option value="REOPENED">REOPENED</option>
           </select>
 
           {ticket.status !== "RESOLVED" && ticket.status !== "CLOSED" && (
@@ -526,6 +644,49 @@ export default function AgentTicketDetails() {
             >
               ✕
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Customer CSAT Feedback & Completion Card (Visible to Agent & Admin) */}
+      {(ticket.customerFeedback || ticket.feedback) && (
+        <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/90 p-5 shadow-sm text-xs space-y-3 animate-fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/80 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⭐</span>
+              <div>
+                <span className="font-bold text-emerald-950 text-sm flex items-center gap-2">
+                  Customer CSAT Feedback & Verification
+                  <span className="rounded-full bg-emerald-600 text-white font-mono font-bold text-[10px] px-2.5 py-0.5">
+                    STATUS: COMPLETED & CLOSED
+                  </span>
+                </span>
+                <span className="text-[11px] text-emerald-800">
+                  Customer confirmed issue resolution and submitted satisfaction score
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-emerald-300 shadow-xs">
+              <span className="text-amber-500 text-sm">
+                {"★".repeat((ticket.customerFeedback || ticket.feedback).rating || 5)}
+              </span>
+              <span className="font-mono font-bold text-xs text-slate-900">
+                {(ticket.customerFeedback || ticket.feedback).rating || 5}/5 Stars
+              </span>
+            </div>
+          </div>
+
+          {(ticket.customerFeedback || ticket.feedback).comment && (
+            <div className="p-3 bg-white rounded-xl border border-emerald-200 text-xs text-slate-800 italic">
+              "{(ticket.customerFeedback || ticket.feedback).comment}"
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-600 pt-1">
+            <span>Customer: <strong>{(ticket.customerFeedback || ticket.feedback).customerName || ticket.customerName || "Customer"}</strong></span>
+            <span className="font-mono text-slate-500">
+              Submitted: {new Date((ticket.customerFeedback || ticket.feedback).submittedAt || Date.now()).toLocaleString()}
+            </span>
           </div>
         </div>
       )}
@@ -716,17 +877,429 @@ export default function AgentTicketDetails() {
               </div>
 
               {citations.length > 0 && showSources && (
-                <div className="mt-3 space-y-2 p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs">
-                  <div className="font-bold text-indigo-900 text-[11px] uppercase tracking-wider mb-1">
-                    Knowledge Base Citations:
+                <div className="mt-3 space-y-2.5 p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="font-bold text-indigo-900 text-[11px] uppercase tracking-wider">
+                      Knowledge Base Citations:
+                    </div>
+                    <span className="text-[10px] text-indigo-600">M4 Quality Governance Active</span>
                   </div>
                   {citations.map((c, i) => (
-                    <div key={i} className="text-[11px] text-indigo-950">
-                      📚 <strong>{c.source_title}</strong> ({c.section || "§1.0"}): <em className="text-slate-600">"{c.quote}"</em>
+                    <div key={i} className="p-2.5 rounded-lg bg-white border border-indigo-100 flex items-start justify-between gap-3">
+                      <div className="text-[11px] text-indigo-950 flex-1">
+                        📚 <strong>{c.source_title}</strong> ({c.section || "§1.0"}): <em className="text-slate-600">"{c.quote}"</em>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFlagOutdatedKB(c.source_id || `KB-${i+101}`, c.source_title)}
+                        className="text-[10px] px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold transition cursor-pointer whitespace-nowrap"
+                        title="Flag this knowledge article as outdated for knowledge management review"
+                      >
+                        ⚠️ Flag Outdated
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+          </section>
+
+          {/* MILESTONE 4: SUPPORT AGENT VALIDATION & ACTION WORKFLOW */}
+          <section className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-white to-indigo-50/20 p-6 shadow-sm space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white text-base shadow-sm">
+                  🛡️
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    Milestone 4 — Support Agent Validation & Action Controls
+                    <span className="rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5">
+                      Human-in-the-Loop
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Verify AI intelligence against business rules before executing real customer support actions
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400 font-semibold">Current Lifecycle:</span>
+                <span className="rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-1 font-mono font-bold text-indigo-900">
+                  {M4_STATUS_LABELS[ticket.status] || ticket.status}
+                </span>
+              </div>
+            </div>
+
+            {/* 9-Point Support Agent Validation Checklist (PDF Page 6 Section 5) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <span>📋</span> 9-Point Human Validation Checklist
+                </h4>
+                <span className="text-[10px] text-slate-500 font-medium">Verify each dimension prior to customer dispatch</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
+                {/* 1. Issue Understanding */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">1. Issue Understanding</div>
+                  <div className="text-[10px] text-slate-500">AI summary matches customer problem</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["Correct", "Incorrect"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, issueUnderstanding: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.issueUnderstanding === val
+                            ? val === "Correct"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-rose-600 text-white border-rose-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Classification */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">2. Classification</div>
+                  <div className="text-[10px] text-slate-500">Category & subcategory correct</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["Confirm", "Change"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, classification: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.classification === val
+                            ? val === "Confirm"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-amber-600 text-white border-amber-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Priority */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">3. Priority Assessment</div>
+                  <div className="text-[10px] text-slate-500">Urgency matches business impact</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["Confirm", "Change"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, priority: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.priority === val
+                            ? val === "Confirm"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-amber-600 text-white border-amber-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. AI Answer */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">4. AI Answer Accuracy</div>
+                  <div className="text-[10px] text-slate-500">Suggested resolution is accurate</div>
+                  <div className="flex gap-1 pt-1">
+                    {["Use", "Edit", "Reject"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, aiAnswer: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.aiAnswer === val
+                            ? val === "Use"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : val === "Edit"
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-rose-600 text-white border-rose-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 5. Knowledge Source */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">5. Knowledge Source</div>
+                  <div className="text-[10px] text-slate-500">Source is relevant & current</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["Valid", "Outdated"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, knowledgeSource: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.knowledgeSource === val
+                            ? val === "Valid"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-rose-600 text-white border-rose-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 6. Security */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">6. Security & Privacy</div>
+                  <div className="text-[10px] text-slate-500">No sensitive leaks or PII risk</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["Safe", "Risk"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, security: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.security === val
+                            ? val === "Safe"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-rose-600 text-white border-rose-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 7. Completeness */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">7. Completeness</div>
+                  <div className="text-[10px] text-slate-500">Solution fully addresses issue</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["Complete", "Partial"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, completeness: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.completeness === val
+                            ? val === "Complete"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-amber-600 text-white border-amber-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 8. Customer Context */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">8. Customer Context</div>
+                  <div className="text-[10px] text-slate-500">Matches user environment</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["Relevant", "Needs Context"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, customerContext: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.customerContext === val
+                            ? val === "Relevant"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-amber-600 text-white border-amber-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 9. Escalation */}
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs space-y-1.5">
+                  <div className="text-[11px] font-bold text-slate-800">9. Escalation Requirement</div>
+                  <div className="text-[10px] text-slate-500">Specialist involvement required?</div>
+                  <div className="flex gap-1.5 pt-1">
+                    {["No", "Yes"].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChecklist((prev) => ({ ...prev, escalation: val }))}
+                        className={`flex-1 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                          checklist.escalation === val
+                            ? val === "No"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-rose-600 text-white border-rose-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 7 Agent Action Buttons (PDF Page 6 Section 5 Table) */}
+            <div className="space-y-3 pt-3 border-t border-indigo-100">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <span>⚡</span> Agent Action Controls (Milestone 4)
+                </h4>
+                <span className="text-[10px] text-slate-500">Executes verified workflow transition</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {/* 1. Send AI Response */}
+                <button
+                  type="button"
+                  disabled={isPerformingAction}
+                  onClick={() => handleExecuteM4Action("SEND_AI_RESPONSE", { response: getAiSuggestedText() })}
+                  className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/80 hover:bg-emerald-100 text-left transition cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Answer is valid → Moves to WAITING_FOR_CUSTOMER"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-950 mb-0.5">
+                    <span>1. Send AI Response</span>
+                    <span className="text-emerald-700">✓</span>
+                  </div>
+                  <div className="text-[10px] text-emerald-800">Answer is valid as-is</div>
+                  <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-emerald-200/60 rounded text-emerald-900">
+                    → WAITING_FOR_CUSTOMER
+                  </span>
+                </button>
+
+                {/* 2. Edit & Send */}
+                <button
+                  type="button"
+                  disabled={isPerformingAction}
+                  onClick={() => {
+                    setActionPayload((p) => ({ ...p, editedResponse: getAiSuggestedText() }));
+                    setActiveActionModal("edit");
+                  }}
+                  className="p-3 rounded-xl border border-blue-300 bg-blue-50/80 hover:bg-blue-100 text-left transition cursor-pointer shadow-xs disabled:opacity-50"
+                  title="AI answer needs changes → Modifies response while preserving original"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-950 mb-0.5">
+                    <span>2. Edit & Send</span>
+                    <span className="text-blue-700">✏️</span>
+                  </div>
+                  <div className="text-[10px] text-blue-800">Adjust wording or steps</div>
+                  <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-blue-200/60 rounded text-blue-900">
+                    → WAITING_FOR_CUSTOMER
+                  </span>
+                </button>
+
+                {/* 3. Manual Response */}
+                <button
+                  type="button"
+                  disabled={isPerformingAction}
+                  onClick={() => setActiveActionModal("manual")}
+                  className="p-3 rounded-xl border border-violet-300 bg-violet-50/80 hover:bg-violet-100 text-left transition cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Agent has better solution → Overrides AI"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-violet-950 mb-0.5">
+                    <span>3. Manual Response</span>
+                    <span className="text-violet-700">✍️</span>
+                  </div>
+                  <div className="text-[10px] text-violet-800">Agent writes solution</div>
+                  <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-violet-200/60 rounded text-violet-900">
+                    → WAITING_FOR_CUSTOMER
+                  </span>
+                </button>
+
+                {/* 4. Request Info */}
+                <button
+                  type="button"
+                  disabled={isPerformingAction}
+                  onClick={() => setActiveActionModal("request_info")}
+                  className="p-3 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-left transition cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Customer details missing → Awaits customer input"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-950 mb-0.5">
+                    <span>4. Request Info</span>
+                    <span className="text-amber-700">❓</span>
+                  </div>
+                  <div className="text-[10px] text-amber-800">Ask logs or clarification</div>
+                  <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-amber-200/60 rounded text-amber-900">
+                    → AWAITING_CUSTOMER_INFO
+                  </span>
+                </button>
+
+                {/* 5. Escalate */}
+                <button
+                  type="button"
+                  disabled={isPerformingAction}
+                  onClick={() => setActiveActionModal("escalate")}
+                  className="p-3 rounded-xl border border-rose-300 bg-rose-50/80 hover:bg-rose-100 text-left transition cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Complex or specialist case → Transfers to specialist"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-950 mb-0.5">
+                    <span>5. Escalate</span>
+                    <span className="text-rose-700">🚨</span>
+                  </div>
+                  <div className="text-[10px] text-rose-800">Hand off to specialist</div>
+                  <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-rose-200/60 rounded text-rose-900">
+                    → ESCALATED
+                  </span>
+                </button>
+
+                {/* 6. Resolve */}
+                <button
+                  type="button"
+                  disabled={isPerformingAction}
+                  onClick={() => setActiveActionModal("resolve")}
+                  className="p-3 rounded-xl border border-teal-300 bg-teal-50/80 hover:bg-teal-100 text-left transition cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Issue confirmed solved → Records resolution"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-teal-950 mb-0.5">
+                    <span>6. Resolve</span>
+                    <span className="text-teal-700">✅</span>
+                  </div>
+                  <div className="text-[10px] text-teal-800">Record final solution</div>
+                  <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-teal-200/60 rounded text-teal-900">
+                    → RESOLVED
+                  </span>
+                </button>
+
+                {/* 7. Close */}
+                <button
+                  type="button"
+                  disabled={isPerformingAction}
+                  onClick={() => handleExecuteM4Action("CLOSE")}
+                  className="p-3 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-left transition cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Closure conditions met → Closes ticket with full history"
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-900 mb-0.5">
+                    <span>7. Close</span>
+                    <span className="text-slate-600">🔒</span>
+                  </div>
+                  <div className="text-[10px] text-slate-600">Finalize & lock ticket</div>
+                  <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-slate-300/60 rounded text-slate-800">
+                    → CLOSED
+                  </span>
+                </button>
+              </div>
             </div>
           </section>
 
@@ -921,13 +1494,71 @@ export default function AgentTicketDetails() {
               <div className="flex items-center gap-2">
                 <span className="text-base">📋</span>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Activity Audit Trail
+                  Activity & M4 Audit Trail
                 </h3>
               </div>
-              <span className="text-[10px] text-slate-400 font-mono">M1 • M2 • M3</span>
+              <span className="text-[10px] text-indigo-700 bg-indigo-50 font-mono font-bold px-2 py-0.5 rounded">
+                M1 • M2 • M3 • M4
+              </span>
             </div>
 
-            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {/* Ticket Timeline Events (including CSAT Feedback & Completion) */}
+              {(ticket.timeline || []).slice().reverse().map((tm, idx) => (
+                <div key={tm.id || `tm-${idx}`} className="border-l-2 border-amber-500 pl-3 relative text-xs">
+                  <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-amber-500" />
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-950 flex items-center gap-1">
+                      <span>{tm.type === "feedback" ? "⭐" : "📌"}</span> {tm.title}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(tm.createdAt || tm.timestamp || Date.now()).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5">{tm.description}</p>
+                </div>
+              ))}
+
+              {/* M4 Status History */}
+              {(ticket.statusHistory || []).slice().reverse().map((hist, idx) => (
+                <div key={hist.historyId || idx} className="border-l-2 border-indigo-500 pl-3 relative text-xs">
+                  <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-indigo-600" />
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-950 flex items-center gap-1">
+                      <span>🛡️</span> {hist.actor || "Support Agent"}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(hist.timestamp || Date.now()).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-indigo-800 mt-0.5">
+                    {hist.oldStatus} → {hist.newStatus}
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5">{hist.description}</p>
+                </div>
+              ))}
+
+              {/* M4 Agent Reviews */}
+              {(ticket.agentReviews || []).slice().reverse().map((rev, idx) => (
+                <div key={rev.reviewId || idx} className="border-l-2 border-emerald-500 pl-3 relative text-xs">
+                  <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-emerald-600" />
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-950 flex items-center gap-1">
+                      <span>✓</span> {rev.agentName} (Review: {rev.action})
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(rev.reviewedAt || Date.now()).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  {rev.isEdited && (
+                    <p className="text-[10px] text-blue-700 italic mt-0.5">
+                      Edited AI suggestion. Reason: {rev.editReason || "Customized for client"}
+                    </p>
+                  )}
+                </div>
+              ))}
+
+              {/* M3 & Pipeline Logs */}
               {(activityLogs.length > 0 ? activityLogs : [
                 { actor: "Diagnosis Agent", description: `Identified issue: ${ticket.category} → ${ticket.sub_category || "General"}`, timestamp: ticket.createdAt },
                 { actor: "Retrieval Agent", description: `Retrieved ${citations.length} verified knowledge articles from M2 KB.`, timestamp: ticket.createdAt },
@@ -936,8 +1567,8 @@ export default function AgentTicketDetails() {
                 { actor: "Jira Integration", description: `Mapped to Jira issue SP-${ticket.id}.`, timestamp: ticket.createdAt },
                 { actor: "Email Automation", description: `Sent notification to ${ticket.customerEmail || "customer@example.com"}.`, timestamp: ticket.createdAt },
               ]).map((act, idx) => (
-                <div key={idx} className="border-l-2 border-slate-300 pl-3 relative text-xs">
-                  <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-slate-600" />
+                <div key={`act-${idx}`} className="border-l-2 border-slate-300 pl-3 relative text-xs">
+                  <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-slate-500" />
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800">{act.actor}</span>
                     <span className="text-[10px] text-slate-400">
@@ -951,6 +1582,365 @@ export default function AgentTicketDetails() {
           </div>
         </div>
       </div>
+
+      {/* M4 ACTION MODAL 1: EDIT & SEND */}
+      {activeActionModal === "edit" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✏️</span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Edit & Send Resolution (Milestone 4)</h3>
+                  <p className="text-[11px] text-slate-500">Original AI answer will remain preserved in audit history</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Original AI Suggested Resolution (Preserved in Audit Trail):
+                </label>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 whitespace-pre-wrap max-h-36 overflow-y-auto">
+                  {getAiSuggestedText()}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-800 block mb-1">
+                  Agent Customized Response to Customer:
+                </label>
+                <textarea
+                  rows={6}
+                  value={actionPayload.editedResponse}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, editedResponse: e.target.value }))}
+                  className="w-full rounded-xl border border-blue-300 p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Tailor the solution for the customer..."
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Reason for Modification:
+                </label>
+                <input
+                  type="text"
+                  value={actionPayload.editReason}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, editReason: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-800"
+                  placeholder="e.g. Added step 4 for specific Windows environment"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPerformingAction || !actionPayload.editedResponse.trim()}
+                onClick={() => handleExecuteM4Action("EDIT_AND_SEND", {
+                  originalSuggestion: getAiSuggestedText(),
+                  editedResponse: actionPayload.editedResponse,
+                  response: actionPayload.editedResponse,
+                  editReason: actionPayload.editReason,
+                })}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white transition shadow cursor-pointer disabled:opacity-50"
+              >
+                {isPerformingAction ? "Dispatching..." : "Send Edited Response → WAITING_FOR_CUSTOMER"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* M4 ACTION MODAL 2: MANUAL RESPONSE */}
+      {activeActionModal === "manual" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✍️</span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Manual Specialist Response (Override AI)</h3>
+                  <p className="text-[11px] text-slate-500">Provide direct expert solution bypassing AI recommendation</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 block mb-1">
+                  Manual Response Message:
+                </label>
+                <textarea
+                  rows={5}
+                  value={actionPayload.manualResponse}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, manualResponse: e.target.value }))}
+                  className="w-full rounded-xl border border-violet-300 p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-violet-500"
+                  placeholder="Type your complete solution instructions..."
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Reason for Overriding AI Suggestion:
+                </label>
+                <input
+                  type="text"
+                  value={actionPayload.manualReason}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, manualReason: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-800"
+                  placeholder="e.g. AI suggestion did not apply to custom SSO setup"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPerformingAction || !actionPayload.manualResponse.trim()}
+                onClick={() => handleExecuteM4Action("MANUAL_RESPONSE", {
+                  response: actionPayload.manualResponse,
+                  rejectedReason: actionPayload.manualReason,
+                })}
+                className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-xs font-bold text-white transition shadow cursor-pointer disabled:opacity-50"
+              >
+                {isPerformingAction ? "Sending..." : "Send Manual Response → WAITING_FOR_CUSTOMER"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* M4 ACTION MODAL 3: REQUEST INFO */}
+      {activeActionModal === "request_info" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">❓</span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Request Information from Customer</h3>
+                  <p className="text-[11px] text-slate-500">Status will move to AWAITING_CUSTOMER_INFO</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 block mb-1">
+                  What information is needed from customer?
+                </label>
+                <textarea
+                  rows={4}
+                  value={actionPayload.requestInfoMessage}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, requestInfoMessage: e.target.value }))}
+                  className="w-full rounded-xl border border-amber-300 p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="e.g. Please provide your VPN client logs from C:\Program Files\..."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPerformingAction || !actionPayload.requestInfoMessage.trim()}
+                onClick={() => handleExecuteM4Action("REQUEST_INFO", {
+                  requestMessage: actionPayload.requestInfoMessage,
+                })}
+                className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-xs font-bold text-white transition shadow cursor-pointer disabled:opacity-50"
+              >
+                {isPerformingAction ? "Requesting..." : "Send Request → AWAITING_CUSTOMER_INFO"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* M4 ACTION MODAL 4: ESCALATE */}
+      {activeActionModal === "escalate" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🚨</span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Escalate Ticket to Specialist Team</h3>
+                  <p className="text-[11px] text-slate-500">Assign case ownership to higher-tier department</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 block mb-1">Target Department / Team:</label>
+                <select
+                  value={actionPayload.escalateTeam}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, escalateTeam: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800 outline-none"
+                >
+                  <option value="Tier-2 Technical Support">Tier-2 Technical Support</option>
+                  <option value="Billing & Accounts Specialist">Billing & Accounts Specialist</option>
+                  <option value="Security & Compliance Team">Security & Compliance Team</option>
+                  <option value="DevOps & Infrastructure">DevOps & Infrastructure</option>
+                  <option value="Engineering Escalations">Engineering Escalations</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-800 block mb-1">Assigned Specialist:</label>
+                <input
+                  type="text"
+                  value={actionPayload.escalateSpecialist}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, escalateSpecialist: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs text-slate-800"
+                  placeholder="Specialist Name or ID"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-800 block mb-1">Reason for Escalation:</label>
+                <textarea
+                  rows={3}
+                  value={actionPayload.escalateReason}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, escalateReason: e.target.value }))}
+                  className="w-full rounded-xl border border-rose-300 p-2.5 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-rose-500"
+                  placeholder="Explain why specialist intervention is required..."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPerformingAction || !actionPayload.escalateReason.trim()}
+                onClick={() => handleExecuteM4Action("ESCALATE", {
+                  toTeam: actionPayload.escalateTeam,
+                  assignedSpecialist: actionPayload.escalateSpecialist,
+                  escalationReason: actionPayload.escalateReason,
+                })}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white transition shadow cursor-pointer disabled:opacity-50"
+              >
+                {isPerformingAction ? "Escalating..." : "Confirm Escalation → ESCALATED"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* M4 ACTION MODAL 5: RESOLVE */}
+      {activeActionModal === "resolve" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✅</span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Mark Ticket as Resolved (Milestone 4)</h3>
+                  <p className="text-[11px] text-slate-500">Record final resolution notes and awaiting confirmation</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-800 block mb-1">Final Resolution Summary:</label>
+                <textarea
+                  rows={4}
+                  value={actionPayload.resolveNotes}
+                  onChange={(e) => setActionPayload((p) => ({ ...p, resolveNotes: e.target.value }))}
+                  className="w-full rounded-xl border border-teal-300 p-3 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="Summarize the verified solution that resolved the ticket..."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveActionModal(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPerformingAction || !actionPayload.resolveNotes.trim()}
+                onClick={() => handleExecuteM4Action("RESOLVE", {
+                  resolutionNotes: actionPayload.resolveNotes,
+                  method: "Human-Validated AI Solution",
+                })}
+                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-xs font-bold text-white transition shadow cursor-pointer disabled:opacity-50"
+              >
+                {isPerformingAction ? "Saving..." : "Confirm Resolved → RESOLVED"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Email Modal */}
       {selectedEmailModal && (
