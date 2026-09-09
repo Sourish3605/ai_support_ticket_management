@@ -469,6 +469,7 @@ export default function AgentTicketDetails() {
             <option value="AI_RESOLUTION_READY">AI_RESOLUTION_READY</option>
             <option value="AI_RESPONDED">AI_RESPONDED</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="ON_HOLD">ON_HOLD</option>
             <option value="ESCALATED">ESCALATED</option>
             <option value="RESOLVED">RESOLVED</option>
             <option value="CLOSED">CLOSED</option>

@@ -9,7 +9,7 @@ export default function ProtectedRoute({
   const { user, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  if (isLoading && !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f4f6f5]">
         <div className="flex flex-col items-center gap-3">
