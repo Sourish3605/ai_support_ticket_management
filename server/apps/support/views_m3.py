@@ -34,6 +34,7 @@ from .jira_service import (
     is_jira_configured,
     JIRA_PROJECT_KEY,
     JIRA_HOST,
+    JIRA_EMAIL,
 )
 from .email_service import (
     send_ticket_created_email,
@@ -553,6 +554,36 @@ class EmailResolvedView(APIView):
             ticket=ticket,
             resolution_notes=notes,
             recipient_email=recipient,
+        )
+        return Response(res, status=status.HTTP_200_OK)
+
+
+class SendTicketEmailAPIView(APIView):
+    """
+    POST /api/support/tickets/<lookup>/send-email/
+    POST /api/support/email/send/
+    Sends actual server-side transactional email directly to customer.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk=None, ticket_id=None):
+        from .email_service import send_agent_ticket_email
+        lookup = pk or ticket_id or request.data.get("ticket_id") or request.data.get("id")
+        ticket = get_ticket_by_id_or_number(lookup) if lookup else None
+        if not ticket:
+            return Response({"error": f"Ticket '{lookup}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        recipient = request.data.get("recipient") or request.data.get("to")
+        subject = request.data.get("subject", "")
+        body = request.data.get("body") or request.data.get("message", "")
+        agent_name = request.user.get_full_name() if request.user and request.user.is_authenticated else (request.data.get("agent_name") or "Support Agent")
+
+        res = send_agent_ticket_email(
+            ticket=ticket,
+            recipient_email=recipient,
+            subject=subject,
+            body=body,
+            agent_name=agent_name,
         )
         return Response(res, status=status.HTTP_200_OK)
 

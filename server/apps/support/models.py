@@ -50,6 +50,14 @@ class Ticket(models.Model):
         ("P2", "P2"),
         ("P3", "P3"),
         ("P4", "P4"),
+        ("P1 - Critical", "P1 - Critical"),
+        ("P1 – Critical", "P1 – Critical"),
+        ("P2 - High", "P2 - High"),
+        ("P2 – High", "P2 – High"),
+        ("P3 - Medium", "P3 - Medium"),
+        ("P3 – Medium", "P3 – Medium"),
+        ("P4 - Low", "P4 - Low"),
+        ("P4 – Low", "P4 – Low"),
     ]
 
     SENTIMENT_CHOICES = [
@@ -88,7 +96,7 @@ class Ticket(models.Model):
     )
 
     priority = models.CharField(
-        max_length=20,
+        max_length=40,
         choices=PRIORITY_CHOICES,
         default="Medium"
     )

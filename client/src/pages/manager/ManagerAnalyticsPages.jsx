@@ -1,143 +1,158 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import {
+  FiActivity,
+  FiCpu,
+  FiBarChart2,
+  FiBell,
+  FiUser,
+  FiDownload,
+  FiAlertCircle,
+  FiCheckCircle,
+  FiInfo,
+  FiZap,
+} from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
-import { getAllTickets } from "../../services/ticketService";
-import { seedUsers } from "../../data/seedData";
+import { getAllTickets, getDepartmentAgentsList } from "../../services/ticketService";
 
 export default function ManagerAnalyticsPages() {
-  const { user } = useAuth();
   const location = useLocation();
-  const [tickets, setTickets] = useState([]);
+  const { user } = useAuth();
   const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    setTickets(getAllTickets());
-  }, [location.pathname]);
+  const isAgentPerf = location.pathname.includes("/agent-performance");
+  const isAiPerf = location.pathname.includes("/ai-performance");
+  const isReports = location.pathname.includes("/reports");
+  const isNotifications = location.pathname.includes("/notifications");
+  const isProfile = location.pathname.includes("/profile");
 
-  const path = location.pathname;
-  const isAgentPerf = path.includes("/agent-performance");
-  const isAiPerf = path.includes("/ai-performance");
-  const isReports = path.includes("/reports");
-  const isNotifications = path.includes("/notifications");
-  const isProfile = path.includes("/profile");
+  const tickets = getAllTickets();
+  const agents = getDepartmentAgentsList();
 
-  const agents = seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
-
-  const totalTickets = tickets.length || 7;
-  const autoResolved = tickets.filter((t) => t.status === "AI_RESOLUTION_READY" || t.status === "RESOLVED").length;
-  const escalated = tickets.filter((t) => ["ESCALATED", "Escalated"].includes(t.status)).length;
-  const autoResolutionRate = Math.round((autoResolved / totalTickets) * 100) || 71;
+  const totalTickets = tickets.length;
+  const resolved = tickets.filter((t) => ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status)).length;
+  const escalated = tickets.filter((t) => t.status === "ESCALATED" || t.assistanceRequested).length;
 
   const notificationsList = [
     {
-      id: "NOTIF-1",
-      title: "SLA Warning: Critical Outage",
+      id: 1,
+      title: "SLA Threshold Warning",
       time: "10 mins ago",
-      desc: "Ticket TKT-1006 (Data missing from dashboard) is approaching 30m first response deadline.",
+      desc: "Ticket #1002 (VPN Gateway Error) is within 1 hour of SLA breach.",
       type: "critical",
-      link: "/portal/tickets/TKT-1006",
+      link: "/manager/queue",
     },
     {
-      id: "NOTIF-2",
-      title: "Human Escalation: Duplicate Payment",
+      id: 2,
+      title: "Agent Reassignment Recorded",
       time: "25 mins ago",
-      desc: "Ticket TKT-1002 escalated to Billing Support due to low AI confidence (62%).",
-      type: "escalation",
-      link: "/portal/tickets/TKT-1002",
-    },
-    {
-      id: "NOTIF-3",
-      title: "AI Auto-Resolution Completed",
-      time: "1 hour ago",
-      desc: "Ticket TKT-1001 resolved with 94% confidence using Password Reset Guide (KB-ACC-001).",
-      type: "success",
-      link: "/portal/tickets/TKT-1001",
-    },
-    {
-      id: "NOTIF-4",
-      title: "Agent Workload Rebalanced",
-      time: "2 hours ago",
-      desc: "Manager assigned 2 incoming technical tickets to premalatha.",
+      desc: "Manager assigned 2 incoming technical tickets to specialized agents.",
       type: "info",
       link: "/manager/assignment",
+    },
+    {
+      id: 3,
+      title: "AI Knowledge Base Sync",
+      time: "1 hour ago",
+      desc: "Knowledge embeddings synchronized across 7 categories.",
+      type: "success",
+      link: "/manager/ai-performance",
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* SECTION TITLE CARD */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-3">
+          <div className="rounded-lg bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl border border-slate-700 flex items-center gap-2">
+            <FiCheckCircle className="text-emerald-400" />
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Title Bar */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold tracking-wide uppercase mb-2">
-            <span>
-              {isAgentPerf ? "📈" : isAiPerf ? "🤖" : isReports ? "📊" : isNotifications ? "🔔" : "👤"}
-            </span>
+          <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">
+            {isAgentPerf ? (
+              <FiActivity />
+            ) : isAiPerf ? (
+              <FiCpu />
+            ) : isReports ? (
+              <FiBarChart2 />
+            ) : isNotifications ? (
+              <FiBell />
+            ) : (
+              <FiUser />
+            )}
             <span>
               {isAgentPerf
                 ? "Agent Productivity & KPI Metrics"
                 : isAiPerf
-                ? "Milestone 1–3 AI Intelligence Metrics"
+                ? "AI Engine & RAG Performance"
                 : isReports
-                ? "Operations & SLA Reports"
+                ? "Executive Operations Reports"
                 : isNotifications
                 ? "Manager Notification Stream"
-                : "Manager Profile & Settings"}
+                : "Manager Profile"}
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             {isAgentPerf
-              ? "Support Agent Performance & SLA Adherence"
+              ? "Support Agent Performance"
               : isAiPerf
-              ? "AI Accuracy, RAG Hits & Auto-Resolution"
+              ? "AI Accuracy & Grounded RAG Metrics"
               : isReports
-              ? "Executive Operations Analytics & Logs"
+              ? "Operations Analytics & Exports"
               : isNotifications
               ? "Operational Alerts & Activity Feed"
-              : "Supervisor Account Details"}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Governance and analytics tools designed for the Support Manager portal.
+              : "Account Details"}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Operational analytics and governance tools for support management.
           </p>
         </div>
 
-        {/* Quick Nav Bar */}
-        <div className="flex flex-wrap gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200">
+        {/* Quick Nav Tabs */}
+        <div className="flex flex-wrap gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200">
           <Link
             to="/manager/agent-performance"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              isAgentPerf ? "bg-amber-500 text-slate-950 font-bold shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              isAgentPerf ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Agents
           </Link>
           <Link
             to="/manager/ai-performance"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              isAiPerf ? "bg-amber-500 text-slate-950 font-bold shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              isAiPerf ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             AI Engine
           </Link>
           <Link
             to="/manager/reports"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              isReports ? "bg-amber-500 text-slate-950 font-bold shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              isReports ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Reports
           </Link>
           <Link
             to="/manager/notifications"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              isNotifications ? "bg-amber-500 text-slate-950 font-bold shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              isNotifications ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Alerts
           </Link>
           <Link
             to="/manager/profile"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              isProfile ? "bg-amber-500 text-slate-950 font-bold shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              isProfile ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Profile
@@ -148,68 +163,59 @@ export default function ManagerAnalyticsPages() {
       {/* 1. AGENT PERFORMANCE VIEW */}
       {isAgentPerf && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">Average Agent CSAT</span>
-              <div className="text-3xl font-black text-emerald-600">96.4%</div>
-              <p className="text-[11px] text-slate-400">Based on resolved tickets</p>
-            </div>
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">SLA Adherence Rate</span>
-              <div className="text-3xl font-black text-amber-600">98.1%</div>
-              <p className="text-[11px] text-slate-400">Under Page 14 targets</p>
-            </div>
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">Avg Agent Handling Time</span>
-              <div className="text-3xl font-black text-slate-900">14.2 min</div>
-              <p className="text-[11px] text-slate-400">Accelerated by AI suggestions</p>
-            </div>
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">Active Support Engineers</span>
-              <div className="text-3xl font-black text-slate-900">{agents.length}</div>
-              <p className="text-[11px] text-slate-400">All shifts covered</p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50">
-              <h3 className="font-bold text-sm text-slate-900">Agent Productivity Breakdown</h3>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-800">
+              Department Specialist Performance Matrix
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 bg-slate-50 font-semibold uppercase text-[10px]">
+                  <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                     <th className="py-3 px-4">Agent Name</th>
-                    <th className="py-3 px-4">Department / Tier</th>
-                    <th className="py-3 px-4">Assigned Active</th>
-                    <th className="py-3 px-4">Resolved (30d)</th>
-                    <th className="py-3 px-4">SLA Compliance</th>
-                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Department</th>
+                    <th className="py-3 px-4">Working Status</th>
+                    <th className="py-3 px-4">Active Tickets</th>
+                    <th className="py-3 px-4">Completed</th>
+                    <th className="py-3 px-4">SLA Adherence</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {agents.map((ag) => {
-                    const assignedCount = tickets.filter(
+                    const agTickets = tickets.filter(
                       (t) =>
-                        (t.assignedAgent === ag.name || t.assignedAgent === ag.email) &&
-                        !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
-                    ).length;
+                        (t.assignedAgent && t.assignedAgent.toLowerCase().includes((ag.name || "").toLowerCase())) ||
+                        t.assignedTo === ag.id ||
+                        t.assigned_to === ag.id
+                    );
+                    const active = agTickets.filter((t) => !["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status)).length;
+                    const comp = agTickets.filter((t) => ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status)).length;
+                    const avail = ag.availability_status || ag.availabilityStatus || "AVAILABLE";
 
                     return (
-                      <tr key={ag.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                          <span>{ag.name}</span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600">{ag.department || "Technical Support"}</td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-amber-700">{assignedCount}</td>
-                        <td className="py-3.5 px-4 font-mono text-slate-700">28</td>
-                        <td className="py-3.5 px-4 font-mono text-emerald-600 font-bold">98.5%</td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
-                            Active Shift
+                      <tr key={ag.id || ag.email} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-slate-900">{ag.name || ag.username}</td>
+                        <td className="py-3 px-4 text-slate-600">{ag.department || "General Support"}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              avail === "AVAILABLE"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : avail === "BUSY"
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                avail === "AVAILABLE" ? "bg-emerald-500" : avail === "BUSY" ? "bg-amber-500" : "bg-slate-400"
+                              }`}
+                            />
+                            <span>{avail}</span>
                           </span>
                         </td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-800">{active}</td>
+                        <td className="py-3 px-4 font-mono text-emerald-700 font-bold">{comp}</td>
+                        <td className="py-3 px-4 font-mono text-slate-700 font-semibold">98.5%</td>
                       </tr>
                     );
                   })}
@@ -223,46 +229,21 @@ export default function ManagerAnalyticsPages() {
       {/* 2. AI PERFORMANCE VIEW */}
       {isAiPerf && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">Auto-Resolution Rate</span>
-              <div className="text-3xl font-black text-amber-600">{autoResolutionRate}%</div>
-              <p className="text-[11px] text-slate-400">Automated where safe (PDF Page 1)</p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-2">
+              <span className="text-xs font-medium text-slate-500">Auto-Classification Accuracy</span>
+              <div className="text-2xl font-bold text-blue-600">96.4%</div>
+              <p className="text-[11px] text-slate-500">Evaluated against Master Data taxonomy</p>
             </div>
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">Classification Accuracy</span>
-              <div className="text-3xl font-black text-slate-900">96.8%</div>
-              <p className="text-[11px] text-slate-400">M1 Category &amp; Subcategory</p>
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-2">
+              <span className="text-xs font-medium text-slate-500">RAG Knowledge Retrieval Rate</span>
+              <div className="text-2xl font-bold text-emerald-600">94.1%</div>
+              <p className="text-[11px] text-slate-500">Top-3 grounded knowledge citations</p>
             </div>
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">RAG Retrieval Precision</span>
-              <div className="text-3xl font-black text-emerald-600">94.2%</div>
-              <p className="text-[11px] text-slate-400">Relevant KB citations matched</p>
-            </div>
-            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-              <span className="text-xs text-slate-500 font-semibold">Escalation Trigger Rate</span>
-              <div className="text-3xl font-black text-orange-600">
-                {Math.round((escalated / Math.max(1, totalTickets)) * 100)}%
-              </div>
-              <p className="text-[11px] text-slate-400">Safely routed to human tier</p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-xs space-y-4">
-            <h3 className="font-bold text-sm text-slate-900">AI Agent Pipeline Health (Page 6 Architecture)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <strong className="text-amber-800">Diagnosis Agent</strong>
-                <p className="text-slate-600">Root cause extraction confidence: 95% avg.</p>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <strong className="text-amber-800">Knowledge Retrieval Agent</strong>
-                <p className="text-slate-600">Dense vector similarity search with zero hallucinations.</p>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <strong className="text-emerald-700">Resolution Generation Agent</strong>
-                <p className="text-slate-600">Step-by-step grounded troubleshooting output.</p>
-              </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-2">
+              <span className="text-xs font-medium text-slate-500">Auto-Resolution Rate</span>
+              <div className="text-2xl font-bold text-indigo-600">38.2%</div>
+              <p className="text-[11px] text-slate-500">Solved without agent escalation</p>
             </div>
           </div>
         </div>
@@ -270,34 +251,33 @@ export default function ManagerAnalyticsPages() {
 
       {/* 3. REPORTS VIEW */}
       {isReports && (
-        <div className="space-y-6">
-          <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-sm text-slate-900">Operational SLA &amp; Performance Reports</h3>
-                <p className="text-xs text-slate-500">Export audited metric snapshots for weekly business reviews</p>
-              </div>
-              <button
-                onClick={() => setToast({ type: "success", message: "✓ SLA Compliance Report exported (PDF)." })}
-                className="rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-xs font-bold text-slate-950 transition shadow-xs cursor-pointer"
-              >
-                📥 Export Weekly Report
-              </button>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Operational SLA & Performance Reports</h2>
+              <p className="text-xs text-slate-500">Export audited metric snapshots</p>
             </div>
+            <button
+              onClick={() => setToast({ type: "success", message: "SLA compliance report downloaded." })}
+              className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+            >
+              <FiDownload className="text-xs" />
+              <span>Export Report</span>
+            </button>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-slate-100">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="text-slate-500 text-xs font-semibold">Total Ingested Tickets</span>
-                <div className="text-2xl font-bold text-slate-900">{totalTickets}</div>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="text-slate-500 text-xs font-semibold">SLA Compliance Rate</span>
-                <div className="text-2xl font-bold text-emerald-600">97.8%</div>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="text-slate-500 text-xs font-semibold">Total Handled Escalations</span>
-                <div className="text-2xl font-bold text-amber-700">{escalated}</div>
-              </div>
+          <div className="grid gap-4 sm:grid-cols-3 pt-3 border-t border-slate-100">
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-1">
+              <span className="text-slate-500 text-xs font-medium">Total Ingested Tickets</span>
+              <div className="text-2xl font-bold text-slate-900">{totalTickets}</div>
+            </div>
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-1">
+              <span className="text-slate-500 text-xs font-medium">SLA Compliance Rate</span>
+              <div className="text-2xl font-bold text-emerald-600">98.2%</div>
+            </div>
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-1">
+              <span className="text-slate-500 text-xs font-medium">Handled Escalations</span>
+              <div className="text-2xl font-bold text-blue-600">{escalated}</div>
             </div>
           </div>
         </div>
@@ -305,65 +285,61 @@ export default function ManagerAnalyticsPages() {
 
       {/* 4. NOTIFICATIONS VIEW */}
       {isNotifications && (
-        <div className="space-y-4">
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden divide-y divide-slate-100">
-            {notificationsList.map((n) => (
-              <div key={n.id} className="p-5 hover:bg-slate-50/80 transition flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <span className="text-xl shrink-0">
-                    {n.type === "critical" ? "🚨" : n.type === "escalation" ? "⚡" : n.type === "success" ? "✓" : "ℹ"}
-                  </span>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
-                    <p className="text-xs text-slate-600 mt-0.5">{n.desc}</p>
-                    <span className="text-[10px] text-slate-400 font-mono mt-1 block">{n.time}</span>
-                  </div>
+        <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden divide-y divide-slate-100">
+          {notificationsList.map((n) => (
+            <div key={n.id} className="p-4 hover:bg-slate-50/80 transition flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 text-slate-500">
+                  {n.type === "critical" ? (
+                    <FiAlertCircle className="text-red-500" />
+                  ) : n.type === "success" ? (
+                    <FiCheckCircle className="text-emerald-500" />
+                  ) : (
+                    <FiInfo className="text-blue-500" />
+                  )}
+                </span>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900">{n.title}</h3>
+                  <p className="text-xs text-slate-600 mt-0.5">{n.desc}</p>
+                  <span className="text-[10px] text-slate-400 font-mono mt-1 block">{n.time}</span>
                 </div>
-
-                <Link
-                  to={n.link}
-                  className="px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 hover:bg-amber-500 text-amber-800 hover:text-slate-950 text-xs font-bold shrink-0 transition"
-                >
-                  View
-                </Link>
               </div>
-            ))}
-          </div>
+
+              <Link
+                to={n.link}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                View
+              </Link>
+            </div>
+          ))}
         </div>
       )}
 
       {/* 5. PROFILE VIEW */}
       {isProfile && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-xs max-w-2xl space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-xl shadow-md">
-              SM
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs max-w-xl space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+            <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm">
+              {user?.name ? user.name.charAt(0).toUpperCase() : "M"}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">{user?.name || "Support Manager"}</h3>
-              <p className="text-xs text-amber-700 font-semibold">Operations Supervisor &amp; SLA Governance</p>
-              <p className="text-xs text-slate-500 mt-0.5">{user?.email || "manager@gmail.com"}</p>
+              <h2 className="text-sm font-bold text-slate-900">{user?.name || "Support Manager"}</h2>
+              <p className="text-xs text-slate-500">{user?.email || "manager@example.com"}</p>
             </div>
           </div>
-
-          <div className="space-y-3 pt-4 border-t border-slate-100 text-xs">
-            <div className="flex justify-between py-2 border-b border-slate-100">
+          <div className="space-y-2 text-xs text-slate-600">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Role:</span>
+              <strong className="text-slate-800">Support Operations Manager</strong>
+            </div>
+            <div className="flex justify-between">
               <span className="text-slate-500">Assigned Department:</span>
-              <strong className="text-slate-900">Customer Support &amp; Escalations</strong>
+              <strong className="text-slate-800">{user?.department || "Operations"}</strong>
             </div>
-            <div className="flex justify-between py-2 border-b border-slate-100">
-              <span className="text-slate-500">Access Role:</span>
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-bold">
-                Support Manager
-              </span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-slate-100">
-              <span className="text-slate-500">Permissions:</span>
-              <strong className="text-slate-900">SLA Management, Agent Reassignment, Escalations</strong>
-            </div>
-            <div className="flex justify-between py-2 border-b border-slate-100">
-              <span className="text-slate-500">Session Security:</span>
-              <strong className="text-emerald-600">Active (JWT 2FA Authorized)</strong>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Portal Privileges:</span>
+              <strong className="text-emerald-700 font-semibold">Full Triage, Queue Balancing & Reassignment</strong>
             </div>
           </div>
         </div>

@@ -1157,10 +1157,17 @@ class TicketAutoAssignView(APIView):
                 "ticket": TicketSerializer(ticket).data
             })
 
-        # Batch auto-assign unassigned tickets
-        unassigned_tickets = Ticket.objects.filter(assigned_to__isnull=True).exclude(
+        # Batch auto-assign unassigned tickets in Priority & SLA order
+        unassigned_tickets = list(Ticket.objects.filter(assigned_to__isnull=True).exclude(
             status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
-        )
+        ))
+        def priority_sort_key(t):
+            p = str(t.priority or "P3").upper()
+            weight = 1 if ("1" in p or "CRITICAL" in p) else 2 if ("2" in p or "HIGH" in p) else 3 if ("3" in p or "MEDIUM" in p) else 4
+            sla_time = t.sla_resolution_due.timestamp() if t.sla_resolution_due else float("inf")
+            return (weight, sla_time, t.created_at.timestamp() if t.created_at else 0)
+
+        unassigned_tickets.sort(key=priority_sort_key)
         assigned_list = []
         for t in unassigned_tickets:
             ag = auto_assign_single_ticket(t, update_status_if_open=True, exclude_leads=True)
@@ -1168,7 +1175,7 @@ class TicketAutoAssignView(APIView):
                 assigned_list.append(t)
 
         return Response({
-            "message": f"Successfully auto-assigned {len(assigned_list)} tickets based on category and priority (Team Leads excluded).",
+            "message": f"Successfully auto-assigned {len(assigned_list)} tickets based on category, priority, and balanced workload.",
             "assigned_count": len(assigned_list),
             "tickets": TicketSerializer(assigned_list, many=True).data,
         })
@@ -1195,7 +1202,7 @@ class AgentListView(APIView):
         available_only = request.query_params.get("available_only") in ["true", "1", "True"]
         exclude_leads = request.query_params.get("exclude_leads") in ["true", "1", "True"]
 
-        profile_qs = Profile.objects.filter(role__in=["Agent", "Manager", "Admin", "Support Agent"])
+        profile_qs = Profile.objects.filter(role__in=["Agent", "Support Agent"]).exclude(role__in=["Admin", "Manager", "Customer"])
         if department_filter and department_filter != "ALL":
             profile_qs = profile_qs.filter(department__iexact=department_filter.strip())
         if available_only:
@@ -1203,11 +1210,23 @@ class AgentListView(APIView):
 
         profile_map = {p.user_id: p for p in profile_qs}
         staff_users = User.objects.filter(
-            Q(id__in=list(profile_map.keys())) | Q(is_staff=True) | Q(is_superuser=True)
-        ).distinct()
+            id__in=list(profile_map.keys())
+        ).filter(is_superuser=False).distinct()
 
         data = []
+        seen_keys = set()
         for u in staff_users:
+            uname = (u.username or "").lower().strip()
+            uemail = (u.email or "").lower().strip()
+            if any(k in uname or k in uemail for k in ["admin", "manager", "sourish", "workflow_", "scen_", "customer"]):
+                continue
+
+            # Deduplicate by email and normalized name
+            dedup_key = uemail or uname
+            if dedup_key in seen_keys:
+                continue
+            seen_keys.add(dedup_key)
+
             profile = profile_map.get(u.id) or getattr(u, "profile", None)
             dept = profile.department if profile else "IT Department"
             if department_filter and department_filter != "ALL" and dept.lower() != department_filter.strip().lower():
@@ -1221,8 +1240,8 @@ class AgentListView(APIView):
             if exclude_leads and is_lead:
                 continue
 
-            role = profile.role if profile and profile.role else ("Admin" if u.is_superuser else "Agent")
-            title = profile.title if profile and profile.title else ("Lead IT Support Specialist" if is_lead else "Support Specialist")
+            role = profile.role if profile and profile.role else "Agent"
+            title = profile.title if profile and profile.title else "Support Specialist"
 
             active_tickets = Ticket.objects.filter(assigned_to=u).exclude(
                 status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
@@ -1300,12 +1319,13 @@ class AgentAvailabilityUpdateView(APIView):
 
         matched_users = list(User.objects.filter(user_filter).distinct())
         primary_dept = "IT Department"
-        for u in matched_users:
-            p, _ = Profile.objects.get_or_create(user=u)
-            p.availability_status = clean_status
-            if p.department:
-                primary_dept = p.department
-            p.save(update_fields=["availability_status"])
+        drained_count = 0
+        if clean_status == "AVAILABLE":
+            try:
+                from .department_assignment import drain_pending_queue_for_department
+                drained_count = drain_pending_queue_for_department(primary_dept)
+            except Exception as drain_err:
+                print(f"[Queue Drain Notice] {drain_err}")
 
         return Response({
             "message": f"Availability for {target_user.username} updated to '{clean_status}'.",
@@ -1314,6 +1334,7 @@ class AgentAvailabilityUpdateView(APIView):
             "availability_status": clean_status,
             "department": primary_dept,
             "synced_users_count": len(matched_users),
+            "drained_tickets_count": drained_count,
         }, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):
@@ -1321,6 +1342,205 @@ class AgentAvailabilityUpdateView(APIView):
 
     def post(self, request, *args, **kwargs):
         return self.patch(request, *args, **kwargs)
+
+
+class AgentDetailView(APIView):
+    """
+    GET /api/agent/<pk>/details/
+    GET /api/agents/<pk>/
+    PATCH /api/agent/<pk>/details/
+    Returns full agent profile, workload KPIs, and currently assigned tickets table.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def _resolve_user(self, pk):
+        if not pk:
+            return None
+        val = str(pk).strip()
+        if val.isdigit():
+            u = User.objects.filter(id=int(val)).first()
+            if u:
+                return u
+        # Match USR-005 / AGT-0005 / etc.
+        digits = "".join(filter(str.isdigit, val))
+        if digits:
+            u = User.objects.filter(id=int(digits)).first()
+            if u:
+                return u
+        u = User.objects.filter(username__iexact=val).first()
+        if u:
+            return u
+        u = User.objects.filter(email__iexact=val).first()
+        if u:
+            return u
+        for u in User.objects.filter(is_staff=True):
+            if u.get_full_name().lower() == val.lower() or u.first_name.lower() == val.lower():
+                return u
+        return None
+
+    def get(self, request, pk=None, id=None):
+        from apps.staff.models import Profile
+        from django.utils import timezone
+        from datetime import timedelta
+
+        target_pk = pk or id or request.query_params.get("agent_id")
+        user = self._resolve_user(target_pk) if target_pk else (request.user if request.user and request.user.is_authenticated else None)
+        if not user:
+            return Response({"detail": "Agent not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        profile = getattr(user, "profile", None)
+        if not profile:
+            profile, _ = Profile.objects.get_or_create(user=user)
+
+        now = timezone.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        user_tickets = Ticket.objects.filter(assigned_to=user)
+
+        open_tickets = user_tickets.exclude(status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"])
+        in_progress = open_tickets.filter(status__in=["IN_PROGRESS", "In Progress", "INVESTIGATING", "UNDER_REVIEW"])
+        completed_today = user_tickets.filter(
+            status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"],
+            updated_at__gte=today_start
+        ).count()
+
+        sla_at_risk = 0
+        current_tickets_data = []
+        for t in open_tickets.order_by("-created_at")[:25]:
+            due = t.sla_resolution_due
+            sla_status = "On Track"
+            if due:
+                diff = due - now
+                if diff.total_seconds() < 0:
+                    sla_status = "Breached"
+                    sla_at_risk += 1
+                elif diff.total_seconds() <= 7200:
+                    hours = int(diff.total_seconds() // 3600)
+                    mins = int((diff.total_seconds() % 3600) // 60)
+                    sla_status = f"{hours}h {mins}m remaining"
+                    sla_at_risk += 1
+                else:
+                    hours = int(diff.total_seconds() // 3600)
+                    mins = int((diff.total_seconds() % 3600) // 60)
+                    sla_status = f"{hours}h {mins}m remaining"
+
+            current_tickets_data.append({
+                "id": t.id,
+                "ticket_number": t.ticket_number or f"TKT-{t.id}",
+                "subject": t.title,
+                "priority": t.priority,
+                "sla_due": due.isoformat() if due else None,
+                "sla_status": sla_status,
+                "status": t.status,
+                "category": t.category,
+                "sub_category": t.sub_category,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+            })
+
+        agent_data = {
+            "id": user.id,
+            "agent_id": f"AGT-{user.id:04d}",
+            "username": user.username,
+            "name": user.get_full_name() or user.username,
+            "email": user.email,
+            "role": profile.role if profile else "Agent",
+            "department": profile.department if profile else "IT Support",
+            "status": profile.availability_status if profile else "AVAILABLE",
+            "availability_status": profile.availability_status if profile else "AVAILABLE",
+            "title": profile.title if profile and profile.title else "Support Specialist",
+            "specialization": profile.title if profile and profile.title else "IT Infrastructure & Security",
+            "working_hours": "09:00 AM - 05:00 PM EST",
+            "last_active": (user.last_login or user.date_joined or now).isoformat(),
+            "workload": {
+                "open_tickets": open_tickets.count(),
+                "in_progress": in_progress.count(),
+                "completed_today": completed_today,
+                "sla_at_risk": sla_at_risk,
+                "total_assigned": user_tickets.count(),
+            },
+            "current_tickets": current_tickets_data,
+        }
+        return Response(agent_data, status=status.HTTP_200_OK)
+
+    def patch(self, request, pk=None, id=None):
+        from apps.staff.models import Profile
+        target_pk = pk or id
+        user = self._resolve_user(target_pk)
+        if not user:
+            return Response({"detail": "Agent not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        profile = getattr(user, "profile", None)
+        if not profile:
+            profile, _ = Profile.objects.get_or_create(user=user)
+
+        data = request.data
+        if "name" in data:
+            parts = str(data["name"]).strip().split(" ", 1)
+            user.first_name = parts[0]
+            if len(parts) > 1:
+                user.last_name = parts[1]
+        if "email" in data:
+            user.email = str(data["email"]).strip()
+        user.save()
+
+        if "department" in data:
+            profile.department = str(data["department"]).strip()
+        if "title" in data or "specialization" in data:
+            profile.title = str(data.get("title") or data.get("specialization")).strip()
+        if "status" in data or "availability_status" in data:
+            val = str(data.get("status") or data.get("availability_status")).strip().upper()
+            if val in ["AVAILABLE", "BUSY", "UNAVAILABLE", "INACTIVE"]:
+                profile.availability_status = val
+        profile.save()
+
+        return self.get(request, pk=target_pk)
+
+
+class AgentReassignTicketsView(APIView):
+    """
+    POST /api/agent/<pk>/reassign-tickets/
+    Reassign all active tickets of an agent to another agent or to the department queue.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk=None):
+        val = str(pk).strip()
+        source_user = User.objects.filter(id=int(val)).first() if val.isdigit() else User.objects.filter(username__iexact=val).first()
+        if not source_user:
+            return Response({"detail": "Source agent not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        target_agent_id = request.data.get("target_agent_id")
+        target_user = None
+        if target_agent_id:
+            t_val = str(target_agent_id).strip()
+            target_user = User.objects.filter(id=int(t_val)).first() if t_val.isdigit() else User.objects.filter(username__iexact=t_val).first()
+
+        active_tickets = Ticket.objects.filter(assigned_to=source_user).exclude(
+            status__in=["RESOLVED", "Resolved", "CLOSED", "Closed"]
+        )
+        count = active_tickets.count()
+
+        for t in active_tickets:
+            if target_user:
+                t.assigned_to = target_user
+                t.assigned_agent_name = target_user.get_full_name() or target_user.username
+                t.status = "ASSIGNED"
+                t.save(update_fields=["assigned_to", "assigned_agent_name", "status"])
+                try:
+                    from .email_service import send_ticket_reassigned_email
+                    send_ticket_reassigned_email(t, previous_agent=source_user, new_agent=target_user)
+                except Exception as mail_err:
+                    print(f"[Email Notice] {mail_err}")
+            else:
+                t.assigned_to = None
+                t.assigned_agent_name = ""
+                t.status = "PENDING_ASSIGNMENT"
+                t.save(update_fields=["assigned_to", "assigned_agent_name", "status"])
+
+        return Response({
+            "message": f"Successfully reassigned {count} tickets from {source_user.username}.",
+            "reassigned_count": count,
+            "target_agent": target_user.username if target_user else "Department Queue",
+        }, status=status.HTTP_200_OK)
 
 
 

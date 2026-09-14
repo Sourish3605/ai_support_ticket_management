@@ -1,14 +1,60 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getAllTickets, updateTicket, fetchAgentTicketsApi, assignTicketApi, updateAgentAvailabilityApi } from "../../services/ticketService";
+import {
+  FiClock,
+  FiAlertTriangle,
+  FiAlertCircle,
+  FiCheckCircle,
+  FiRefreshCw,
+  FiInbox,
+  FiUser,
+} from "react-icons/fi";
+import {
+  getAllTickets,
+  updateTicket,
+  fetchAgentTicketsApi,
+  assignTicketApi,
+  updateAgentAvailabilityApi,
+} from "../../services/ticketService";
 import { storage, STORAGE_KEYS } from "../../services/storageService";
 import { useAuth } from "../../context/AuthContext";
 
-const priorityClass = { High: "sp-p1", Medium: "sp-p2", Low: "sp-p4", P1: "sp-p1", P2: "sp-p2", P3: "sp-p3", P4: "sp-p4", Critical: "sp-p1" };
+const PRIORITY_CONFIG = {
+  P1: { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  Critical: { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  "P1 - Critical": { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  "P1 – Critical": { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  High: { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  P2: { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  "P2 - High": { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  "P2 – High": { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  Medium: { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  P3: { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  "P3 - Medium": { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  "P3 – Medium": { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  Low: { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+  P4: { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+  "P4 - Low": { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+  "P4 – Low": { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+};
+
+function getPriorityInfo(priority) {
+  if (PRIORITY_CONFIG[priority]) return PRIORITY_CONFIG[priority];
+  const p = String(priority || "").toUpperCase();
+  if (p.includes("P1") || p.includes("CRITICAL")) return PRIORITY_CONFIG.P1;
+  if (p.includes("P2") || p.includes("HIGH")) return PRIORITY_CONFIG.P2;
+  if (p.includes("P4") || p.includes("LOW")) return PRIORITY_CONFIG.P4;
+  return PRIORITY_CONFIG.P3;
+}
 
 function minutesToBreach(ticket) {
-  const due = ticket.slaDueAt ? new Date(ticket.slaDueAt).getTime() : Date.now() + (ticket.slaHours || 24) * 3600000;
-  return Math.max(0, Math.round((due - Date.now()) / 60000));
+  const p = String(ticket.priority || "").toUpperCase();
+  const slaHours =
+    ticket.slaHours ||
+    (p.includes("P1") || p.includes("CRITICAL") ? 4 : p.includes("P2") || p.includes("HIGH") ? 8 : p.includes("P4") || p.includes("LOW") ? 48 : 24);
+  const created = ticket.createdAt || ticket.created_at ? new Date(ticket.createdAt || ticket.created_at).getTime() : Date.now();
+  const due = ticket.slaDueAt ? new Date(ticket.slaDueAt).getTime() : created + slaHours * 3600000;
+  return Math.max(-9999, Math.round((due - Date.now()) / 60000));
 }
 
 export default function WorkQueuePage() {
@@ -50,7 +96,16 @@ export default function WorkQueuePage() {
         all = apiTickets;
       }
     } catch (e) {}
-    if (!all.length) all = getAllTickets();
+
+    // Always merge local tickets with API tickets to capture newly submitted ones
+    const localTickets = getAllTickets();
+    if (localTickets.length > 0) {
+      const apiIds = new Set(all.map((t) => String(t.id ?? t.ticketNumber ?? "")));
+      const onlyLocal = localTickets.filter(
+        (t) => !apiIds.has(String(t.id ?? t.ticketNumber ?? ""))
+      );
+      all = [...all, ...onlyLocal];
+    }
 
     const actionable = all
       .filter((ticket) => !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(ticket.status))
@@ -67,8 +122,22 @@ export default function WorkQueuePage() {
 
   useEffect(() => {
     load();
-    const timer = setInterval(() => load(false), 8000);
-    return () => clearInterval(timer);
+    const handleSync = () => {
+      const all = getAllTickets();
+      const actionable = all.filter((t) => {
+        const isClosed = ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status);
+        const isAssigned = isTicketAssignedToAgent(t, user);
+        const isHold = ["HOLD", "ON_HOLD", "PENDING_CUSTOMER"].includes(t.status);
+        return !isClosed && (isAssigned || !t.assignedTo) && !isHold;
+      });
+      setTickets(actionable);
+    };
+    window.addEventListener("supportpilot_tickets_changed", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("supportpilot_tickets_changed", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
   }, [user]);
 
   const agentName = user?.name || user?.username || "Agent";
@@ -121,27 +190,27 @@ export default function WorkQueuePage() {
       AVAILABLE: "Working / Available",
       BUSY: "Busy",
       UNAVAILABLE: "Not Working / Unavailable",
-      INACTIVE: "Inactive",
     };
-    setToast(`Your status updated to ${statusNames[newStatus] || newStatus}.`);
+    setToast(`Status updated to ${statusNames[newStatus] || newStatus}.`);
     setTimeout(() => setToast(null), 3000);
   };
 
   return (
     <div className="space-y-4">
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
-          <div className="rounded-xl bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-2xl border border-slate-700">
-            {toast}
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-3">
+          <div className="rounded-lg bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl border border-slate-700 flex items-center gap-2">
+            <FiCheckCircle className="text-emerald-400" />
+            <span>{toast}</span>
           </div>
         </div>
       )}
 
       {/* Availability Status Alert Banner if not Available */}
       {currentAvailability !== "AVAILABLE" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50 p-3.5 rounded-xl border border-amber-300 text-xs text-amber-900 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 shadow-xs">
           <div className="flex items-center gap-2">
-            <span className="text-base">⚠️</span>
+            <FiAlertTriangle className="text-amber-600 shrink-0 text-base" />
             <div>
               <strong>Your status is currently '{currentAvailability}'.</strong>
               <div className="text-amber-800 text-[11px] mt-0.5">
@@ -151,112 +220,125 @@ export default function WorkQueuePage() {
           </div>
           <button
             onClick={() => handleAvailabilityChange("AVAILABLE")}
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition shadow cursor-pointer"
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer shadow-xs"
           >
-            ✓ Set to Working / Available
+            Set to Available
           </button>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#eef4ef] p-4 rounded-xl border border-[#dfe5e1] border-l-4 border-l-[#1f7a45]">
+      {/* Control Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
         <div className="text-xs">
-          <strong className="text-[#14532d]">Ordered by time-to-breach, not by creation date</strong>
-          <div className="mt-0.5 text-[#4b5563]">
-            Shows only tickets assigned to you and unassigned tickets ready for claim. Tickets assigned to other agents are excluded.
+          <span className="font-bold text-slate-900">Ordered by SLA Urgency / Time-to-Breach</span>
+          <div className="mt-0.5 text-slate-500 text-[11px]">
+            Shows tickets assigned to you and pending unassigned requests ready to be claimed.
           </div>
         </div>
+
         <div className="flex items-center gap-2">
           {/* Quick status selector */}
-          <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-xs">
-            <span className="text-[11px] font-semibold text-slate-500">My Status:</span>
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
+            <span className="text-[11px] font-medium text-slate-500">My Status:</span>
             <select
               value={currentAvailability}
               onChange={(e) => handleAvailabilityChange(e.target.value)}
-              className="bg-transparent font-bold text-xs text-slate-800 outline-none cursor-pointer"
+              className="bg-transparent font-semibold text-xs text-slate-800 outline-none cursor-pointer"
             >
-              <option value="AVAILABLE">🟢 Available</option>
-              <option value="BUSY">🟡 Busy</option>
-              <option value="UNAVAILABLE">🟠 Unavailable</option>
-              <option value="INACTIVE">⚪ Inactive</option>
+              <option value="AVAILABLE">Available</option>
+              <option value="BUSY">Busy</option>
+              <option value="UNAVAILABLE">Unavailable</option>
             </select>
           </div>
 
           <button
-            className="sp-btn sp-btn-primary shadow flex items-center gap-1.5 text-xs cursor-pointer disabled:opacity-60"
             onClick={() => load(true)}
             disabled={isRefreshing}
-            title="Refresh Work Queue"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
           >
-            <span className={`inline-block text-xs ${isRefreshing ? "animate-spin" : ""}`}>🔄</span>
+            <FiRefreshCw className={isRefreshing ? "animate-spin text-blue-600" : ""} />
             <span>{isRefreshing ? "Refreshing..." : "Refresh Queue"}</span>
           </button>
         </div>
       </div>
 
-      <div className="sp-card overflow-hidden">
+      {/* Table */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-xs">
-            <thead className="bg-[#f8faf9] text-left text-[10px] uppercase tracking-wide text-[#4b5563]">
-              <tr>
-                <th className="px-3 py-2.5">#</th>
-                <th className="px-3 py-2.5">Ticket</th>
-                <th className="px-3 py-2.5">Category</th>
-                <th className="px-3 py-2.5">Priority</th>
-                <th className="px-3 py-2.5">Time to breach</th>
-                <th className="px-3 py-2.5">Requester</th>
-                <th className="px-3 py-2.5 text-right">Action</th>
+          <table className="w-full min-w-[760px] text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                <th className="py-3 px-4 w-[50px]">#</th>
+                <th className="py-3 px-4 min-w-[240px]">Ticket & Customer</th>
+                <th className="py-3 px-4 w-[140px]">Category</th>
+                <th className="py-3 px-4 w-[120px]">Priority</th>
+                <th className="py-3 px-4 w-[130px]">Time to Breach</th>
+                <th className="py-3 px-4 text-right min-w-[120px]">Action</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {tickets.map((ticket, index) => {
                 const minutes = minutesToBreach(ticket);
                 const assignedToMe = isAssignedToMe(ticket);
                 const ticketCode = ticket.ticketNumber || ticket.ticket_number || ticket.id;
 
                 return (
-                  <tr
-                    className={`cursor-pointer group hover:bg-[#f0fdf4] transition-colors ${minutes < 30 ? "bg-[#fffbeb]" : ""}`}
-                    key={ticket.id}
-                    onClick={(e) => {
-                      if (e.target.closest("button, select, input, a")) return;
-                      navigate(`/tickets/${ticketCode}`);
-                    }}
-                    title="Click to view ticket details"
-                  >
-                    <td className="px-3 py-3 font-bold text-[#8b95a1]">{index + 1}</td>
-                    <td className="px-3 py-3">
-                      <Link
-                        to={`/tickets/${ticketCode}`}
-                        className="font-semibold text-[#1c2430] group-hover:text-[#15803d] hover:underline block"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {ticket.subject || ticket.title}
-                      </Link>
-                      <Link
-                        to={`/tickets/${ticketCode}`}
-                        className="font-mono text-[10px] text-[#8b95a1] group-hover:text-[#15803d] hover:underline inline-block font-bold"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {ticketCode}
-                      </Link>
+                  <tr key={ticket.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">{index + 1}</td>
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-slate-900 truncate max-w-xs">{ticket.subject || ticket.title}</div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
+                        <span className="font-mono text-blue-600 font-bold">#{ticketCode}</span>
+                        <span>•</span>
+                        <span>{ticket.customerName || "Customer"}</span>
+                      </div>
                     </td>
-                    <td className="px-3 py-3">
-                      <span className="sp-tag sp-tag-brand">{ticket.category || "Unclassified"}</span>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                        {ticket.category || "General"}
+                      </span>
                     </td>
-                    <td className="px-3 py-3">
-                      <span className={`sp-priority ${priorityClass[ticket.priority] || "sp-p4"}`}>{ticket.priority}</span>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {(() => {
+                        const prio = getPriorityInfo(ticket.priority);
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] font-semibold ${prio.badge}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${
+                              prio.label.includes("P1") ? "bg-red-600" : prio.label.includes("P2") ? "bg-amber-600" : prio.label.includes("P4") ? "bg-slate-400" : "bg-blue-600"
+                            }`} />
+                            <span>{prio.label}</span>
+                          </span>
+                        );
+                      })()}
                     </td>
-                    <td className={`px-3 py-3 font-mono font-bold ${minutes < 30 ? "text-[#b91c1c]" : "text-[#15803d]"}`}>
-                      {minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`}
+                    <td className="py-3 px-4 whitespace-nowrap font-mono text-xs">
+                      {minutes < 0 ? (
+                        <span className="rounded bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 font-bold">
+                          Breached
+                        </span>
+                      ) : minutes <= 60 ? (
+                        <span className="rounded bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 font-semibold">
+                          {minutes}m left
+                        </span>
+                      ) : (
+                        <span className="text-slate-600">
+                          {Math.floor(minutes / 60)}h {minutes % 60}m left
+                        </span>
+                      )}
                     </td>
-                    <td className="px-3 py-3">{ticket.customerName || "Customer"}</td>
-                    <td className="px-3 py-3 text-right">
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
                       {assignedToMe ? (
-                        <Link to={`/tickets/${ticketCode}`} className="sp-btn sp-btn-secondary px-3 py-1 text-[11px] font-bold">
+                        <Link
+                          to={`/tickets/${ticketCode}`}
+                          className="rounded border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition"
+                        >
                           Open
                         </Link>
                       ) : (
-                        <button onClick={() => claim(ticket)} className="sp-btn sp-btn-primary px-3 py-1 text-[11px] font-bold">
+                        <button
+                          onClick={() => claim(ticket)}
+                          className="rounded bg-blue-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 transition cursor-pointer shadow-xs"
+                        >
                           Claim
                         </button>
                       )}
@@ -269,8 +351,10 @@ export default function WorkQueuePage() {
         </div>
 
         {!tickets.length && (
-          <div className="p-10 text-center text-sm text-[#8b95a1]">
-            Your actionable queue is clear. No pending tickets assigned to you or waiting for claim.
+          <div className="py-12 text-center text-slate-500">
+            <FiInbox className="mx-auto text-3xl text-slate-300 mb-2" />
+            <p className="text-xs font-semibold text-slate-800">Your actionable queue is clear</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">No pending tickets waiting for action.</p>
           </div>
         )}
       </div>

@@ -2,6 +2,20 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getAllTickets } from "../../services/ticketService";
+import {
+  FiHome,
+  FiList,
+  FiClock,
+  FiUsers,
+  FiAlertCircle,
+  FiTrendingUp,
+  FiCpu,
+  FiBarChart2,
+  FiBell,
+  FiUser,
+  FiLogOut,
+  FiShield,
+} from "react-icons/fi";
 
 function initials(name) {
   if (!name) return "SM";
@@ -27,7 +41,7 @@ export default function ManagerLayout({ children }) {
     const tickets = getAllTickets();
     const open = tickets.filter((t) => !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status));
     const escalated = tickets.filter((t) => ["ESCALATED", "Escalated"].includes(t.status));
-    const slaRisk = tickets.filter((t) => t.priority === "Critical" || t.priority === "P1" || t.priority === "High");
+    const slaRisk = tickets.filter((t) => t.priority === "Critical" || t.priority === "P1" || t.priority === "High" || t.priority === "P2");
     setStats({
       all: tickets.length,
       open: open.length,
@@ -42,17 +56,17 @@ export default function ManagerLayout({ children }) {
   };
 
   const navItems = [
-    { to: "/manager", icon: "▦", label: "Dashboard", badge: null },
-    { to: "/manager/tickets", icon: "▤", label: "All Tickets", badge: stats.all },
-    { to: "/manager/queue", icon: "⏳", label: "Ticket Queue", badge: stats.open },
-    { to: "/manager/assignment", icon: "👥", label: "Agent Assignment", badge: null },
-    { to: "/manager/escalations", icon: "🚨", label: "Escalations", badge: stats.escalated || null },
-    { to: "/manager/sla", icon: "⏱", label: "SLA Management", badge: stats.slaRisk || null },
-    { to: "/manager/agent-performance", icon: "📈", label: "Agent Performance", badge: null },
-    { to: "/manager/ai-performance", icon: "🤖", label: "AI Performance", badge: null },
-    { to: "/manager/reports", icon: "📊", label: "Reports", badge: null },
-    { to: "/manager/notifications", icon: "🔔", label: "Notifications", badge: stats.escalated > 0 ? "!" : null },
-    { to: "/manager/profile", icon: "👤", label: "Profile", badge: null },
+    { to: "/manager", icon: FiHome, label: "Dashboard", badge: null },
+    { to: "/manager/tickets", icon: FiList, label: "All Tickets", badge: stats.all },
+    { to: "/manager/queue", icon: FiClock, label: "Ticket Queue", badge: stats.open },
+    { to: "/manager/assignment", icon: FiUsers, label: "Agent Assignment", badge: null },
+    { to: "/manager/escalations", icon: FiAlertCircle, label: "Escalations", badge: stats.escalated || null },
+    { to: "/manager/sla", icon: FiShield, label: "SLA Management", badge: stats.slaRisk || null },
+    { to: "/manager/agent-performance", icon: FiTrendingUp, label: "Agent Performance", badge: null },
+    { to: "/manager/ai-performance", icon: FiCpu, label: "AI Performance", badge: null },
+    { to: "/manager/reports", icon: FiBarChart2, label: "Reports", badge: null },
+    { to: "/manager/notifications", icon: FiBell, label: "Notifications", badge: stats.escalated > 0 ? stats.escalated : null },
+    { to: "/manager/profile", icon: FiUser, label: "Profile", badge: null },
   ];
 
   const currentItem = navItems.find((item) => item.to === location.pathname) || navItems[0];
@@ -60,103 +74,121 @@ export default function ManagerLayout({ children }) {
   const userInitials = initials(displayName);
 
   return (
-    <div className="sp-manager-shell">
-      {/* SIDEBAR NAVIGATION (Warm Amber & Deep Navy) */}
-      <aside className="sp-manager-sidebar">
-        <Link to="/manager" className="sp-sidebar-logo">
-          <span className="sp-logo-mark">SP</span>
-          <span>
-            <span className="sp-logo-name">SupportPilot</span>
-            <span className="sp-sidebar-sub">OPERATIONS &amp; SLA DESK</span>
-          </span>
-        </Link>
+    <div className="flex min-h-screen bg-slate-50 text-slate-900">
+      {/* SIDEBAR NAVIGATION */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 fixed inset-y-0 left-0 z-30 shadow-xs">
+        {/* LOGO */}
+        <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs tracking-wider shadow-xs">
+            SP
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-900 leading-tight">SupportPilot</div>
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Manager Desk</div>
+          </div>
+        </div>
 
-        <nav className="sp-sidebar-nav">
-          <div className="sp-nav-heading">Supervision &amp; SLA</div>
-          {navItems.map((item) => (
-            <NavLink
-              end={item.to === "/manager"}
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => (isActive ? "active" : "")}
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-              {item.badge !== null && item.badge !== undefined && (
-                <span className="sp-sidebar-count">{item.badge}</span>
-              )}
-            </NavLink>
-          ))}
+        {/* NAVIGATION */}
+        <nav className="p-3 flex-1 space-y-1 overflow-y-auto">
+          <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Supervision &amp; SLA
+          </div>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                end={item.to === "/manager"}
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`
+                }
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </div>
+                {item.badge !== null && item.badge !== undefined && (
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    item.to.includes("escalations") ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-100 text-slate-700"
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
 
-        <div className="sp-sidebar-footer">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="sp-avatar sp-manager-avatar" title={displayName}>
-                {userInitials}
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-white truncate">{displayName}</div>
-                <div className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Operations Lead</div>
-              </div>
+        {/* FOOTER */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+              {userInitials}
             </div>
-            <button
-              onClick={handleLogout}
-              title="Logout"
-              className="text-slate-400 hover:text-red-400 text-xs font-bold transition cursor-pointer p-1"
-            >
-              ⎋
-            </button>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 truncate">{displayName}</div>
+              <div className="text-[10px] font-semibold text-blue-600">Support Manager</div>
+            </div>
           </div>
+          <button
+            onClick={handleLogout}
+            title="Sign Out"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+          >
+            <FiLogOut className="w-4 h-4" />
+          </button>
         </div>
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="sp-agent-main">
-        {/* Top Header */}
-        <header className="sp-manager-topbar">
+      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+        {/* TOP BAR */}
+        <header className="h-16 border-b border-slate-200 bg-white px-8 flex items-center justify-between sticky top-0 z-20 shadow-xs">
           <div>
-            <div className="sp-breadcrumb">Operations Command / Support Manager</div>
-            <h1>{currentItem.label}</h1>
+            <div className="text-[11px] font-medium text-slate-400">Operations Command / Support Manager</div>
+            <h1 className="text-base font-bold text-slate-900">{currentItem.label}</h1>
           </div>
 
           <div className="flex items-center gap-3">
             {stats.escalated > 0 && (
               <Link
                 to="/manager/escalations"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-bold shadow-2xs animate-pulse"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-semibold"
               >
-                <span>🚨</span>
+                <FiAlertCircle className="w-3.5 h-3.5" />
                 <span>{stats.escalated} Escalation{stats.escalated > 1 ? "s" : ""}</span>
               </Link>
             )}
 
             <Link
               to="/manager/sla"
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold"
             >
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-              <span>SLA Shield Active</span>
+              <FiShield className="w-3.5 h-3.5" />
+              <span>SLA Tracking Active</span>
             </Link>
 
             <button
               onClick={handleLogout}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer shadow-2xs"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
             >
-              Logout
+              Sign Out
             </button>
-
-            <div className="sp-avatar sp-manager-avatar" title={displayName}>
-              {userInitials}
-            </div>
           </div>
         </header>
 
-        {/* Inner Content */}
-        <div className="sp-content space-y-6">
-          {children}
-        </div>
-      </main>
+        {/* BODY */}
+        <main className="flex-1 p-8">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

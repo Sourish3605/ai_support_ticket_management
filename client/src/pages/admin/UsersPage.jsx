@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { FiCheck, FiX, FiPlus, FiUser, FiSearch } from "react-icons/fi";
 import { seedUsers } from "../../data/seedData";
 import { storage, STORAGE_KEYS } from "../../services/storageService";
 import {
@@ -6,6 +7,7 @@ import {
   isUserDeleted,
   fetchUsersApi,
 } from "../../services/ticketService";
+import AgentDetailsDrawer from "../../components/AgentDetailsDrawer";
 
 const emptyForm = {
   name: "",
@@ -24,6 +26,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteToast, setDeleteToast] = useState(null);
+  const [inspectingUser, setInspectingUser] = useState(null);
 
   const loadAllUsers = async () => {
     const stored = storage.get(STORAGE_KEYS.users, []);
@@ -167,7 +170,7 @@ export default function UsersPage() {
     try {
       await deleteUserEverywhere(target);
       setUsers((current) => current.filter((u) => u.id !== target.id && u.email?.toLowerCase() !== target.email?.toLowerCase()));
-      setDeleteToast(`✓ User "${displayName}" permanently deleted from all directories, queues, and assignments.`);
+      setDeleteToast(`User "${displayName}" permanently deleted from all directories, queues, and assignments.`);
       setTimeout(() => setDeleteToast(null), 5000);
     } catch (err) {
       console.error("Error deleting user:", err);
@@ -212,13 +215,16 @@ export default function UsersPage() {
     <div className="space-y-6">
       {deleteToast && (
         <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3.5 text-xs font-bold text-emerald-800 flex items-center justify-between shadow-xs animate-in fade-in">
-          <span>{deleteToast}</span>
+          <div className="flex items-center gap-2">
+            <FiCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{deleteToast}</span>
+          </div>
           <button
             type="button"
             onClick={() => setDeleteToast(null)}
-            className="text-emerald-700 hover:text-emerald-950 font-bold ml-3"
+            className="text-emerald-700 hover:text-emerald-950 p-1 cursor-pointer"
           >
-            ✕
+            <FiX className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
@@ -243,9 +249,19 @@ export default function UsersPage() {
             if (showForm) resetForm();
             else setShowForm(true);
           }}
-          className="sp-btn sp-btn-primary px-5 py-2.5 font-bold shadow-sm text-xs cursor-pointer active:scale-95 transition"
+          className="sp-btn sp-btn-primary px-5 py-2.5 font-bold shadow-sm text-xs cursor-pointer active:scale-95 transition flex items-center gap-1.5"
         >
-          {showForm ? "✕ Close Form" : "+ Add User"}
+          {showForm ? (
+            <>
+              <FiX className="w-3.5 h-3.5" />
+              <span>Close Form</span>
+            </>
+          ) : (
+            <>
+              <FiPlus className="w-3.5 h-3.5" />
+              <span>Add User</span>
+            </>
+          )}
         </button>
       </div>
 
@@ -321,13 +337,13 @@ export default function UsersPage() {
 
           <div className="mt-5 flex justify-end gap-3 pt-3 border-t border-slate-100">
             <button type="button" onClick={resetForm} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer">Cancel</button>
-            <button type="submit" className="rounded-xl bg-[#14532d] hover:bg-[#0f2b1d] px-5 py-2 text-xs font-bold text-white transition shadow-sm cursor-pointer">{editingId ? "Update User" : "Save User"}</button>
+            <button type="submit" className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-bold text-white transition shadow-sm cursor-pointer">{editingId ? "Update User" : "Save User"}</button>
           </div>
         </form>
       )}
 
       {/* Search & Filter Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-[#dfe5e1] shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
           {[
             { id: "ALL", label: "All Users", count: totalUsers },
@@ -342,7 +358,7 @@ export default function UsersPage() {
               onClick={() => setRoleFilter(tab.id)}
               className={`py-1.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
                 roleFilter === tab.id
-                  ? "bg-[#14532d] text-white shadow-xs"
+                  ? "bg-blue-600 text-white shadow-xs"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
@@ -357,16 +373,16 @@ export default function UsersPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by name, email, dept..."
-            className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-emerald-500 transition"
+            className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-blue-500 transition"
           />
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="overflow-hidden rounded-2xl border border-[#dfe5e1] bg-white shadow-2xs">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-[#f0f4f1] border-b border-[#dfe5e1]">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider text-slate-700">User</th>
                 <th className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider text-slate-700">Department</th>
@@ -386,9 +402,13 @@ export default function UsersPage() {
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/70 transition-colors">
+                <tr
+                  key={user.id}
+                  onClick={() => setInspectingUser(user)}
+                  className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
+                >
                   <td className="py-3.5 px-4">
-                    <p className="font-bold text-slate-900 text-[13px]">{user.name}</p>
+                    <p className="font-bold text-slate-900 group-hover:text-blue-600 transition text-[13px]">{user.name}</p>
                     <p className="text-[11px] text-slate-500 font-mono mt-0.5">{user.email}</p>
                   </td>
                   <td className="py-3.5 px-4 font-medium text-slate-700">{user.department || "IT Support"}</td>
@@ -404,12 +424,19 @@ export default function UsersPage() {
                       {user.status || "Active"}
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 text-right">
+                  <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="inline-flex items-center gap-3">
                       <button
                         type="button"
+                        onClick={() => setInspectingUser(user)}
+                        className="font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+                      >
+                        Details
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleEditUser(user)}
-                        className="font-bold text-[#14532d] hover:text-emerald-700 cursor-pointer"
+                        className="font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
                       >
                         Edit
                       </button>
@@ -428,6 +455,15 @@ export default function UsersPage() {
           </table>
         </div>
       </div>
+
+      {/* PROFESSIONAL AGENT / USER DETAILS DRAWER */}
+      <AgentDetailsDrawer
+        agent={inspectingUser}
+        isOpen={Boolean(inspectingUser)}
+        onClose={() => setInspectingUser(null)}
+        onTicketAssigned={() => loadAllUsers()}
+        onStatusChanged={() => loadAllUsers()}
+      />
     </div>
   );
 }

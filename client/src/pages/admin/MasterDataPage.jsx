@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../services/api";
+import {
+  FiFolder,
+  FiTag,
+  FiZap,
+  FiRefreshCw,
+  FiAlertTriangle,
+  FiCheck,
+  FiX,
+  FiTrash2,
+} from "react-icons/fi";
 
 const FALLBACK_CATEGORIES = [
   {
@@ -125,7 +135,7 @@ export default function MasterDataPage() {
         retryTimerRef.current = null;
       }
       if (isRetry) {
-        showNotification("✓ Successfully synchronized Master Data with live database.");
+        showNotification("Successfully synchronized Master Data with live database.");
       }
     } catch (err) {
       console.warn("Failed to load master data from API:", err);
@@ -179,14 +189,14 @@ export default function MasterDataPage() {
           prev.map((c) => (c.id === catForm.id ? { ...c, name: catName } : c))
         );
         setShowCatModal(false);
-        showNotification(`✓ Category "${catName}" updated successfully.`);
+        showNotification(`Category "${catName}" updated successfully.`);
         await api.put(`/masterdata/categories/${catForm.id}/`, { name: catName });
       } else {
         const tempId = Date.now();
         const newCat = { id: tempId, name: catName, sub_categories: [] };
         setCategories((prev) => [...prev, newCat]);
         setShowCatModal(false);
-        showNotification(`✓ Category "${catName}" created and active for AI engine.`);
+        showNotification(`Category "${catName}" created and active for AI engine.`);
         const res = await api.post("/masterdata/categories/", { name: catName });
         if (res.data?.id) {
           setCategories((prev) =>
@@ -197,7 +207,7 @@ export default function MasterDataPage() {
       fetchData();
     } catch (err) {
       console.warn("Save category note:", err);
-      showNotification(`✓ Category "${catName}" saved locally.`);
+      showNotification(`Category "${catName}" saved locally.`);
     }
   };
 
@@ -235,107 +245,109 @@ export default function MasterDataPage() {
           })
         );
         setShowSubModal(false);
-        showNotification(`✓ Sub-Category "${subName}" updated successfully.`);
+        showNotification(`Sub-Category "${subName}" updated successfully.`);
         await api.put(`/masterdata/subcategories/${subForm.id}/`, {
-          category: catId,
           name: subName,
+          category: Number(subForm.category),
         });
       } else {
         const tempId = Date.now();
-        const parentCat = categories.find((c) => c.id === catId);
         const newSub = {
           id: tempId,
           name: subName,
-          category: catId,
-          category_name: parentCat?.name || "General",
+          category: Number(subForm.category),
+          category_name: categories.find((c) => c.id === Number(subForm.category))?.name || "",
         };
         setCategories((prev) =>
-          prev.map((cat) =>
-            cat.id === catId
-              ? { ...cat, sub_categories: [...(cat.sub_categories || []), newSub] }
-              : cat
+          prev.map((c) =>
+            c.id === Number(subForm.category)
+              ? { ...c, sub_categories: [...(c.sub_categories || []), newSub] }
+              : c
           )
         );
         setShowSubModal(false);
-        showNotification(`✓ Sub-Category "${subName}" created and available for AI.`);
-        await api.post("/masterdata/subcategories/", {
-          category: catId,
+        showNotification(`Sub-Category "${subName}" created and available for AI.`);
+        const res = await api.post("/masterdata/subcategories/", {
           name: subName,
+          category: Number(subForm.category),
         });
+        if (res.data?.id) {
+          fetchData();
+        }
       }
-      fetchData();
     } catch (err) {
       console.warn("Save subcategory note:", err);
-      showNotification(`✓ Sub-Category "${subName}" saved locally.`);
+      showNotification(`Sub-Category "${subName}" saved locally.`);
     }
   };
 
   // --- Priority Handlers ---
   const handleOpenAddPriority = () => {
-    setPrioForm({ id: null, code: "", name: "", level: priorities.length + 1 });
+    setPrioForm({ id: null, code: "", name: "", level: 3 });
     setShowPrioModal(true);
   };
 
-  const handleOpenEditPriority = (p) => {
-    setPrioForm({ id: p.id, code: p.code, name: p.name, level: p.level });
+  const handleOpenEditPriority = (prio) => {
+    setPrioForm({ id: prio.id, code: prio.code, name: prio.name, level: prio.level });
     setShowPrioModal(true);
   };
 
   const handleSavePriority = async (e) => {
     e.preventDefault();
-    const code = prioForm.code.trim().toUpperCase();
+    const code = prioForm.code.trim();
     const name = prioForm.name.trim();
-    const level = Number(prioForm.level) || 3;
     if (!code || !name) return;
 
     try {
       if (prioForm.id) {
         setPriorities((prev) =>
-          prev.map((p) => (p.id === prioForm.id ? { ...p, code, name, level } : p))
+          prev.map((p) => (p.id === prioForm.id ? { ...p, code, name, level: prioForm.level } : p))
         );
         setShowPrioModal(false);
-        showNotification(`✓ Priority "${code}" updated successfully.`);
-        await api.put(`/masterdata/priorities/${prioForm.id}/`, { code, name, level });
+        showNotification(`Priority "${code}" updated successfully.`);
+        await api.put(`/masterdata/priorities/${prioForm.id}/`, {
+          code,
+          name,
+          level: prioForm.level,
+        });
       } else {
         const tempId = Date.now();
-        const newPrio = { id: tempId, code, name, level };
+        const newPrio = { id: tempId, code, name, level: prioForm.level };
         setPriorities((prev) => [...prev, newPrio]);
         setShowPrioModal(false);
-        showNotification(`✓ Priority "${code}" added to Master Data.`);
-        await api.post("/masterdata/priorities/", { code, name, level });
+        showNotification(`Priority "${code}" added to Master Data.`);
+        await api.post("/masterdata/priorities/", { code, name, level: prioForm.level });
       }
       fetchData();
     } catch (err) {
       console.warn("Save priority note:", err);
-      showNotification(`✓ Priority "${code}" saved locally.`);
+      showNotification(`Priority "${code}" saved locally.`);
     }
   };
 
-  // --- Delete Handlers ---
+  // --- Delete Handler ---
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     const { type, id, name } = deleteTarget;
+    setDeleteTarget(null);
 
     try {
       if (type === "category") {
         setCategories((prev) => prev.filter((c) => c.id !== id));
-        showNotification(`✓ Category "${name}" deleted. AI will immediately stop classifying under this category.`);
-        setDeleteTarget(null);
+        showNotification(`Category "${name}" deleted. AI will immediately stop classifying under this category.`);
         await api.delete(`/masterdata/categories/${id}/`);
       } else if (type === "subcategory") {
         setCategories((prev) =>
-          prev.map((cat) => ({
-            ...cat,
-            sub_categories: (cat.sub_categories || []).filter((s) => s.id !== id),
+          prev.map((c) => ({
+            ...c,
+            sub_categories: (c.sub_categories || []).filter((s) => s.id !== id),
           }))
         );
-        showNotification(`✓ Sub-Category "${name}" deleted.`);
-        setDeleteTarget(null);
+        showNotification(`Sub-Category "${name}" deleted.`);
         await api.delete(`/masterdata/subcategories/${id}/`);
       } else if (type === "priority") {
         setPriorities((prev) => prev.filter((p) => p.id !== id));
-        showNotification(`✓ Priority "${name}" deleted.`);
-        setDeleteTarget(null);
+        showNotification(`Priority "${name}" deleted.`);
         await api.delete(`/masterdata/priorities/${id}/`);
       }
       fetchData();
@@ -409,7 +421,7 @@ export default function MasterDataPage() {
       {error && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 shadow-sm flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-base">⚠️</span>
+            <FiAlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>{error}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -420,19 +432,19 @@ export default function MasterDataPage() {
                 fetchData(true);
               }}
               disabled={loading}
-              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 disabled:opacity-60 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm flex items-center gap-1.5"
+              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 disabled:opacity-60 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm flex items-center gap-1.5 cursor-pointer"
             >
-              <span className={loading ? "inline-block animate-spin" : ""}>🔄</span>
-              {loading ? "Reconnecting..." : "Retry Connection"}
+              <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              <span>{loading ? "Reconnecting..." : "Retry Connection"}</span>
             </button>
             <button
               onClick={() => {
                 if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
                 setError("");
               }}
-              className="text-amber-700 hover:text-amber-900 font-bold px-1"
+              className="text-amber-700 hover:text-amber-900 font-bold px-1 cursor-pointer"
             >
-              ✕
+              <FiX className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -478,33 +490,36 @@ export default function MasterDataPage() {
       <div className="mb-4 flex border-b border-slate-200">
         <button
           onClick={() => setActiveTab("categories")}
-          className={`pb-2.5 px-4 text-xs font-bold transition border-b-2 ${
+          className={`pb-2.5 px-4 text-xs font-bold transition border-b-2 flex items-center gap-1.5 cursor-pointer ${
             activeTab === "categories"
               ? "border-cyan-600 text-cyan-700"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
-          📂 Categories ({categories.length})
+          <FiFolder className="w-3.5 h-3.5" />
+          <span>Categories ({categories.length})</span>
         </button>
         <button
           onClick={() => setActiveTab("subcategories")}
-          className={`pb-2.5 px-4 text-xs font-bold transition border-b-2 ${
+          className={`pb-2.5 px-4 text-xs font-bold transition border-b-2 flex items-center gap-1.5 cursor-pointer ${
             activeTab === "subcategories"
               ? "border-cyan-600 text-cyan-700"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
-          🏷️ Sub-Categories ({allSubcategories.length})
+          <FiTag className="w-3.5 h-3.5" />
+          <span>Sub-Categories ({allSubcategories.length})</span>
         </button>
         <button
           onClick={() => setActiveTab("priorities")}
-          className={`pb-2.5 px-4 text-xs font-bold transition border-b-2 ${
+          className={`pb-2.5 px-4 text-xs font-bold transition border-b-2 flex items-center gap-1.5 cursor-pointer ${
             activeTab === "priorities"
               ? "border-cyan-600 text-cyan-700"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
-          ⚡ Priorities ({priorities.length})
+          <FiZap className="w-3.5 h-3.5" />
+          <span>Priorities ({priorities.length})</span>
         </button>
       </div>
 
@@ -554,8 +569,9 @@ export default function MasterDataPage() {
                         </div>
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5">
-                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                          ✓ Active for AI Engine
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                          <FiCheck className="w-3 h-3" />
+                          <span>Active for AI Engine</span>
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5 text-right">
@@ -626,8 +642,9 @@ export default function MasterDataPage() {
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5">
-                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                          ✓ Active for AI Engine
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                          <FiCheck className="w-3 h-3" />
+                          <span>Active for AI Engine</span>
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5 text-right">
@@ -689,8 +706,9 @@ export default function MasterDataPage() {
                         Level {p.level}
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5">
-                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                          ✓ Allowed Priority Value
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                          <FiCheck className="w-3 h-3" />
+                          <span>Allowed Priority Value</span>
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5 text-right">
@@ -884,7 +902,7 @@ export default function MasterDataPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-fade-in text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 text-xl mb-3">
-              🗑️
+              <FiTrash2 className="w-5 h-5 text-red-600" />
             </div>
             <h3 className="text-base font-bold text-slate-900">
               Delete {deleteTarget.type}?

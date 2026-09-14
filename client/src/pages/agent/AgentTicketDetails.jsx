@@ -27,17 +27,67 @@ import {
   flagKnowledgeOutdated,
   evaluateM4Strategy,
 } from "../../services/m4WorkflowService";
+import {
+  FiCheck,
+  FiCheckCircle,
+  FiClock,
+  FiX,
+  FiZap,
+  FiCpu,
+  FiUser,
+  FiPaperclip,
+  FiBookOpen,
+  FiShield,
+  FiAlertTriangle,
+  FiEdit2,
+  FiEdit3,
+  FiHelpCircle,
+  FiLock,
+  FiMail,
+  FiExternalLink,
+  FiFileText,
+  FiBookmark,
+  FiStar,
+  FiSend,
+  FiActivity,
+} from "react-icons/fi";
 
 
 const priorityClass = {
   P1: "sp-p1",
+  "P1 - Critical": "sp-p1",
+  "P1 – Critical": "sp-p1",
   High: "sp-p1",
   Critical: "sp-p1",
   P2: "sp-p2",
+  "P2 - High": "sp-p2",
+  "P2 – High": "sp-p2",
   P3: "sp-p3",
+  "P3 - Medium": "sp-p3",
+  "P3 – Medium": "sp-p3",
   Medium: "sp-p2",
   P4: "sp-p4",
+  "P4 - Low": "sp-p4",
+  "P4 – Low": "sp-p4",
   Low: "sp-p4",
+};
+
+const getPriorityBadgeClass = (priority) => {
+  if (!priority) return "sp-p3";
+  const p = String(priority).toUpperCase();
+  if (p.includes("P1") || p.includes("CRITICAL")) return "sp-p1";
+  if (p.includes("P2") || p.includes("HIGH")) return "sp-p2";
+  if (p.includes("P4") || p.includes("LOW")) return "sp-p4";
+  return "sp-p3";
+};
+
+const formatPriorityLabel = (priority) => {
+  if (!priority) return "P3 – Medium";
+  const p = String(priority).toUpperCase();
+  if (p.includes("P1") || p.includes("CRITICAL")) return "P1 – Critical";
+  if (p.includes("P2") || p.includes("HIGH")) return "P2 – High";
+  if (p.includes("P4") || p.includes("LOW")) return "P4 – Low";
+  return "P3 – Medium";
 };
 
 export default function AgentTicketDetails() {
@@ -182,23 +232,6 @@ export default function AgentTicketDetails() {
     }
   }, [toast]);
 
-  if (loading) {
-    return (
-      <div className="sp-card p-12 text-center text-xs text-[#8b95a1]">
-        <div className="animate-spin inline-block w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mb-2" />
-        <p>Loading ticket details and multi-agent telemetry...</p>
-      </div>
-    );
-  }
-
-  if (!ticket) return (
-    <div className="sp-card p-10 text-center text-sm text-[#8b95a1]">
-      <p>Ticket not found.</p>
-      <Link to="/tickets" className="mt-3 inline-block sp-btn sp-btn-secondary text-xs">
-        ← Back to All Tickets
-      </Link>
-    </div>
-  );
 
   const agentName = user?.name || user?.username || "Support Agent";
   const agentId = user?.id || null;
@@ -431,7 +464,7 @@ export default function AgentTicketDetails() {
       console.warn("Local storage cache notice:", cacheErr);
     }
 
-    setToast({ type: "success", message: "✓ Reply sent to customer portal." });
+    setToast({ type: "success", message: "Reply sent to customer portal successfully." });
     setTimeout(() => {
       loadTicket();
     }, 500);
@@ -525,10 +558,30 @@ export default function AgentTicketDetails() {
       setIsCheckingAI(false);
     }
   };
+  if (loading) {
+    return (
+      <div className="sp-card p-12 text-center text-xs text-[#8b95a1] max-w-xl mx-auto my-12 bg-white rounded-2xl shadow-sm border border-slate-200">
+        <div className="animate-spin inline-block w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mb-2" />
+        <p className="font-semibold text-slate-700">Loading ticket details and multi-agent telemetry...</p>
+      </div>
+    );
+  }
 
-  const citations = ticket.ai?.citations || ticket.citations || workflowData?.knowledge_retrieval?.citations || [];
-  const ticketCode = ticket.ticketNumber || ticket.ticket_number || `TKT-${ticket.id}`;
-  const isEscalated = ticket.status === "ESCALATED" || workflowData?.workflow_status === "ESCALATED";
+  if (!ticket) {
+    return (
+      <div className="sp-card p-10 text-center text-sm text-[#8b95a1] max-w-xl mx-auto my-12 bg-white rounded-2xl shadow-sm border border-slate-200">
+        <h3 className="font-bold text-slate-900 text-base mb-1">Ticket Not Found</h3>
+        <p className="text-xs text-slate-500 mb-4">Ticket #{id} could not be located in the current workspace.</p>
+        <Link to="/tickets" className="inline-block px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition shadow-xs">
+          ← Back to All Tickets
+        </Link>
+      </div>
+    );
+  }
+
+  const citations = ticket?.ai?.citations || ticket?.citations || workflowData?.knowledge_retrieval?.citations || [];
+  const ticketCode = ticket?.ticketNumber || ticket?.ticket_number || `TKT-${ticket?.id}`;
+  const isEscalated = ticket?.status === "ESCALATED" || workflowData?.workflow_status === "ESCALATED";
 
   return (
     <div className="space-y-6">
@@ -549,8 +602,8 @@ export default function AgentTicketDetails() {
           <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg border border-slate-200">
             {ticketCode}
           </span>
-          <span className={`sp-priority ${priorityClass[ticket.priority] || "sp-p4"}`}>
-            {ticket.priority || "Medium"}
+          <span className={`sp-priority ${getPriorityBadgeClass(ticket.priority)}`}>
+            {formatPriorityLabel(ticket.priority)}
           </span>
           <span className="text-xs font-semibold text-slate-500">• {ticket.category} → {ticket.sub_category || ticket.subCategory || "General"}</span>
         </div>
@@ -563,7 +616,7 @@ export default function AgentTicketDetails() {
             className="rounded-xl border border-[#15803d] bg-emerald-50 px-3.5 py-2 text-xs font-bold text-[#15803d] hover:bg-emerald-100 transition cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50"
             title="Check if AI can resolve autonomously; if not, automatically escalate and assign to human specialist"
           >
-            <span className={`inline-block ${isCheckingAI ? "animate-spin" : ""}`}>✨</span>
+            <FiZap className={`w-3.5 h-3.5 ${isCheckingAI ? "animate-spin" : ""}`} />
             <span>{isCheckingAI ? "AI Evaluating Ticket..." : "Check with AI"}</span>
           </button>
 
@@ -596,9 +649,10 @@ export default function AgentTicketDetails() {
           {ticket.status !== "RESOLVED" && ticket.status !== "CLOSED" && (
             <button
               onClick={handleQuickResolve}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition shadow cursor-pointer"
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition shadow cursor-pointer flex items-center gap-1.5"
             >
-              ✓ Resolve
+              <FiCheck className="w-3.5 h-3.5" />
+              <span>Resolve</span>
             </button>
           )}
         </div>
@@ -615,8 +669,12 @@ export default function AgentTicketDetails() {
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <span className="text-xl">
-                {aiDecisionNotice.type === "success" ? "🤖✅" : "⚠️👤"}
+              <span className="p-2 rounded-xl bg-white border border-current/20">
+                {aiDecisionNotice.type === "success" ? (
+                  <FiCheckCircle className="w-5 h-5 text-emerald-600" />
+                ) : (
+                  <FiAlertTriangle className="w-5 h-5 text-amber-600" />
+                )}
               </span>
               <div>
                 <div className="font-bold text-sm flex items-center gap-2">
@@ -640,9 +698,9 @@ export default function AgentTicketDetails() {
             </div>
             <button
               onClick={() => setAiDecisionNotice(null)}
-              className="text-xs font-bold opacity-60 hover:opacity-100 cursor-pointer"
+              className="p-1 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
             >
-              ✕
+              <FiX className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -653,7 +711,9 @@ export default function AgentTicketDetails() {
         <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/90 p-5 shadow-sm text-xs space-y-3 animate-fade-in">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/80 pb-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-xl">⭐</span>
+              <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800">
+                <FiStar className="w-4 h-4 fill-amber-400 text-amber-500" />
+              </span>
               <div>
                 <span className="font-bold text-emerald-950 text-sm flex items-center gap-2">
                   Customer CSAT Feedback & Verification
@@ -667,9 +727,11 @@ export default function AgentTicketDetails() {
               </div>
             </div>
             <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-emerald-300 shadow-xs">
-              <span className="text-amber-500 text-sm">
-                {"★".repeat((ticket.customerFeedback || ticket.feedback).rating || 5)}
-              </span>
+              <div className="flex items-center gap-0.5 text-amber-500">
+                {Array.from({ length: (ticket.customerFeedback || ticket.feedback).rating || 5 }).map((_, i) => (
+                  <FiStar key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                ))}
+              </div>
               <span className="font-mono font-bold text-xs text-slate-900">
                 {(ticket.customerFeedback || ticket.feedback).rating || 5}/5 Stars
               </span>
@@ -709,17 +771,26 @@ export default function AgentTicketDetails() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 border-b border-slate-100 pb-4 sm:grid-cols-4 text-xs">
-              {[
-                ["Requester", ticket.customerName || ticket.created_by_name || "Customer"],
-                ["Email", ticket.customerEmail || "-"],
-                ["Category", ticket.category || "General"],
-                ["Assigned Agent", ticket.assignedAgentName || ticket.assignedAgent || "Unassigned"],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <div className="text-[10px] text-slate-400 uppercase font-bold">{label}</div>
-                  <div className="mt-0.5 font-semibold text-slate-800">{value}</div>
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Requester</div>
+                <div className="mt-0.5 font-semibold text-slate-800">{ticket.customerName || ticket.created_by_name || "Customer"}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Category</div>
+                <div className="mt-0.5 font-semibold text-slate-800">{ticket.category || "General"}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Priority Level</div>
+                <div className="mt-0.5 font-bold">
+                  <span className={`sp-priority ${getPriorityBadgeClass(ticket.priority)}`}>
+                    {formatPriorityLabel(ticket.priority)}
+                  </span>
                 </div>
-              ))}
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Assigned Specialist</div>
+                <div className="mt-0.5 font-semibold text-slate-800">{ticket.assignedAgentName || ticket.assignedAgent || "Unassigned"}</div>
+              </div>
             </div>
 
             <div className="text-xs font-bold text-slate-700">Issue Description:</div>
@@ -728,8 +799,9 @@ export default function AgentTicketDetails() {
             </p>
 
             {ticket.attachment && (
-              <div className="text-xs text-emerald-800 font-semibold">
-                📎 Attachment: <span className="font-mono text-slate-600">{ticket.attachment}</span>
+              <div className="text-xs text-emerald-800 font-semibold flex items-center gap-1.5">
+                <FiPaperclip className="w-3.5 h-3.5 text-slate-500" />
+                <span>Attachment:</span> <span className="font-mono text-slate-600">{ticket.attachment}</span>
               </div>
             )}
           </section>
@@ -738,7 +810,9 @@ export default function AgentTicketDetails() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🤖</span>
+                <span className="p-1 rounded-lg bg-indigo-50 text-indigo-700">
+                  <FiCpu className="w-4 h-4" />
+                </span>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">AI Multi-Agent Workflow State</h3>
                   <p className="text-[11px] text-slate-500">Sequential multi-agent investigation and grounded validation</p>
@@ -757,7 +831,7 @@ export default function AgentTicketDetails() {
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold text-emerald-950">1. Diagnosis</span>
-                  <span className="text-emerald-700 font-bold">✓</span>
+                  <FiCheck className="text-emerald-700 font-bold w-3 h-3" />
                 </div>
                 <div className="text-[10px] text-emerald-800">
                   {workflowData?.diagnosis?.affected_system || "System Analyzed"}
@@ -767,7 +841,7 @@ export default function AgentTicketDetails() {
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold text-emerald-950">2. RAG Retrieval</span>
-                  <span className="text-emerald-700 font-bold">✓</span>
+                  <FiCheck className="text-emerald-700 font-bold w-3 h-3" />
                 </div>
                 <div className="text-[10px] text-emerald-800">
                   {citations.length} Citations Found
@@ -777,7 +851,7 @@ export default function AgentTicketDetails() {
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold text-emerald-950">3. Resolution</span>
-                  <span className="text-emerald-700 font-bold">✓</span>
+                  <FiCheck className="text-emerald-700 font-bold w-3 h-3" />
                 </div>
                 <div className="text-[10px] text-emerald-800">
                   Conf: {Math.round((workflowData?.final_confidence || 0.92) * 100)}%
@@ -792,7 +866,7 @@ export default function AgentTicketDetails() {
                     4. {isEscalated ? "Escalated" : "Auto Resolve"}
                   </span>
                   <span className={`font-bold ${isEscalated ? "text-amber-700" : "text-emerald-700"}`}>
-                    {isEscalated ? "!" : "✓"}
+                    {isEscalated ? "!" : <FiCheck className="w-3 h-3" />}
                   </span>
                 </div>
                 <div className={`text-[10px] ${isEscalated ? "text-amber-800" : "text-emerald-800"}`}>
@@ -806,7 +880,7 @@ export default function AgentTicketDetails() {
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <span>🩺</span> Diagnosis Agent Finding:
+                    <FiActivity className="w-3.5 h-3.5 text-blue-600" /> Diagnosis Agent Finding:
                   </span>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
                     Confidence: {Math.round((workflowData.diagnosis.confidence || 0.91) * 100)}%
@@ -831,7 +905,8 @@ export default function AgentTicketDetails() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <span>✨</span> AI Grounded Resolution Steps
+                <FiZap className="w-4 h-4 text-emerald-600" />
+                <span>AI Grounded Resolution Steps</span>
               </h3>
               <span className="rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[10px] font-bold">
                 M2 RAG Grounded
@@ -871,7 +946,7 @@ export default function AgentTicketDetails() {
                     "Restart the VPN client service.",
                     "Clear cached credentials and re-authenticate."
                   ]).map((s, idx) => `${idx + 1}. ${s}`).join("\n")}\n\nConfidence Score: 92%\nIf these steps resolve your issue, you can confirm directly in your customer portal.\n\nBest regards,\nSupportPilot AI Assistant`}
-                  label="Email Resolution via Gmail"
+                  label="Email Resolution"
                   variant="button"
                 />
               </div>
@@ -886,16 +961,20 @@ export default function AgentTicketDetails() {
                   </div>
                   {citations.map((c, i) => (
                     <div key={i} className="p-2.5 rounded-lg bg-white border border-indigo-100 flex items-start justify-between gap-3">
-                      <div className="text-[11px] text-indigo-950 flex-1">
-                        📚 <strong>{c.source_title}</strong> ({c.section || "§1.0"}): <em className="text-slate-600">"{c.quote}"</em>
+                      <div className="text-[11px] text-indigo-950 flex-1 flex items-start gap-1.5">
+                        <FiBookOpen className="w-3.5 h-3.5 text-indigo-700 shrink-0 mt-0.5" />
+                        <div>
+                          <strong>{c.source_title}</strong> ({c.section || "§1.0"}): <em className="text-slate-600">"{c.quote}"</em>
+                        </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleFlagOutdatedKB(c.source_id || `KB-${i+101}`, c.source_title)}
-                        className="text-[10px] px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold transition cursor-pointer whitespace-nowrap"
+                        className="text-[10px] px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1"
                         title="Flag this knowledge article as outdated for knowledge management review"
                       >
-                        ⚠️ Flag Outdated
+                        <FiAlertTriangle className="w-3 h-3 text-amber-700" />
+                        <span>Flag Outdated</span>
                       </button>
                     </div>
                   ))}
@@ -909,7 +988,7 @@ export default function AgentTicketDetails() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white text-base shadow-sm">
-                  🛡️
+                  <FiShield className="w-4 h-4 text-white" />
                 </span>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -935,7 +1014,8 @@ export default function AgentTicketDetails() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <span>📋</span> 9-Point Human Validation Checklist
+                  <FiCheckCircle className="w-4 h-4 text-indigo-700" />
+                  <span>9-Point Human Validation Checklist</span>
                 </h4>
                 <span className="text-[10px] text-slate-500 font-medium">Verify each dimension prior to customer dispatch</span>
               </div>
@@ -1165,7 +1245,8 @@ export default function AgentTicketDetails() {
             <div className="space-y-3 pt-3 border-t border-indigo-100">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <span>⚡</span> Agent Action Controls (Milestone 4)
+                  <FiZap className="w-4 h-4 text-indigo-700" />
+                  <span>Agent Action Controls (Milestone 4)</span>
                 </h4>
                 <span className="text-[10px] text-slate-500">Executes verified workflow transition</span>
               </div>
@@ -1181,7 +1262,7 @@ export default function AgentTicketDetails() {
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-emerald-950 mb-0.5">
                     <span>1. Send AI Response</span>
-                    <span className="text-emerald-700">✓</span>
+                    <FiCheck className="w-3.5 h-3.5 text-emerald-700" />
                   </div>
                   <div className="text-[10px] text-emerald-800">Answer is valid as-is</div>
                   <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-emerald-200/60 rounded text-emerald-900">
@@ -1202,7 +1283,7 @@ export default function AgentTicketDetails() {
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-blue-950 mb-0.5">
                     <span>2. Edit & Send</span>
-                    <span className="text-blue-700">✏️</span>
+                    <FiEdit2 className="w-3.5 h-3.5 text-blue-700" />
                   </div>
                   <div className="text-[10px] text-blue-800">Adjust wording or steps</div>
                   <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-blue-200/60 rounded text-blue-900">
@@ -1220,7 +1301,7 @@ export default function AgentTicketDetails() {
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-violet-950 mb-0.5">
                     <span>3. Manual Response</span>
-                    <span className="text-violet-700">✍️</span>
+                    <FiEdit3 className="w-3.5 h-3.5 text-violet-700" />
                   </div>
                   <div className="text-[10px] text-violet-800">Agent writes solution</div>
                   <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-violet-200/60 rounded text-violet-900">
@@ -1238,7 +1319,7 @@ export default function AgentTicketDetails() {
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-amber-950 mb-0.5">
                     <span>4. Request Info</span>
-                    <span className="text-amber-700">❓</span>
+                    <FiHelpCircle className="w-3.5 h-3.5 text-amber-700" />
                   </div>
                   <div className="text-[10px] text-amber-800">Ask logs or clarification</div>
                   <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-amber-200/60 rounded text-amber-900">
@@ -1256,7 +1337,7 @@ export default function AgentTicketDetails() {
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-rose-950 mb-0.5">
                     <span>5. Escalate</span>
-                    <span className="text-rose-700">🚨</span>
+                    <FiAlertTriangle className="w-3.5 h-3.5 text-rose-700" />
                   </div>
                   <div className="text-[10px] text-rose-800">Hand off to specialist</div>
                   <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-rose-200/60 rounded text-rose-900">
@@ -1274,7 +1355,7 @@ export default function AgentTicketDetails() {
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-teal-950 mb-0.5">
                     <span>6. Resolve</span>
-                    <span className="text-teal-700">✅</span>
+                    <FiCheckCircle className="w-3.5 h-3.5 text-teal-700" />
                   </div>
                   <div className="text-[10px] text-teal-800">Record final solution</div>
                   <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-teal-200/60 rounded text-teal-900">
@@ -1292,7 +1373,7 @@ export default function AgentTicketDetails() {
                 >
                   <div className="flex items-center justify-between text-xs font-bold text-slate-900 mb-0.5">
                     <span>7. Close</span>
-                    <span className="text-slate-600">🔒</span>
+                    <FiLock className="w-3.5 h-3.5 text-slate-600" />
                   </div>
                   <div className="text-[10px] text-slate-600">Finalize & lock ticket</div>
                   <span className="mt-1.5 inline-block text-[9px] font-mono px-1.5 py-0.5 bg-slate-300/60 rounded text-slate-800">
@@ -1346,7 +1427,7 @@ export default function AgentTicketDetails() {
                         <span className={`h-5 w-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
                           reply.isCustomer ? "bg-slate-200 text-slate-700" : "bg-blue-600 text-white"
                         }`}>
-                          {reply.isCustomer ? "👤" : "👨‍💼"}
+                          {reply.isCustomer ? <FiUser className="w-3 h-3" /> : <FiShield className="w-3 h-3" />}
                         </span>
                         <span className="font-bold text-slate-800">{reply.author_name}</span>
                         <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
@@ -1390,7 +1471,7 @@ export default function AgentTicketDetails() {
                   recipient={ticket.customerEmail || ticket.created_by?.email || "customer@example.com"}
                   subject={`[SupportPilot] Update on #${ticketCode}: ${ticket.subject || ticket.title}`}
                   body={`Hello ${ticket.customerName || ticket.created_by_name || "Customer"},\n\n${comment || "Regarding your support request on " + (ticket.subject || ticket.title) + ":"}\n\nPlease let us know if you have any questions.\n\nBest regards,\n${agentName} | Support Operations Team`}
-                  label="Send via Gmail"
+                  label="Send Email"
                   variant="button"
                 />
               </div>
@@ -1398,13 +1479,77 @@ export default function AgentTicketDetails() {
           </section>
         </div>
 
-        {/* Right Column: Jira Integration + Email Logs + Unified Activity History */}
+        {/* Right Column: Ticket Metadata & SLA + Jira Integration + Email Logs + Unified Activity History */}
         <div className="space-y-6">
-          {/* 1. JIRA ENTERPRISE CARD */}
+          {/* 1. TICKET METADATA & SLA CARD */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
-                <span className="text-base">🔗</span>
+                <FiClock className="w-4 h-4 text-blue-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Ticket Metadata & SLA
+                </h3>
+              </div>
+              <span className={`sp-priority ${getPriorityBadgeClass(ticket.priority)}`}>
+                {formatPriorityLabel(ticket.priority)}
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-slate-50">
+                <span className="text-slate-500 font-medium">Priority:</span>
+                <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                  String(ticket.priority || "").includes("P1") || String(ticket.priority || "").includes("Critical")
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : String(ticket.priority || "").includes("P2") || String(ticket.priority || "").includes("High")
+                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                    : String(ticket.priority || "").includes("P4") || String(ticket.priority || "").includes("Low")
+                    ? "bg-slate-50 text-slate-700 border border-slate-200"
+                    : "bg-blue-50 text-blue-700 border border-blue-200"
+                }`}>
+                  {formatPriorityLabel(ticket.priority)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50">
+                <span className="text-slate-500 font-medium">SLA Resolution Target:</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {String(ticket.priority || "").includes("P1") || String(ticket.priority || "").includes("Critical")
+                    ? "4 Hours"
+                    : String(ticket.priority || "").includes("P2") || String(ticket.priority || "").includes("High")
+                    ? "8 Hours"
+                    : String(ticket.priority || "").includes("P4") || String(ticket.priority || "").includes("Low")
+                    ? "48 Hours"
+                    : "24 Hours"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50">
+                <span className="text-slate-500 font-medium">Department:</span>
+                <span className="font-semibold text-blue-600">{ticket.department || "IT Support"}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50">
+                <span className="text-slate-500 font-medium">Category:</span>
+                <span className="font-semibold text-slate-800 truncate max-w-[180px]">{ticket.category} → {ticket.sub_category || ticket.subCategory || "General"}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-50">
+                <span className="text-slate-500 font-medium">Work Blocked:</span>
+                <span className={ticket.workBlocked ? "font-bold text-red-600" : "font-medium text-emerald-600"}>
+                  {ticket.workBlocked ? "Yes (Blocked)" : "No (Normal)"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 font-medium">Submitted:</span>
+                <span className="text-[11px] font-mono text-slate-600">
+                  {new Date(ticket.createdAt || ticket.created_at || Date.now()).toLocaleDateString()} {new Date(ticket.createdAt || ticket.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. JIRA ENTERPRISE CARD */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <FiExternalLink className="w-4 h-4 text-blue-600" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                   Jira Enterprise Issue
                 </h3>
@@ -1447,7 +1592,7 @@ export default function AgentTicketDetails() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
-                <span className="text-base">✉️</span>
+                <FiMail className="w-4 h-4 text-blue-600" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                   Email Notifications ({emailLogs.length})
                 </h3>
@@ -1471,7 +1616,10 @@ export default function AgentTicketDetails() {
                       <span className="font-semibold text-slate-800 capitalize">
                         {em.email_type?.replace("_", " ") || "Notice"}
                       </span>
-                      <span className="text-[10px] text-emerald-700 font-bold mr-1">✓ {em.status || "SENT"}</span>
+                      <span className="text-[10px] text-emerald-700 font-bold mr-1 flex items-center gap-1">
+                        <FiCheck className="w-3 h-3" />
+                        <span>{em.status || "SENT"}</span>
+                      </span>
                     </div>
                     <div className="text-[11px] text-slate-500 truncate">{em.subject}</div>
                   </div>
@@ -1481,7 +1629,7 @@ export default function AgentTicketDetails() {
                     subject={em.subject}
                     body={em.body}
                     variant="icon"
-                    title="Open & Send this pre-filled notification in Gmail"
+                    title="Send email notification"
                   />
                 </div>
               ))}
@@ -1492,7 +1640,7 @@ export default function AgentTicketDetails() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
-                <span className="text-base">📋</span>
+                <FiFileText className="w-4 h-4 text-slate-700" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                   Activity & M4 Audit Trail
                 </h3>
@@ -1508,8 +1656,13 @@ export default function AgentTicketDetails() {
                 <div key={tm.id || `tm-${idx}`} className="border-l-2 border-amber-500 pl-3 relative text-xs">
                   <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-amber-500" />
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-950 flex items-center gap-1">
-                      <span>{tm.type === "feedback" ? "⭐" : "📌"}</span> {tm.title}
+                    <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                      {tm.type === "feedback" ? (
+                        <FiStar className="w-3 h-3 text-amber-500 fill-amber-400 shrink-0" />
+                      ) : (
+                        <FiBookmark className="w-3 h-3 text-amber-600 shrink-0" />
+                      )}
+                      <span>{tm.title}</span>
                     </span>
                     <span className="text-[10px] text-slate-400">
                       {new Date(tm.createdAt || tm.timestamp || Date.now()).toLocaleTimeString()}
@@ -1524,8 +1677,9 @@ export default function AgentTicketDetails() {
                 <div key={hist.historyId || idx} className="border-l-2 border-indigo-500 pl-3 relative text-xs">
                   <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-indigo-600" />
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-indigo-950 flex items-center gap-1">
-                      <span>🛡️</span> {hist.actor || "Support Agent"}
+                    <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                      <FiShield className="w-3 h-3 text-indigo-600 shrink-0" />
+                      <span>{hist.actor || "Support Agent"}</span>
                     </span>
                     <span className="text-[10px] text-slate-400">
                       {new Date(hist.timestamp || Date.now()).toLocaleTimeString()}
@@ -1543,8 +1697,9 @@ export default function AgentTicketDetails() {
                 <div key={rev.reviewId || idx} className="border-l-2 border-emerald-500 pl-3 relative text-xs">
                   <div className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-emerald-600" />
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-950 flex items-center gap-1">
-                      <span>✓</span> {rev.agentName} (Review: {rev.action})
+                    <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                      <FiCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span>{rev.agentName} (Review: {rev.action})</span>
                     </span>
                     <span className="text-[10px] text-slate-400">
                       {new Date(rev.reviewedAt || Date.now()).toLocaleTimeString()}
@@ -1589,7 +1744,7 @@ export default function AgentTicketDetails() {
           <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">✏️</span>
+                <FiEdit2 className="w-5 h-5 text-blue-600" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Edit & Send Resolution (Milestone 4)</h3>
                   <p className="text-[11px] text-slate-500">Original AI answer will remain preserved in audit history</p>
@@ -1600,7 +1755,7 @@ export default function AgentTicketDetails() {
                 onClick={() => setActiveActionModal(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
-                ✕
+                <FiX className="w-4 h-4" />
               </button>
             </div>
 
@@ -1673,7 +1828,7 @@ export default function AgentTicketDetails() {
           <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">✍️</span>
+                <FiEdit3 className="w-5 h-5 text-violet-600" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Manual Specialist Response (Override AI)</h3>
                   <p className="text-[11px] text-slate-500">Provide direct expert solution bypassing AI recommendation</p>
@@ -1684,7 +1839,7 @@ export default function AgentTicketDetails() {
                 onClick={() => setActiveActionModal(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
-                ✕
+                <FiX className="w-4 h-4" />
               </button>
             </div>
 
@@ -1746,7 +1901,7 @@ export default function AgentTicketDetails() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">❓</span>
+                <FiHelpCircle className="w-5 h-5 text-amber-600" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Request Information from Customer</h3>
                   <p className="text-[11px] text-slate-500">Status will move to AWAITING_CUSTOMER_INFO</p>
@@ -1757,7 +1912,7 @@ export default function AgentTicketDetails() {
                 onClick={() => setActiveActionModal(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
-                ✕
+                <FiX className="w-4 h-4" />
               </button>
             </div>
 
@@ -1805,7 +1960,7 @@ export default function AgentTicketDetails() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🚨</span>
+                <FiAlertTriangle className="w-5 h-5 text-rose-600" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Escalate Ticket to Specialist Team</h3>
                   <p className="text-[11px] text-slate-500">Assign case ownership to higher-tier department</p>
@@ -1816,7 +1971,7 @@ export default function AgentTicketDetails() {
                 onClick={() => setActiveActionModal(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
-                ✕
+                <FiX className="w-4 h-4" />
               </button>
             </div>
 
@@ -1890,7 +2045,7 @@ export default function AgentTicketDetails() {
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">✅</span>
+                <FiCheckCircle className="w-5 h-5 text-teal-600" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Mark Ticket as Resolved (Milestone 4)</h3>
                   <p className="text-[11px] text-slate-500">Record final resolution notes and awaiting confirmation</p>
@@ -1901,7 +2056,7 @@ export default function AgentTicketDetails() {
                 onClick={() => setActiveActionModal(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
-                ✕
+                <FiX className="w-4 h-4" />
               </button>
             </div>
 
@@ -1954,7 +2109,7 @@ export default function AgentTicketDetails() {
                 onClick={() => setSelectedEmailModal(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
               >
-                ✕
+                <FiX className="w-4 h-4" />
               </button>
             </div>
             <div className="text-xs space-y-2">
@@ -1975,7 +2130,7 @@ export default function AgentTicketDetails() {
                 subject={selectedEmailModal.subject}
                 body={selectedEmailModal.body}
                 variant="button"
-                label="Open & Send with Gmail"
+                label="Send Email"
               />
             </div>
           </div>

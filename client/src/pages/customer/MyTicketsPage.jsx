@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  FiInbox,
+  FiPlus,
+  FiPaperclip,
+  FiClock,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiRefreshCw,
+} from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 import {
   getCustomerTickets,
@@ -8,28 +17,50 @@ import {
   saveTickets,
 } from "../../services/ticketService";
 
-const priorityClass = {
-  P1: "sp-p1",
-  High: "sp-p1",
-  Critical: "sp-p1",
-  P2: "sp-p2",
-  P3: "sp-p3",
-  Medium: "sp-p2",
-  P4: "sp-p4",
-  Low: "sp-p4",
+const PRIORITY_CONFIG = {
+  P1: { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  Critical: { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  "P1 - Critical": { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  "P1 – Critical": { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  High: { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  P2: { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  "P2 - High": { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  "P2 – High": { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  Medium: { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  P3: { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  "P3 - Medium": { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  "P3 – Medium": { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  Low: { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+  P4: { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+  "P4 - Low": { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+  "P4 – Low": { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
 };
 
-const statusClass = {
-  NEW: "sp-tag-info font-bold",
-  IN_PROGRESS: "sp-tag-warning font-semibold",
-  RESOLVED: "sp-tag-success font-semibold",
-  CLOSED: "sp-tag-neutral",
-  Open: "sp-tag-info",
-  "In Progress": "sp-tag-warning font-semibold",
-  Resolved: "sp-tag-success font-semibold",
-  Closed: "sp-tag-neutral",
-  CLASSIFIED: "sp-tag-brand",
-  AI_RESOLUTION_READY: "sp-tag-brand font-bold bg-emerald-50 text-emerald-800 border border-emerald-300",
+function getPriorityInfo(priority) {
+  if (PRIORITY_CONFIG[priority]) return PRIORITY_CONFIG[priority];
+  const p = String(priority || "").toUpperCase();
+  if (p.includes("P1") || p.includes("CRITICAL")) return PRIORITY_CONFIG.P1;
+  if (p.includes("P2") || p.includes("HIGH")) return PRIORITY_CONFIG.P2;
+  if (p.includes("P4") || p.includes("LOW")) return PRIORITY_CONFIG.P4;
+  return PRIORITY_CONFIG.P3;
+}
+
+const STATUS_CONFIG = {
+  NEW: { label: "New", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  Open: { label: "Open", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  CLASSIFIED: { label: "Classified", badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  AI_RESOLUTION_READY: { label: "AI Resolution", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  ASSIGNED: { label: "Assigned", badge: "bg-sky-50 text-sky-700 border-sky-200" },
+  IN_PROGRESS: { label: "In Progress", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  "In Progress": { label: "In Progress", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  PENDING_ASSIGNMENT: { label: "Pending Assignment", badge: "bg-purple-50 text-purple-700 border-purple-200" },
+  ESCALATED: { label: "Escalated", badge: "bg-rose-50 text-rose-700 border-rose-200" },
+  ON_HOLD: { label: "On Hold", badge: "bg-slate-100 text-slate-700 border-slate-200" },
+  "On Hold": { label: "On Hold", badge: "bg-slate-100 text-slate-700 border-slate-200" },
+  RESOLVED: { label: "Resolved", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  Resolved: { label: "Resolved", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  CLOSED: { label: "Closed", badge: "bg-slate-100 text-slate-600 border-slate-200" },
+  Closed: { label: "Closed", badge: "bg-slate-100 text-slate-600 border-slate-200" },
 };
 
 export default function MyTicketsPage() {
@@ -43,7 +74,6 @@ export default function MyTicketsPage() {
       const apiTickets = await fetchMyTicketsApi();
       if (apiTickets && Array.isArray(apiTickets) && apiTickets.length > 0) {
         setTickets(apiTickets);
-        // Merge backend tickets into local storage cache
         try {
           const current = getTickets();
           const merged = [...apiTickets];
@@ -59,10 +89,8 @@ export default function MyTicketsPage() {
               merged.push(t);
             }
           });
-          saveTickets(merged);
-        } catch (mErr) {
-          console.warn("Storage sync error:", mErr);
-        }
+          storage.set(STORAGE_KEYS.tickets, merged);
+        } catch (mErr) {}
       } else if (user) {
         setTickets(getCustomerTickets(user));
       } else {
@@ -78,6 +106,16 @@ export default function MyTicketsPage() {
 
   useEffect(() => {
     loadTickets();
+    const handleSync = () => {
+      if (user) setTickets(getCustomerTickets(user));
+      else setTickets(getCustomerTickets());
+    };
+    window.addEventListener("supportpilot_tickets_changed", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("supportpilot_tickets_changed", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
   }, [user]);
 
   const totalTickets = tickets.length;
@@ -85,122 +123,140 @@ export default function MyTicketsPage() {
     (t) => ["NEW", "Open", "CLASSIFIED", "AI_RESOLUTION_READY"].includes(t.status)
   ).length;
   const inProgressTickets = tickets.filter(
-    (t) => ["IN_PROGRESS", "In Progress", "Pending"].includes(t.status)
+    (t) => ["IN_PROGRESS", "In Progress", "Pending", "PENDING_ASSIGNMENT", "ESCALATED"].includes(t.status)
   ).length;
   const resolvedTickets = tickets.filter(
     (t) => ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status)
   ).length;
 
   return (
-    <div className="mx-auto max-w-[920px] space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       {/* Top Header & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Customer Portal</span>
-          <h1 className="text-2xl font-bold text-[#1c2430]">Customer Dashboard</h1>
-          <p className="text-xs text-[#8b95a1] mt-0.5">
-            Track and manage your submitted support tickets.
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">
+            Customer Portal
+          </span>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Support Ticket Dashboard</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Track, inspect, and reply to your active service requests.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to="/portal/tickets"
-            className="rounded-xl border border-emerald-700/30 bg-emerald-50/50 px-4 py-2 text-xs font-bold text-emerald-800 shadow-sm transition"
-          >
-            My Tickets
-          </Link>
-          <Link
             to="/portal/tickets/new"
-            className="sp-btn sp-btn-primary shadow"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
           >
-            + Create Ticket
+            <FiPlus className="text-sm" />
+            <span>Create New Ticket</span>
           </Link>
         </div>
       </div>
 
-      {/* Customer Dashboard Metrics Cards */}
+      {/* Metrics Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="sp-card p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8b95a1]">Total Tickets</div>
-          <div className="my-1 text-2xl font-extrabold text-[#1c2430]">{totalTickets}</div>
-          <div className="text-[11px] font-medium text-slate-500">All submissions</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Total Tickets</div>
+          <div className="my-1 text-2xl font-bold text-slate-900">{totalTickets}</div>
+          <div className="text-[11px] text-slate-400">All submissions</div>
         </div>
 
-        <div className="sp-card p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Open Tickets</div>
-          <div className="my-1 text-2xl font-extrabold text-blue-700">{openTickets}</div>
-          <div className="text-[11px] font-medium text-blue-600">Awaiting triage</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-blue-600">Open Tickets</div>
+          <div className="my-1 text-2xl font-bold text-blue-600">{openTickets}</div>
+          <div className="text-[11px] text-blue-500">Awaiting triage</div>
         </div>
 
-        <div className="sp-card p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">In Progress</div>
-          <div className="my-1 text-2xl font-extrabold text-amber-700">{inProgressTickets}</div>
-          <div className="text-[11px] font-medium text-amber-600">Under investigation</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-amber-600">In Progress</div>
+          <div className="my-1 text-2xl font-bold text-amber-600">{inProgressTickets}</div>
+          <div className="text-[11px] text-amber-500">Under investigation</div>
         </div>
 
-        <div className="sp-card p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Resolved</div>
-          <div className="my-1 text-2xl font-extrabold text-emerald-700">{resolvedTickets}</div>
-          <div className="text-[11px] font-medium text-emerald-600">Completed</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-emerald-600">Resolved / Closed</div>
+          <div className="my-1 text-2xl font-bold text-emerald-600">{resolvedTickets}</div>
+          <div className="text-[11px] text-emerald-500">Completed</div>
         </div>
       </div>
 
       {/* Ticket List Section */}
-      <div className="sp-card overflow-hidden">
-        <div className="flex items-center justify-between border-b border-[#dfe5e1] bg-[#fafbfa] px-4 py-3">
-          <h2 className="text-sm font-bold text-[#1c2430]">My Tickets Queue</h2>
+      <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/50 px-4 py-3">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+            My Submitted Tickets ({tickets.length})
+          </h2>
           <button
             onClick={loadTickets}
-            className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
           >
-            Refresh
+            <FiRefreshCw className="text-[11px]" />
+            <span>Refresh</span>
           </button>
         </div>
 
-        <div className="divide-y divide-[#eef2f0]">
+        <div className="divide-y divide-slate-100">
           {tickets.map((ticket) => {
-            const ticketCode = ticket.ticketNumber || ticket.ticket_number || (typeof ticket.id === "number" ? `TKT-${1000 + ticket.id}` : ticket.id);
+            const ticketCode =
+              ticket.ticketNumber ||
+              ticket.ticket_number ||
+              (typeof ticket.id === "number" ? `TKT-${1000 + ticket.id}` : ticket.id);
             const isResolved = ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(ticket.status);
 
             return (
               <Link
                 key={ticket.id || ticketCode}
                 to={`/portal/tickets/${ticketCode}`}
-                className={`flex items-center justify-between gap-4 p-4 no-underline transition hover:bg-[#f8faf9] ${
-                  isResolved ? "opacity-75" : ""
+                className={`flex items-center justify-between gap-4 p-4 transition hover:bg-slate-50/80 ${
+                  isResolved ? "opacity-80" : ""
                 }`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[#14532d]">
-                      {ticketCode}
+                    <span className="font-mono text-xs font-bold text-slate-900">
+                      #{ticketCode}
                     </span>
-                    <span className={`sp-priority ${priorityClass[ticket.priority] || "sp-p4"}`}>
-                      {ticket.priority}
-                    </span>
-                    <span className="truncate text-sm font-semibold text-[#1c2430]">
+                    {(() => {
+                      const prio = getPriorityInfo(ticket.priority);
+                      return (
+                        <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${prio.badge}`}>
+                          {prio.label}
+                        </span>
+                      );
+                    })()}
+                    <span className="truncate text-xs font-semibold text-slate-900">
                       {ticket.subject || ticket.title}
                     </span>
                   </div>
 
-                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#8b95a1]">
-                    <span>Category: <strong>{ticket.category || "Account"}</strong></span>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                    <span>
+                      Category: <strong className="text-slate-700">{ticket.category || "General"}</strong>
+                    </span>
                     {ticket.attachment && (
-                      <span className="flex items-center gap-1 text-emerald-700 font-medium">
-                        📎 Attachment
+                      <span className="flex items-center gap-1 text-blue-600 font-medium">
+                        <FiPaperclip />
+                        <span>Attachment</span>
                       </span>
                     )}
                     <span>
-                      Created: {ticket.createdAt || ticket.created_at ? new Date(ticket.createdAt || ticket.created_at).toLocaleDateString() : "Recently"}
+                      Created:{" "}
+                      {ticket.createdAt || ticket.created_at
+                        ? new Date(ticket.createdAt || ticket.created_at).toLocaleDateString()
+                        : "Recently"}
                     </span>
                   </div>
                 </div>
 
                 <div className="shrink-0 text-right">
-                  <span className={`sp-tag ${statusClass[ticket.status] || "sp-tag-neutral"}`}>
-                    {ticket.status === "AI_RESOLUTION_READY" ? "✦ AI Ready" : ticket.status}
+                  <span
+                    className={`inline-block rounded border px-2 py-0.5 text-[11px] font-semibold ${
+                      STATUS_CONFIG[ticket.status]?.badge || "bg-slate-50 text-slate-600 border-slate-200"
+                    }`}
+                  >
+                    {STATUS_CONFIG[ticket.status]?.label || ticket.status}
                   </span>
-                  <div className="mt-1 text-[10px] text-[#8b95a1]">
+                  <div className="mt-1 text-[11px] text-slate-500">
                     {ticket.assignedAgentName || ticket.assignedAgent || "Support Desk"}
                   </div>
                 </div>
@@ -209,12 +265,16 @@ export default function MyTicketsPage() {
           })}
 
           {!tickets.length && !loading && (
-            <div className="p-12 text-center">
-              <div className="text-3xl mb-2">🎫</div>
-              <p className="text-sm font-semibold text-[#1c2430]">No tickets found</p>
-              <p className="text-xs text-[#8b95a1] mt-1">You haven't created any support tickets yet.</p>
-              <Link to="/portal/tickets/new" className="mt-4 inline-block sp-btn sp-btn-primary text-xs">
-                + Create Your First Ticket
+            <div className="py-12 text-center text-slate-500">
+              <FiInbox className="mx-auto text-3xl text-slate-300 mb-2" />
+              <p className="text-xs font-semibold text-slate-800">No tickets found</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">You have not created any support tickets yet.</p>
+              <Link
+                to="/portal/tickets/new"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs"
+              >
+                <FiPlus className="text-xs" />
+                <span>Create Your First Ticket</span>
               </Link>
             </div>
           )}

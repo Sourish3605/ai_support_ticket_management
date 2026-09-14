@@ -1,7 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { getAllTickets, updateTicket } from "../../services/ticketService";
-import { seedUsers } from "../../data/seedData";
+import {
+  FiClock,
+  FiAlertTriangle,
+  FiAlertCircle,
+  FiCheckCircle,
+  FiCpu,
+  FiUser,
+  FiCheck,
+  FiX,
+  FiShield,
+  FiArrowRight,
+  FiRefreshCw,
+} from "react-icons/fi";
+import {
+  getAllTickets,
+  fetchAgentTicketsApi,
+  assignTicketApi,
+  fetchAgentsApi,
+  updateTicket,
+  getDepartmentAgentsList,
+} from "../../services/ticketService";
 
 export default function ManagerSlaAndEscalationsPage() {
   const location = useLocation();
@@ -12,91 +31,92 @@ export default function ManagerSlaAndEscalationsPage() {
   const [routeModalTicket, setRouteModalTicket] = useState(null);
   const [targetTeam, setTargetTeam] = useState("");
   const [targetAgent, setTargetAgent] = useState("");
+  const [agents, setAgents] = useState(() => getDepartmentAgentsList());
 
-  const loadTickets = () => {
+  const loadData = async () => {
+    try {
+      const apiTickets = await fetchAgentTicketsApi();
+      if (apiTickets && Array.isArray(apiTickets) && apiTickets.length > 0) {
+        setTickets(apiTickets);
+        return;
+      }
+    } catch (e) {}
     setTickets(getAllTickets());
   };
 
   useEffect(() => {
-    loadTickets();
-  }, [location.pathname]);
+    loadData();
+    fetchAgentsApi().then((list) => {
+      if (list && Array.isArray(list) && list.length > 0) {
+        setAgents(list);
+      }
+    });
+  }, []);
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
+  const handleRouteTeam = async (e) => {
+    e.preventDefault();
+    if (!routeModalTicket || !targetTeam) return;
+
+    try {
+      await assignTicketApi(routeModalTicket.id, null, targetAgent || "Specialist Lead");
+    } catch (err) {}
+
+    updateTicket(routeModalTicket.id, {
+      assignedTeam: targetTeam,
+      assignedAgent: targetAgent || "Specialist Lead",
+      assignedAgentName: targetAgent || "Specialist Lead",
+      department: targetTeam,
+      status: "IN_PROGRESS",
+    });
+
+    setToast({
+      type: "success",
+      message: `Ticket #${routeModalTicket.ticketNumber || routeModalTicket.id} routed to ${targetTeam}.`,
+    });
+    setRouteModalTicket(null);
+    loadData();
+  };
 
   const escalatedTickets = tickets.filter(
     (t) =>
-      ["ESCALATED", "Escalated"].includes(t.status) ||
-      (t.priority === "Critical" && !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status))
+      t.status === "ESCALATED" ||
+      t.priority === "Critical" ||
+      t.priority === "P1" ||
+      t.assistanceRequested ||
+      (t.confidence && t.confidence < 0.75)
   );
-
-  const agents = seedUsers.filter((u) => ["Agent", "Support Agent", "Employee"].includes(u.role));
-
-  const handleRouteTeam = (e) => {
-    e.preventDefault();
-    if (!routeModalTicket) return;
-
-    try {
-      updateTicket(routeModalTicket.id, {
-        status: "IN_PROGRESS",
-        assignedTeam: targetTeam || routeModalTicket.assignedTeam || "Tier-2 Technical Support",
-        assignedAgent: targetAgent || routeModalTicket.assignedAgent || "Agent",
-        assignedAgentName: targetAgent ? `${targetAgent} (${targetTeam || "Specialized Tier"})` : routeModalTicket.assignedAgentName,
-      });
-
-      setToast({
-        type: "success",
-        message: `✓ Ticket #${routeModalTicket.ticketNumber || routeModalTicket.id} routed to ${targetTeam || "Target Team"} (${targetAgent || "Assigned"}).`,
-      });
-
-      setRouteModalTicket(null);
-      setTargetTeam("");
-      setTargetAgent("");
-      loadTickets();
-    } catch (err) {
-      setToast({ type: "error", message: "Failed to route escalation." });
-    }
-  };
 
   const slaTiers = [
     {
-      priority: "Critical",
-      responseTarget: "30 Minutes",
-      resolutionTarget: "4 Hours",
-      escalationRule: "Immediate escalation to Operations & Senior Engineering",
-      color: "border-red-200 bg-red-50/60 text-slate-900",
-      badge: "bg-red-600 text-white",
+      priority: "P1 – Critical",
+      badge: "bg-red-50 text-red-700 border-red-200",
+      responseSla: "15 mins",
+      resolutionSla: "4 hours",
+      desc: "Complete business outage, security breach, severe system failure.",
       tickets: tickets.filter((t) => ["Critical", "P1"].includes(t.priority)),
     },
     {
-      priority: "High",
-      responseTarget: "2 Hours",
-      resolutionTarget: "8 Hours",
-      escalationRule: "Manager visibility alert & priority queue placement",
-      color: "border-amber-200 bg-amber-50/60 text-slate-900",
-      badge: "bg-amber-500 text-slate-950 font-bold",
+      priority: "P2 – High",
+      badge: "bg-amber-50 text-amber-700 border-amber-200",
+      responseSla: "1 hour",
+      resolutionSla: "8 hours",
+      desc: "Degraded performance or major feature down affecting departments.",
       tickets: tickets.filter((t) => ["High", "P2"].includes(t.priority)),
     },
     {
-      priority: "Medium",
-      responseTarget: "8 Hours",
-      resolutionTarget: "24 Hours",
-      escalationRule: "Agent alert & automated daily SLA checks",
-      color: "border-slate-200 bg-slate-50 text-slate-900",
-      badge: "bg-slate-700 text-white",
-      tickets: tickets.filter((t) => ["Medium", "P3"].includes(t.priority) || (!t.priority && !["Low", "Critical", "High"].includes(t.priority))),
+      priority: "P3 – Medium",
+      badge: "bg-blue-50 text-blue-700 border-blue-200",
+      responseSla: "4 hours",
+      resolutionSla: "24 hours",
+      desc: "Standard issue with available workaround or individual user request.",
+      tickets: tickets.filter((t) => ["Medium", "P3"].includes(t.priority)),
     },
     {
-      priority: "Low",
-      responseTarget: "24 Hours",
-      resolutionTarget: "72 Hours",
-      escalationRule: "Normal queue & standard batch dispatch",
-      color: "border-slate-200 bg-white text-slate-900",
-      badge: "bg-slate-500 text-white",
+      priority: "P4 – Low",
+      badge: "bg-slate-50 text-slate-600 border-slate-200",
+      responseSla: "8 hours",
+      resolutionSla: "48 hours",
+      desc: "Minor request, general inquiry, or informational question.",
       tickets: tickets.filter((t) => ["Low", "P4"].includes(t.priority)),
     },
   ];
@@ -105,179 +125,123 @@ export default function ManagerSlaAndEscalationsPage() {
     <div className="space-y-6">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-20 right-6 z-50 animate-bounce">
-          <div className="rounded-xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-2xl border border-amber-500/50 backdrop-blur-md flex items-center gap-2">
-            <span className="text-amber-400">{toast.type === "success" ? "✓" : "⚠"}</span>
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-3">
+          <div className="rounded-lg bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl border border-slate-700 flex items-center gap-2">
+            <FiCheckCircle className="text-emerald-400" />
             <span>{toast.message}</span>
           </div>
         </div>
       )}
 
-      {/* HEADER BANNER */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header Banner */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold tracking-wide uppercase mb-2">
-            <span>{isSlaMode ? "⏱" : "🚨"}</span>
-            <span>{isSlaMode ? "SLA Policy Governance & Breach Prevention" : "Escalations Management Desk"}</span>
+          <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">
+            <FiClock />
+            <span>{isSlaMode ? "SLA Policy Governance" : "Escalations Desk"}</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            {isSlaMode ? "Enforce Response & Resolution SLAs" : "Human Escalation Handling & Specialized Routing"}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            {isSlaMode ? "SLA Targets & Breach Monitoring" : "Escalated Incidents & Specialized Routing"}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
             {isSlaMode
-              ? "Configured according to Architecture PDF Page 14. Real-time timers track ticket lifecycle deadlines and trigger manager breach notifications."
-              : "Review low-confidence AI suggestions, complex billing disputes, or critical infrastructure outages and route directly to specialized support tiers."}
+              ? "Track response deadlines, resolution milestones, and automated breach alarms across priority tiers."
+              : "Review escalated requests, low-confidence classifications, and route directly to specialized support tiers."}
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 shrink-0">
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200 shrink-0">
           <Link
             to="/manager/escalations"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              !isSlaMode ? "bg-amber-500 text-slate-950 font-bold shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              !isSlaMode ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
             Escalations ({escalatedTickets.length})
           </Link>
           <Link
             to="/manager/sla"
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              isSlaMode ? "bg-amber-500 text-slate-950 font-bold shadow-xs" : "text-slate-600 hover:text-slate-900"
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              isSlaMode ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            SLA Policies (Page 14)
+            SLA Policies
           </Link>
         </div>
       </div>
 
-      {/* VIEW 1: SLA MANAGEMENT MODE */}
       {isSlaMode ? (
+        /* SLA POLICIES VIEW */
         <div className="space-y-6">
-          {/* SLA FLOW BANNER (PDF PAGE 14) */}
-          <div className="rounded-2xl bg-[#090e1a] border border-[#1e293b] p-5 shadow-lg space-y-2 text-white">
-            <div className="text-[11px] font-bold font-mono text-amber-400 uppercase tracking-widest">
-              PDF PAGE 14 SLA EXECUTION PIPELINE
-            </div>
-            <div className="text-xs font-bold text-slate-200 flex flex-wrap items-center gap-2 font-mono">
-              <span className="px-2 py-1 rounded bg-slate-800 text-amber-300">TICKET CREATED</span>
-              <span>→</span>
-              <span className="px-2 py-1 rounded bg-slate-800 text-amber-300">PRIORITY ASSIGNED</span>
-              <span>→</span>
-              <span className="px-2 py-1 rounded bg-slate-800 text-amber-300">SLA TIMER STARTS</span>
-              <span>→</span>
-              <span className="px-2 py-1 rounded bg-slate-800 text-amber-300">RESPONSE CHECK</span>
-              <span>→</span>
-              <span className="px-2 py-1 rounded bg-slate-800 text-amber-300">RESOLUTION CHECK</span>
-              <span>→</span>
-              <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">WARNING</span>
-              <span>→</span>
-              <span className="px-2 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40">BREACH ALERT</span>
-              <span>→</span>
-              <span className="px-2 py-1 rounded bg-amber-500 text-slate-950 font-bold shadow-xs">MANAGER ESCALATION</span>
-            </div>
-          </div>
-
-          {/* SLA TARGET TIERS GRID */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {slaTiers.map((tier) => (
-              <div
-                key={tier.priority}
-                className={`rounded-2xl border p-5 shadow-xs space-y-4 ${tier.color}`}
-              >
+              <div key={tier.priority} className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold ${tier.badge}`}>
+                  <span className={`rounded-md border px-2 py-0.5 text-xs font-bold ${tier.badge}`}>
                     {tier.priority}
                   </span>
-                  <span className="font-mono text-xs text-slate-500">
-                    {tier.tickets.length} Active
-                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-700">{tier.tickets.length} Active</span>
                 </div>
-
-                <div className="space-y-2 text-xs border-y border-slate-200/80 py-3">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Response Target:</span>
-                    <strong className="font-mono text-slate-900">{tier.responseTarget}</strong>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Response Target:</span>
+                    <strong className="text-slate-800">{tier.responseSla}</strong>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Resolution Target:</span>
-                    <strong className="font-mono text-slate-900">{tier.resolutionTarget}</strong>
+                  <div className="flex justify-between text-slate-500">
+                    <span>Resolution Target:</span>
+                    <strong className="text-slate-800">{tier.resolutionSla}</strong>
                   </div>
                 </div>
-
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  <strong>Escalation:</strong> {tier.escalationRule}
+                <p className="text-[11px] text-slate-500 leading-relaxed border-t border-slate-100 pt-2">
+                  {tier.desc}
                 </p>
               </div>
             ))}
           </div>
 
-          {/* ACTIVE TICKETS SLA STATUS TABLE */}
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden space-y-2">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-sm text-slate-900">Active SLA Countdown Timers</h3>
-              <span className="text-xs text-slate-500">Showing {tickets.length} tracked items</span>
+          {/* SLA Tracking Table */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-800">
+              Active Tickets Under SLA Surveillance
             </div>
-
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 bg-slate-50 font-semibold uppercase text-[10px]">
-                    <th className="py-3 px-4">Ticket</th>
-                    <th className="py-3 px-4">Subject</th>
-                    <th className="py-3 px-4">Priority</th>
-                    <th className="py-3 px-4">SLA Response</th>
-                    <th className="py-3 px-4">SLA Resolution</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Risk Action</th>
+                  <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="py-3 px-4 w-[110px]">Ticket ID</th>
+                    <th className="py-3 px-4 min-w-[240px]">Subject & Customer</th>
+                    <th className="py-3 px-4 w-[120px]">Priority</th>
+                    <th className="py-3 px-4 w-[110px]">Status</th>
+                    <th className="py-3 px-4 w-[140px]">Resolution Target</th>
+                    <th className="py-3 px-4 w-[140px]">Assigned Agent</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {tickets.map((t) => {
-                    const isCrit = t.priority === "Critical" || t.priority === "P1";
-                    const isHigh = t.priority === "High" || t.priority === "P2";
                     const ticketCode = t.ticketNumber || t.id;
-
+                    const slaHours = t.priority === "P1" || t.priority === "Critical" ? 4 : t.priority === "P2" || t.priority === "High" ? 8 : 24;
                     return (
-                      <tr key={t.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 px-4 font-mono font-bold text-amber-700">
-                          <Link to={`/portal/tickets/${ticketCode}`} className="hover:underline">
-                            {ticketCode}
+                      <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
+                          <Link to={`/tickets/${ticketCode}`} className="text-blue-600 hover:underline">
+                            #{ticketCode}
                           </Link>
                         </td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-800 max-w-[220px] truncate">
-                          {t.subject || t.title}
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900 truncate max-w-xs">{t.subject || t.title}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">{t.customerName || t.customer || "Customer"}</div>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
-                            isCrit ? "bg-red-50 text-red-700 border border-red-200" : isHigh ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-slate-100 text-slate-600 border border-slate-200"
-                          }`}>
-                            {t.priority || "Medium"}
-                          </span>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-mono font-bold text-slate-700">{t.priority || "P3"}</span>
                         </td>
-                        <td className="py-3.5 px-4 font-mono text-slate-600">
-                          {isCrit ? "30m (Target met)" : isHigh ? "2h (Target met)" : "8h (Normal)"}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">{t.status}</span>
                         </td>
-                        <td className="py-3.5 px-4 font-mono text-slate-600">
-                          {isCrit ? "4h (Warning active)" : isHigh ? "8h (On schedule)" : "24h (On schedule)"}
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-700 font-mono">
+                          {slaHours} Hours
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            isCrit ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          }`}>
-                            {isCrit ? "HIGH SLA RISK" : "SLA HEALTHY"}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={() => {
-                              setRouteModalTicket(t);
-                              setTargetTeam(t.assignedTeam || "Tier-2 Technical Support");
-                              setTargetAgent(t.assignedAgent || "");
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-slate-950 border border-amber-200 text-[11px] font-bold transition cursor-pointer"
-                          >
-                            Route / Override
-                          </button>
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-700">
+                          {t.assignedAgent || "Unassigned"}
                         </td>
                       </tr>
                     );
@@ -288,59 +252,54 @@ export default function ManagerSlaAndEscalationsPage() {
           </div>
         </div>
       ) : (
-        /* VIEW 2: ESCALATIONS MANAGEMENT DESK */
+        /* ESCALATIONS DESK VIEW */
         <div className="space-y-6">
-          {/* ESCALATION SUMMARY CARDS (PDF SECTION 10 & 11) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-2xl bg-white border border-red-200 p-5 shadow-xs space-y-2">
+            <div className="rounded-xl border border-red-200 bg-white p-5 shadow-xs space-y-2">
               <div className="flex items-center justify-between text-red-700 font-bold text-xs">
-                <span>Critical Incident Escalations</span>
-                <span className="h-6 w-6 rounded-full bg-red-50 flex items-center justify-center">🚨</span>
+                <span>Critical Incidents (P1)</span>
+                <FiAlertCircle />
               </div>
-              <div className="text-2xl font-black text-slate-900">
+              <div className="text-2xl font-bold text-slate-900">
                 {tickets.filter((t) => ["Critical", "P1"].includes(t.priority)).length}
               </div>
-              <p className="text-[11px] text-slate-500">Outages requiring immediate operations lead</p>
+              <p className="text-[11px] text-slate-500">Urgent outages requiring immediate intervention</p>
             </div>
 
-            <div className="rounded-2xl bg-white border border-amber-200 p-5 shadow-xs space-y-2">
+            <div className="rounded-xl border border-amber-200 bg-white p-5 shadow-xs space-y-2">
               <div className="flex items-center justify-between text-amber-800 font-bold text-xs">
-                <span>Low AI Confidence Escalations</span>
-                <span className="h-6 w-6 rounded-full bg-amber-50 flex items-center justify-center">🤖</span>
+                <span>Low AI Confidence</span>
+                <FiCpu />
               </div>
-              <div className="text-2xl font-black text-slate-900">
+              <div className="text-2xl font-bold text-slate-900">
                 {tickets.filter((t) => t.confidence && t.confidence < 0.75).length || 2}
               </div>
-              <p className="text-[11px] text-slate-500">Confidence below 75% threshold (PDF Section 10)</p>
+              <p className="text-[11px] text-slate-500">Below 75% confidence threshold</p>
             </div>
 
-            <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs space-y-2">
-              <div className="flex items-center justify-between text-amber-700 font-bold text-xs">
-                <span>Customer Requested Assistance</span>
-                <span className="h-6 w-6 rounded-full bg-amber-50 flex items-center justify-center">👨‍💻</span>
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-slate-700 font-bold text-xs">
+                <span>Customer Escalations</span>
+                <FiUser />
               </div>
-              <div className="text-2xl font-black text-slate-900">
-                {tickets.filter((t) => t.assistanceRequested).length || 1}
+              <div className="text-2xl font-bold text-slate-900">
+                {tickets.filter((t) => t.assistanceRequested || t.status === "ESCALATED").length || 1}
               </div>
-              <p className="text-[11px] text-slate-500">Clicked 'Need Agent Assistance' in portal</p>
+              <p className="text-[11px] text-slate-500">Reopened via 'Need More Help' action</p>
             </div>
           </div>
 
-          {/* ESCALATED TICKETS LIST */}
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden space-y-2">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden space-y-2">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-sm text-slate-900">
-                Escalated Incident Stream ({escalatedTickets.length})
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800">
+                Escalated Incidents Stream ({escalatedTickets.length})
               </h3>
-              <span className="text-xs text-amber-800 font-semibold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                Requires Senior Staff Handling
-              </span>
             </div>
 
             <div className="divide-y divide-slate-100">
               {escalatedTickets.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 font-medium">
-                  🎉 No escalated tickets currently pending!
+                <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                  No escalated tickets currently pending.
                 </div>
               ) : (
                 escalatedTickets.map((t) => {
@@ -354,33 +313,23 @@ export default function ManagerSlaAndEscalationsPage() {
                     >
                       <div className="space-y-1.5 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono font-bold text-xs text-amber-700">
-                            {ticketCode}
+                          <span className="font-mono font-bold text-xs text-blue-600">
+                            #{ticketCode}
                           </span>
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               isCrit ? "bg-red-50 text-red-700 border border-red-200" : "bg-amber-50 text-amber-800 border border-amber-200"
                             }`}
                           >
-                            {t.priority || "High"}
+                            {t.priority || "P2 – High"}
                           </span>
-                          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[10px]">
-                            {t.category || "Billing"} / {t.subCategory || "Dispute"}
+                          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 text-[10px]">
+                            {t.category || "Software"}
                           </span>
-                          {t.confidence && (
-                            <span className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-mono font-bold">
-                              AI Conf: {Math.round(t.confidence * 100)}%
-                            </span>
-                          )}
                         </div>
 
                         <h4 className="text-sm font-bold text-slate-900">{t.subject || t.title}</h4>
-                        <p className="text-xs text-slate-600 leading-relaxed">{t.description}</p>
-
-                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
-                          <strong className="text-amber-800">Escalation Trigger:</strong>{" "}
-                          {t.escalationReason || "Low confidence and sensitivity parameters breached automatic resolution."}
-                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">{t.description}</p>
                       </div>
 
                       <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end gap-2 shrink-0">
@@ -390,12 +339,13 @@ export default function ManagerSlaAndEscalationsPage() {
                         <button
                           onClick={() => {
                             setRouteModalTicket(t);
-                            setTargetTeam(t.assignedTeam || "Billing Support");
+                            setTargetTeam(t.assignedTeam || t.department || "Network Operations Desk");
                             setTargetAgent(t.assignedAgent || "");
                           }}
-                          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-md shadow-amber-500/20 cursor-pointer"
+                          className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                         >
-                          Route &amp; Resolve Escalation
+                          <span>Route Specialist</span>
+                          <FiArrowRight className="text-xs" />
                         </button>
                       </div>
                     </div>
@@ -407,74 +357,77 @@ export default function ManagerSlaAndEscalationsPage() {
         </div>
       )}
 
-      {/* ROUTING MODAL */}
+      {/* Routing Modal */}
       {routeModalTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 space-y-4 text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-xl bg-white border border-slate-200 shadow-xl p-6 space-y-4 text-slate-800">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-sm text-slate-900">
                 Route Escalation #{routeModalTicket.ticketNumber || routeModalTicket.id}
               </h3>
               <button
                 onClick={() => setRouteModalTicket(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                ✕
+                <FiX />
               </button>
             </div>
 
             <form onSubmit={handleRouteTeam} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Target Specialized Team (PDF Page 6 &amp; 11)
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Target Specialized Queue
                 </label>
                 <select
                   value={targetTeam}
                   onChange={(e) => setTargetTeam(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-amber-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer"
                   required
                 >
-                  <option value="">-- Choose Team Queue --</option>
-                  <option value="Billing Support">Billing Support (Refunds &amp; Disputes)</option>
-                  <option value="Tier-2 Technical Support">Tier-2 Technical Support (Engineers)</option>
-                  <option value="Network Operations Desk">Network Operations Desk (Infrastructure)</option>
-                  <option value="Product Management">Product Management (Features)</option>
-                  <option value="Security Operations">Security Operations (Identity &amp; Auth)</option>
+                  <option value="">-- Choose Queue --</option>
+                  <option value="Network Support">Network Support (Infrastructure & VPN)</option>
+                  <option value="Identity & Access">Identity & Access (SSO & MFA)</option>
+                  <option value="Endpoint Hardware">Endpoint Hardware (Laptops & Peripherals)</option>
+                  <option value="Software Applications">Software Applications (Enterprise Apps)</option>
+                  <option value="Email Operations">Email Operations (Mail Routing & Deliverability)</option>
+                  <option value="Billing & Finance">Billing & Finance (Subscriptions & Refunds)</option>
+                  <option value="IT Security">IT Security (Phishing & Incident Response)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Assign Lead Agent
                 </label>
                 <select
                   value={targetAgent}
                   onChange={(e) => setTargetAgent(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-amber-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer"
                   required
                 >
-                  <option value="">-- Choose Lead Agent --</option>
+                  <option value="">-- Choose Specialist --</option>
                   {agents.map((ag) => (
                     <option key={ag.id} value={ag.name}>
-                      {ag.name} ({ag.department || "Support"})
+                      {ag.name} ({ag.department || "General Support"})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setRouteModalTicket(null)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-xs font-bold text-slate-950 transition shadow-md shadow-amber-500/20 cursor-pointer"
+                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  Dispatch Escalation
+                  <FiCheck className="text-xs" />
+                  <span>Dispatch Ticket</span>
                 </button>
               </div>
             </form>

@@ -9,6 +9,18 @@ import {
 } from "../../services/m3AgentService";
 import { getAllTickets } from "../../services/ticketService";
 import GmailComposeButton from "../../components/GmailComposeButton";
+import {
+  FiZap,
+  FiActivity,
+  FiCpu,
+  FiBookOpen,
+  FiCheck,
+  FiShield,
+  FiAlertTriangle,
+  FiSend,
+  FiExternalLink,
+  FiMail,
+} from "react-icons/fi";
 
 
 export default function AiAgentWorkbench() {
@@ -149,7 +161,7 @@ export default function AiAgentWorkbench() {
               onClick={() => setActiveTab("simulator")}
               className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg transition flex items-center gap-2 cursor-pointer"
             >
-              <span>⚡</span> Run AI Simulator
+              <FiZap className="w-3.5 h-3.5" /> Run AI Simulator
             </button>
             <Link
               to="/integrations"
@@ -255,23 +267,26 @@ export default function AiAgentWorkbench() {
           {/* Navigation Tabs */}
           <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
             {[
-              { id: "timeline", label: "Agent Pipeline Timeline", icon: "❖" },
-              { id: "inspector", label: "Agent Run Telemetry", icon: "⌕" },
-              { id: "simulator", label: "Interactive Simulator", icon: "⚡" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
-                  activeTab === tab.id
-                    ? "bg-slate-900 text-white shadow-md"
-                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                }`}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
+              { id: "timeline", label: "Agent Pipeline Timeline", icon: FiActivity },
+              { id: "inspector", label: "Agent Run Telemetry", icon: FiCpu },
+              { id: "simulator", label: "Interactive Simulator", icon: FiZap },
+            ].map((tab) => {
+              const TabIcon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                    activeTab === tab.id
+                      ? "bg-slate-900 text-white shadow-md"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  }`}
+                >
+                  <TabIcon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* TAB 1: VISUAL MULTI-AGENT EXECUTION TIMELINE */}
@@ -322,12 +337,12 @@ export default function AiAgentWorkbench() {
                   {/* STAGE 1: DIAGNOSIS AGENT */}
                   <div className="relative">
                     <div className="absolute -left-6 sm:-left-8 top-1.5 h-6 w-6 rounded-full bg-emerald-600 text-white text-xs font-bold grid place-items-center shadow">
-                      ✓
+                      <FiCheck className="w-3.5 h-3.5" />
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">🩺</span>
+                          <FiActivity className="w-4 h-4 text-blue-600" />
                           <h4 className="text-xs font-bold text-slate-900">1. Diagnosis Agent</h4>
                         </div>
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
@@ -356,12 +371,12 @@ export default function AiAgentWorkbench() {
                   {/* STAGE 2: KNOWLEDGE RETRIEVAL AGENT (M2 RAG) */}
                   <div className="relative">
                     <div className="absolute -left-6 sm:-left-8 top-1.5 h-6 w-6 rounded-full bg-emerald-600 text-white text-xs font-bold grid place-items-center shadow">
-                      ✓
+                      <FiCheck className="w-3.5 h-3.5" />
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">📚</span>
+                          <FiBookOpen className="w-4 h-4 text-indigo-700" />
                           <h4 className="text-xs font-bold text-slate-900">2. Knowledge Retrieval Agent (M2 RAG Reused)</h4>
                         </div>
                         <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
@@ -386,12 +401,12 @@ export default function AiAgentWorkbench() {
                   {/* STAGE 3: RESOLUTION GENERATION AGENT */}
                   <div className="relative">
                     <div className="absolute -left-6 sm:-left-8 top-1.5 h-6 w-6 rounded-full bg-emerald-600 text-white text-xs font-bold grid place-items-center shadow">
-                      ✓
+                      <FiCheck className="w-3.5 h-3.5" />
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">✨</span>
+                          <FiZap className="w-4 h-4 text-emerald-600" />
                           <h4 className="text-xs font-bold text-slate-900">3. Resolution Generation Agent</h4>
                         </div>
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
@@ -421,12 +436,12 @@ export default function AiAgentWorkbench() {
                     <div className={`absolute -left-6 sm:-left-8 top-1.5 h-6 w-6 rounded-full text-white text-xs font-bold grid place-items-center shadow ${
                       isEscalated ? "bg-amber-600" : "bg-emerald-600"
                     }`}>
-                      {isEscalated ? "!" : "✓"}
+                      {isEscalated ? "!" : <FiCheck className="w-3.5 h-3.5" />}
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">🛡️</span>
+                          <FiShield className="w-4 h-4 text-blue-600" />
                           <h4 className="text-xs font-bold text-slate-900">4. Validation / Confidence Gate</h4>
                         </div>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
@@ -438,15 +453,15 @@ export default function AiAgentWorkbench() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] mt-2">
                         <div className="bg-white p-2 rounded border border-slate-200">
                           <span className="text-slate-500 block">Grounded:</span>
-                          <strong className="text-emerald-700">✓ Verified</strong>
+                          <strong className="text-emerald-700">Verified</strong>
                         </div>
                         <div className="bg-white p-2 rounded border border-slate-200">
                           <span className="text-slate-500 block">Citations:</span>
-                          <strong className="text-emerald-700">✓ {retrExec.output_data?.citations?.length || 2} Present</strong>
+                          <strong className="text-emerald-700">{retrExec.output_data?.citations?.length || 2} Present</strong>
                         </div>
                         <div className="bg-white p-2 rounded border border-slate-200">
                           <span className="text-slate-500 block">Safety:</span>
-                          <strong className="text-emerald-700">✓ Clean</strong>
+                          <strong className="text-emerald-700">Clean</strong>
                         </div>
                         <div className="bg-white p-2 rounded border border-slate-200">
                           <span className="text-slate-500 block">Score:</span>
@@ -460,12 +475,12 @@ export default function AiAgentWorkbench() {
                   {isEscalated ? (
                     <div className="relative">
                       <div className="absolute -left-6 sm:-left-8 top-1.5 h-6 w-6 rounded-full bg-amber-600 text-white text-xs font-bold grid place-items-center shadow">
-                        ⚡
+                        <FiAlertTriangle className="w-3.5 h-3.5" />
                       </div>
                       <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-base">🚨</span>
+                            <FiAlertTriangle className="w-4 h-4 text-amber-600" />
                             <h4 className="text-xs font-bold text-amber-900">5. Escalation Agent (Human Support Handoff)</h4>
                           </div>
                           <span className="text-[10px] font-bold text-amber-900 bg-amber-200 px-2 py-0.5 rounded">
@@ -480,12 +495,12 @@ export default function AiAgentWorkbench() {
                   ) : (
                     <div className="relative">
                       <div className="absolute -left-6 sm:-left-8 top-1.5 h-6 w-6 rounded-full bg-emerald-600 text-white text-xs font-bold grid place-items-center shadow">
-                        ✓
+                        <FiCheck className="w-3.5 h-3.5" />
                       </div>
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-base">🚀</span>
+                            <FiSend className="w-4 h-4 text-emerald-600" />
                             <h4 className="text-xs font-bold text-emerald-900">5. Automated Resolution Dispatched</h4>
                           </div>
                           <span className="text-[10px] font-bold text-emerald-900 bg-emerald-200 px-2 py-0.5 rounded">
@@ -502,12 +517,12 @@ export default function AiAgentWorkbench() {
                   {/* STAGE 6: ENTERPRISE JIRA & EMAIL NOTIFICATIONS */}
                   <div className="relative">
                     <div className="absolute -left-6 sm:-left-8 top-1.5 h-6 w-6 rounded-full bg-blue-600 text-white text-xs font-bold grid place-items-center shadow">
-                      ✓
+                      <FiCheck className="w-3.5 h-3.5" />
                     </div>
                     <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 grid sm:grid-cols-2 gap-3">
                       <div>
                         <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 mb-1">
-                          <span>🔗</span>
+                          <FiExternalLink className="w-3.5 h-3.5" />
                           <span>Jira Enterprise Issue</span>
                         </div>
                         <div className="text-xs text-slate-700">
@@ -522,7 +537,7 @@ export default function AiAgentWorkbench() {
                         <div>
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
-                              <span>✉️</span>
+                              <FiMail className="w-3.5 h-3.5" />
                               <span>Automated Email Notification</span>
                             </div>
                             <GmailComposeButton
@@ -530,14 +545,14 @@ export default function AiAgentWorkbench() {
                               subject={`[SupportPilot] ${isEscalated ? "Escalation Notice" : "AI Resolution Ready"} - #${selectedRun.ticket_number || selectedRun.ticket_id || 1001}`}
                               body={`Hello Customer,\n\n${isEscalated ? "Your ticket has been escalated to specialized Tier-2 engineering support." : "The SupportPilot AI Engine has formulated your resolution troubleshooting steps."}\n\nTicket: #${selectedRun.ticket_number || selectedRun.ticket_id || 1001}\nStatus: ${isEscalated ? "ESCALATED" : "AI_RESOLUTION_READY"}\n\nBest regards,\nSupportPilot AI Operations`}
                               variant="badge"
-                              label="Send via Gmail"
+                              label="Send Email"
                             />
                           </div>
                           <div className="text-xs text-slate-700">
                             Type: <strong className="text-slate-900">{isEscalated ? "Escalation Notice" : "AI Resolution Ready"}</strong>
                           </div>
                           <div className="text-[11px] text-emerald-700 font-semibold mt-0.5">
-                            ✓ Ready for dispatch to requester
+                            Ready for dispatch to requester
                           </div>
                         </div>
                       </div>

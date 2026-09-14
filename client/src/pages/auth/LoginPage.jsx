@@ -10,6 +10,7 @@ import {
   FiUser,
   FiCheck,
   FiChevronDown,
+  FiBriefcase,
 } from "react-icons/fi";
 
 
@@ -452,7 +453,7 @@ const LoginPage = () => {
                         {selectedRole === "admin" ? (
                           <FiShield />
                         ) : selectedRole === "manager" ? (
-                          <span className="text-base">💼</span>
+                          <FiBriefcase />
                         ) : selectedRole === "agent" ? (
                           <FiHeadphones />
                         ) : (
@@ -797,7 +798,7 @@ const LoginPage = () => {
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
                     }`}
                   >
-                    <span className="text-sm">👑</span>
+                    <FiShield className="w-4 h-4" />
                     <span className="text-[11px]">Admin</span>
                   </button>
 
@@ -814,7 +815,7 @@ const LoginPage = () => {
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
                     }`}
                   >
-                    <span className="text-sm">💼</span>
+                    <FiBriefcase className="w-4 h-4" />
                     <span className="text-[11px]">Manager</span>
                   </button>
 
@@ -831,7 +832,7 @@ const LoginPage = () => {
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
                     }`}
                   >
-                    <span className="text-sm">🛡️</span>
+                    <FiHeadphones className="w-4 h-4" />
                     <span className="text-[11px]">Agent</span>
                   </button>
 
@@ -848,7 +849,7 @@ const LoginPage = () => {
                         : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
                     }`}
                   >
-                    <span className="text-sm">👤</span>
+                    <FiUser className="w-4 h-4" />
                     <span className="text-[11px]">Customer</span>
                   </button>
                 </div>

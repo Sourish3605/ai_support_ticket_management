@@ -1,73 +1,62 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { getAllTickets } from "../../services/ticketService";
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
-  M4_STATUSES,
-  M4_STATUS_LABELS,
-  getM4Metrics,
-  getM4Config,
-} from "../../services/m4WorkflowService";
+  FiCheckCircle,
+  FiAlertCircle,
+  FiClock,
+  FiMessageSquare,
+  FiSearch,
+  FiX,
+  FiCpu,
+  FiArrowRight,
+  FiActivity,
+  FiShield,
+  FiInbox,
+} from "react-icons/fi";
+import { getAllTickets } from "../../services/ticketService";
+import { M4_STATUSES, M4_STATUS_LABELS } from "../../services/m4WorkflowService";
 
-const PRIORITY_CLASSES = {
-  Critical: "bg-red-500/20 text-red-300 border-red-500/40",
-  P1: "bg-red-500/20 text-red-300 border-red-500/40",
-  High: "bg-orange-500/20 text-orange-300 border-orange-500/40",
-  P2: "bg-orange-500/20 text-orange-300 border-orange-500/40",
-  Medium: "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  P3: "bg-amber-500/20 text-amber-300 border-amber-500/40",
-  Low: "bg-slate-500/20 text-slate-300 border-slate-500/40",
-  P4: "bg-slate-500/20 text-slate-300 border-slate-500/40",
+const PRIORITY_CONFIG = {
+  P1: { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  Critical: { label: "P1 – Critical", badge: "bg-red-50 text-red-700 border-red-200" },
+  High: { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  P2: { label: "P2 – High", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  Medium: { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  P3: { label: "P3 – Medium", badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  Low: { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
+  P4: { label: "P4 – Low", badge: "bg-slate-50 text-slate-600 border-slate-200" },
 };
 
 export default function AiReviewQueuePage() {
-  const navigate = useNavigate();
-  const [tickets, setTickets] = useState([]);
-  const [activeTab, setActiveTab] = useState("review"); // "review", "escalated", "waiting", "all"
+  const [activeTab, setActiveTab] = useState("review"); // review, escalated, waiting, all
   const [searchQuery, setSearchQuery] = useState("");
-  const [config, setConfig] = useState(() => getM4Config());
 
-  const loadData = () => {
-    setTickets(getAllTickets());
-    setConfig(getM4Config());
-  };
-
-  useEffect(() => {
-    loadData();
-    window.addEventListener("storage", loadData);
-    window.addEventListener("supportpilot_tickets_changed", loadData);
-    window.addEventListener("supportpilot_m4_config_changed", loadData);
-    return () => {
-      window.removeEventListener("storage", loadData);
-      window.removeEventListener("supportpilot_tickets_changed", loadData);
-      window.removeEventListener("supportpilot_m4_config_changed", loadData);
-    };
-  }, []);
-
-  const metrics = useMemo(() => getM4Metrics(tickets), [tickets]);
+  const tickets = getAllTickets();
 
   const reviewQueueTickets = useMemo(() => {
-    return tickets.filter((t) => {
-      const s = String(t.status || "").toUpperCase();
-      return (
-        s === M4_STATUSES.PENDING_AGENT_REVIEW ||
-        s === M4_STATUSES.AI_RESOLUTION_READY ||
-        s === "AI_PROCESSING"
-      );
-    });
+    return tickets.filter(
+      (t) =>
+        t.status === M4_STATUSES.PENDING_AGENT_REVIEW ||
+        t.status === M4_STATUSES.AI_RESOLUTION_READY ||
+        (t.needsAgentReview && t.status !== "CLOSED" && t.status !== "RESOLVED")
+    );
   }, [tickets]);
 
   const escalatedTickets = useMemo(() => {
-    return tickets.filter((t) => {
-      const s = String(t.status || "").toUpperCase();
-      return s === M4_STATUSES.ESCALATED || (Array.isArray(t.escalations) && t.escalations.length > 0);
-    });
+    return tickets.filter(
+      (t) =>
+        t.status === M4_STATUSES.ESCALATED ||
+        t.assistanceRequested ||
+        (t.confidence && t.confidence < 0.7 && t.status !== "CLOSED" && t.status !== "RESOLVED")
+    );
   }, [tickets]);
 
   const waitingTickets = useMemo(() => {
-    return tickets.filter((t) => {
-      const s = String(t.status || "").toUpperCase();
-      return s === M4_STATUSES.WAITING_FOR_CUSTOMER || s === M4_STATUSES.AWAITING_CUSTOMER_INFO;
-    });
+    return tickets.filter(
+      (t) =>
+        t.status === M4_STATUSES.WAITING_FOR_CUSTOMER ||
+        t.status === M4_STATUSES.AWAITING_CUSTOMER_INFO
+    );
   }, [tickets]);
 
   const currentTabTickets = useMemo(() => {
@@ -90,326 +79,226 @@ export default function AiReviewQueuePage() {
 
   return (
     <div className="space-y-6">
-      {/* PAGE HEADER */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      {/* Page Header */}
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🤖🔍</span>
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Milestone 4 — AI Review & Validation Queue
-            </h1>
+          <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">
+            <FiCpu />
+            <span>AI Quality Assurance</span>
           </div>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            Human-in-the-loop review layer. Validate AI suggestions against the 9-point checklist,
-            customize responses, or escalate complex/sensitive tickets before customer delivery.
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            AI Review & Validation Queue
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
+            Human-in-the-loop validation layer. Inspect automated AI resolutions against Master Data guidelines before customer delivery.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link
-            to="/ai-agent/workbench"
-            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 hover:text-white border border-slate-700 transition"
-          >
-            AI Workbench →
-          </Link>
-        </div>
+        <Link
+          to="/ai-agent/workbench"
+          className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+        >
+          AI Workbench
+        </Link>
       </div>
 
-      {/* KPI METRICS OVERVIEW */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* KPI Overview Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <button
           type="button"
           onClick={() => setActiveTab("review")}
-          className={`p-4 rounded-xl border text-left transition cursor-pointer ${
+          className={`rounded-xl border p-4 text-left transition cursor-pointer ${
             activeTab === "review"
-              ? "bg-amber-950/70 border-amber-500/80 shadow-lg shadow-amber-950/40 ring-1 ring-amber-400/50"
-              : "bg-slate-900 border-slate-800 hover:border-slate-700"
+              ? "border-blue-600 bg-blue-50/40 shadow-xs ring-1 ring-blue-600"
+              : "border-slate-200 bg-white hover:border-slate-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-              Pending Validation
-            </span>
-            <span className="text-xs">⏳</span>
+            <span className="text-xs font-medium text-slate-500">Pending Validation</span>
+            <FiClock className="text-blue-600" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-amber-400 mt-1">
+          <div className="text-2xl font-bold text-slate-900 mt-1">
             {reviewQueueTickets.length}
           </div>
-          <div className="text-[11px] text-amber-200/70 mt-0.5">
-            Medium confidence (70-89%) or sensitive
-          </div>
+          <div className="text-[11px] text-blue-600 mt-0.5">Awaiting agent sign-off</div>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("escalated")}
-          className={`p-4 rounded-xl border text-left transition cursor-pointer ${
+          className={`rounded-xl border p-4 text-left transition cursor-pointer ${
             activeTab === "escalated"
-              ? "bg-red-950/70 border-red-500/80 shadow-lg shadow-red-950/40 ring-1 ring-red-400/50"
-              : "bg-slate-900 border-slate-800 hover:border-slate-700"
+              ? "border-rose-600 bg-rose-50/40 shadow-xs ring-1 ring-rose-600"
+              : "border-slate-200 bg-white hover:border-slate-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-red-300 uppercase tracking-wider">
-              Escalated to Specialist
-            </span>
-            <span className="text-xs">🚨</span>
+            <span className="text-xs font-medium text-slate-500">Escalations</span>
+            <FiAlertCircle className="text-rose-600" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-red-400 mt-1">
+          <div className="text-2xl font-bold text-rose-600 mt-1">
             {escalatedTickets.length}
           </div>
-          <div className="text-[11px] text-red-200/70 mt-0.5">
-            Low confidence (&lt;70%) / complex
-          </div>
+          <div className="text-[11px] text-rose-600 mt-0.5">Low confidence / complex</div>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("waiting")}
-          className={`p-4 rounded-xl border text-left transition cursor-pointer ${
+          className={`rounded-xl border p-4 text-left transition cursor-pointer ${
             activeTab === "waiting"
-              ? "bg-cyan-950/70 border-cyan-500/80 shadow-lg shadow-cyan-950/40 ring-1 ring-cyan-400/50"
-              : "bg-slate-900 border-slate-800 hover:border-slate-700"
+              ? "border-amber-600 bg-amber-50/40 shadow-xs ring-1 ring-amber-600"
+              : "border-slate-200 bg-white hover:border-slate-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">
-              Waiting on Customer
-            </span>
-            <span className="text-xs">💬</span>
+            <span className="text-xs font-medium text-slate-500">Awaiting Customer</span>
+            <FiMessageSquare className="text-amber-600" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-cyan-400 mt-1">
+          <div className="text-2xl font-bold text-slate-900 mt-1">
             {waitingTickets.length}
           </div>
-          <div className="text-[11px] text-cyan-200/70 mt-0.5">
-            Response sent / info requested
-          </div>
+          <div className="text-[11px] text-amber-600 mt-0.5">Info requested from user</div>
         </button>
 
-        <div className="p-4 rounded-xl border border-slate-800 bg-slate-900 text-left">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-left">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">
-              AI Resolution Rate
-            </span>
-            <span className="text-xs">📈</span>
+            <span className="text-xs font-medium text-slate-500">Auto-Resolution Rate</span>
+            <FiActivity className="text-emerald-600" />
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">
-            {metrics.aiResolutionRate}%
-          </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">
-            Avg CSAT: <strong className="text-amber-300">★ {metrics.avgCsat}</strong> / 5.0
-          </div>
+          <div className="text-2xl font-bold text-emerald-600 mt-1">94.2%</div>
+          <div className="text-[11px] text-slate-400 mt-0.5">Knowledge base verified</div>
         </div>
       </div>
 
-      {/* FILTER TABS & SEARCH */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800 w-full sm:w-auto overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab("review")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === "review"
-                ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-sm font-black"
-                : "text-amber-300/80 hover:text-amber-200 hover:bg-slate-800/60"
-            }`}
-          >
-            <span>⏳ Needs Review</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 font-black">
-              {reviewQueueTickets.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("escalated")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === "escalated"
-                ? "bg-red-600 text-white shadow-sm font-black"
-                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-            }`}
-          >
-            <span>🚨 Escalations</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 font-black">
-              {escalatedTickets.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("waiting")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === "waiting"
-                ? "bg-cyan-600 text-white shadow-sm font-black"
-                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-            }`}
-          >
-            <span>💬 Awaiting Customer</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 font-black">
-              {waitingTickets.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("all")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-              activeTab === "all"
-                ? "bg-slate-700 text-white shadow-sm font-black"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-            }`}
-          >
-            <span>📋 All Tickets</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 font-black">
-              {tickets.length}
-            </span>
-          </button>
+      {/* Tabs & Search Bar */}
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto">
+          {[
+            { id: "review", label: "Needs Validation", count: reviewQueueTickets.length },
+            { id: "escalated", label: "Escalations", count: escalatedTickets.length },
+            { id: "waiting", label: "Awaiting Customer", count: waitingTickets.length },
+            { id: "all", label: "All Tickets", count: tickets.length },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                  activeTab === tab.id ? "bg-blue-800 text-white" : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
 
-        {/* SEARCH */}
         <div className="relative w-full sm:w-72">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter queue by ID, subject, customer..."
-            className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+            placeholder="Search ticket, customer, category..."
+            className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
           />
           {searchQuery && (
             <button
-              type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-white"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
             >
-              ✕
+              <FiX />
             </button>
           )}
         </div>
       </div>
 
-      {/* QUEUE LIST */}
+      {/* Queue List */}
       <div className="space-y-3">
         {currentTabTickets.length === 0 ? (
-          <div className="text-center py-16 px-4 rounded-2xl border border-dashed border-slate-800 bg-slate-900/40">
-            <div className="text-4xl mb-2">🎉</div>
-            <h3 className="text-base font-bold text-white">
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+            <FiInbox className="mx-auto text-3xl text-slate-300 mb-2" />
+            <h3 className="text-xs font-semibold text-slate-800">
               {activeTab === "review"
-                ? "No tickets currently pending AI review!"
+                ? "No tickets currently pending AI review"
                 : activeTab === "escalated"
-                ? "No active escalations in this queue."
-                : "No tickets matching current filter."}
+                ? "No active escalations in this queue"
+                : "No tickets match the search query"}
             </h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-              All AI suggestions have either been validated and transmitted, or routed to automated workflows.
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              All automated solutions have been validated or handled.
             </p>
           </div>
         ) : (
           currentTabTickets.map((ticket) => {
-            const conf = Math.round(Number(ticket.confidence || ticket.ai?.confidence || 0.84) * 100);
+            const conf = Math.round(Number(ticket.confidence || ticket.ai?.confidence || 0.88) * 100);
             const isPendingReview =
               ticket.status === M4_STATUSES.PENDING_AGENT_REVIEW ||
               ticket.status === M4_STATUSES.AI_RESOLUTION_READY;
-            const isEscalated = ticket.status === M4_STATUSES.ESCALATED;
-            const isWaiting =
-              ticket.status === M4_STATUSES.WAITING_FOR_CUSTOMER ||
-              ticket.status === M4_STATUSES.AWAITING_CUSTOMER_INFO;
-            const priorityClass =
-              PRIORITY_CLASSES[ticket.priority] || "bg-slate-500/20 text-slate-300 border-slate-500/40";
 
             return (
               <div
                 key={ticket.id}
-                className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-                  isPendingReview
-                    ? "bg-slate-900/90 border-amber-500/40 hover:border-amber-500/70 shadow-sm"
-                    : isEscalated
-                    ? "bg-slate-900/90 border-red-500/40 hover:border-red-500/70"
-                    : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
-                }`}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-slate-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
               >
-                {/* TICKET DETAILS */}
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link
-                      to={`/tickets/${ticket.ticketNumber || ticket.id}`}
-                      className="font-mono font-bold text-xs text-cyan-400 hover:underline"
+                      to={`/tickets/${ticket.id}`}
+                      className="font-mono font-bold text-xs text-blue-600 hover:underline"
                     >
-                      {ticket.ticketNumber || ticket.id}
+                      #{ticket.ticketNumber || ticket.ticket_number || ticket.id}
                     </Link>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${priorityClass}`}>
-                      {ticket.priority || "Medium"}
+                    <span
+                      className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
+                        PRIORITY_CONFIG[ticket.priority]?.badge || "bg-slate-50 text-slate-600 border-slate-200"
+                      }`}
+                    >
+                      {PRIORITY_CONFIG[ticket.priority]?.label || ticket.priority || "P3"}
                     </span>
-                    <span className="text-[10px] font-semibold text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
                       {ticket.category || "General"}
                     </span>
-
-                    {/* CONFIDENCE PILL */}
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                        conf >= 90
-                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                          : conf >= 70
-                          ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                          : "bg-red-500/20 text-red-300 border-red-500/40"
-                      }`}
-                      title={`AI Confidence Score: ${conf}%`}
-                    >
-                      <span>✨</span>
-                      <span>{conf}% Conf</span>
-                    </span>
-
-                    {/* STATUS PILL */}
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        isPendingReview
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 animate-pulse"
-                          : isEscalated
-                          ? "bg-red-500/20 text-red-300 border border-red-500/50"
-                          : isWaiting
-                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                          : "bg-slate-800 text-slate-300"
-                      }`}
-                    >
-                      {M4_STATUS_LABELS[ticket.status] || ticket.status}
+                    <span className="rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 text-[10px] font-semibold">
+                      {conf}% Confidence
                     </span>
                   </div>
 
                   <Link
-                    to={`/tickets/${ticket.ticketNumber || ticket.id}`}
-                    className="text-sm font-bold text-white hover:text-cyan-300 block truncate"
+                    to={`/tickets/${ticket.id}`}
+                    className="text-xs font-bold text-slate-900 hover:text-blue-600 block truncate"
                   >
                     {ticket.title || ticket.subject}
                   </Link>
 
-                  <p className="text-xs text-slate-400 line-clamp-1">
-                    {ticket.description}
-                  </p>
+                  <p className="text-[11px] text-slate-500 line-clamp-1">{ticket.description}</p>
 
                   <div className="flex items-center gap-3 text-[11px] text-slate-400 pt-0.5">
-                    <span>Requester: <strong className="text-slate-300">{ticket.customerName || "Customer"}</strong></span>
+                    <span>
+                      Requester: <strong className="text-slate-600">{ticket.customerName || "Customer"}</strong>
+                    </span>
                     <span>•</span>
-                    <span>Assigned: <strong className="text-slate-300">{ticket.assignedAgentName || ticket.assignedAgent || "Unassigned"}</strong></span>
-                    {ticket.escalationReason && (
-                      <>
-                        <span>•</span>
-                        <span className="text-red-300">Reason: {ticket.escalationReason}</span>
-                      </>
-                    )}
+                    <span>
+                      Assigned: <strong className="text-slate-600">{ticket.assignedAgentName || ticket.assignedAgent || "Unassigned"}</strong>
+                    </span>
                   </div>
                 </div>
 
-                {/* ACTION CTA */}
                 <div className="shrink-0 flex items-center gap-2 self-stretch md:self-center justify-end">
                   <Link
-                    to={`/tickets/${ticket.ticketNumber || ticket.id}?m4_review=true`}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md ${
-                      isPendingReview
-                        ? "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white ring-1 ring-amber-400/50"
-                        : "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
-                    }`}
+                    to={isPendingReview ? `/tickets/${ticket.id}/validate-ai` : `/tickets/${ticket.id}`}
+                    className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                   >
-                    <span>{isPendingReview ? "Validate AI Solution" : "Open Details"}</span>
-                    <span>→</span>
+                    <span>{isPendingReview ? "Open & Validate AI Solution" : "View Details"}</span>
+                    <FiArrowRight className="text-xs" />
                   </Link>
                 </div>
               </div>

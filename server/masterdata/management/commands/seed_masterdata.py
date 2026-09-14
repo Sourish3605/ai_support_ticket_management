@@ -24,15 +24,15 @@ class Command(BaseCommand):
             for team_name in team_names:
                 Team.objects.get_or_create(name=team_name, department=dept)
 
-        # 2. Categories and Sub-categories
+        # 2. Categories and Sub-categories (Exact Taxonomy - Requirement 7)
         categories_data = {
-            "Network": ["VPN", "Internet", "Wi-Fi", "DNS / Gateway", "Firewall"],
-            "Security": ["Phishing", "Malware", "Unauthorized Access", "Security Alert"],
-            "Authentication": ["Password Reset", "Login Issue", "MFA / SSO", "Account Locked"],
-            "Hardware": ["Laptop", "Desktop", "Monitor", "Keyboard / Mouse", "Printer"],
-            "Software": ["Application Error", "Crash", "License Expired", "Installation"],
-            "Email": ["Outlook Sync", "Calendar Issue", "Spam", "Delivery Failure"],
-            "Billing": ["Invoice", "Payment Failure", "Subscription"],
+            "Network": ["Wi-Fi", "VPN", "Internet", "DNS", "Connectivity"],
+            "Security": ["Malware", "Phishing", "Data Security", "Suspicious Activity"],
+            "Authentication": ["Password", "MFA", "SSO", "Account Lockout", "Access Request"],
+            "Hardware": ["Laptop", "Desktop", "Monitor", "Printer", "Keyboard/Mouse"],
+            "Software": ["Application Error", "Installation", "Update", "License", "Performance"],
+            "Email": ["Sending/Receiving", "Spam", "Mailbox", "Outlook", "Configuration"],
+            "Billing": ["Invoice", "Payment", "Subscription", "Refund"],
         }
 
         for cat_name, sub_cats in categories_data.items():
@@ -124,7 +124,7 @@ class Command(BaseCommand):
                 "article_id": "KB-AUTH-003",
                 "title": "SSO Login & Self-Service Password Reset",
                 "category": "Authentication",
-                "sub_category": "Password Reset",
+                "sub_category": "Password",
                 "tags": "password, sso, mfa, login, locked, authentication, credentials",
                 "content": "Self-service password recovery, MFA re-registration, and account unlock procedures.",
                 "steps": json.dumps([
@@ -172,7 +172,7 @@ class Command(BaseCommand):
                 "article_id": "KB-EML-006",
                 "title": "Outlook Sync & Mailbox Recovery Guide",
                 "category": "Email",
-                "sub_category": "Outlook Sync",
+                "sub_category": "Outlook",
                 "tags": "outlook, email, sync, exchange, calendar, mailbox, delivery",
                 "content": "Resolving Outlook synchronization stalls, OST file corruption, and mailbox quota issues.",
                 "steps": json.dumps([
