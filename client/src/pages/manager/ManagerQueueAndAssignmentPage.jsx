@@ -434,11 +434,11 @@ export default function ManagerQueueAndAssignmentPage() {
       )}
 
       {/* UNIFIED PAGE HEADER WITH TAB CONTROLLER */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
-            <FiSliders className="text-sm" />
-            <span>Unified Manager Command Center</span>
+      <div className="rounded-xl border border-slate-200 bg-white p-5 lg:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider">
+            <FiSliders className="text-xs" />
+            <span>Unified Manager Desk</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             {activeMode === "assignment"
@@ -447,7 +447,7 @@ export default function ManagerQueueAndAssignmentPage() {
               ? "All System Support Tickets"
               : "Live Ticket Queue & Dispatch"}
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500">
             {activeMode === "assignment"
               ? "Monitor live specialist availability status (Available / Busy), inspect capacity limits, and balance ticket assignments."
               : activeMode === "tickets"
@@ -457,29 +457,29 @@ export default function ManagerQueueAndAssignmentPage() {
         </div>
 
         {/* TOP CONTROLS & UNIFIED TAB SWITCHER */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           {(activeMode === "queue" || activeMode === "assignment") && (
             <button
               type="button"
               disabled={isAutoAssigning}
               onClick={handleAutoAssignAll}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 shadow-xs active:scale-[0.98]"
+              className="h-9 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 shadow-xs active:scale-[0.98]"
               title="Automatically assign tickets to Available working agents"
             >
-              <FiCpu className={isAutoAssigning ? "animate-spin text-sm" : "text-sm"} />
-              <span>{isAutoAssigning ? "Allocating Available..." : "AI Auto-Assign by Working Status"}</span>
+              <FiCpu className={isAutoAssigning ? "animate-spin text-xs" : "text-xs"} />
+              <span>{isAutoAssigning ? "Allocating..." : "Auto-Assign to Available Staff"}</span>
             </button>
           )}
 
           {/* Unified In-Page View Switcher */}
-          <div className="flex items-center p-1 rounded-lg bg-slate-100 border border-slate-200 shadow-inner">
+          <div className="h-9 flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200 shadow-2xs">
             <button
               type="button"
               onClick={() => {
                 navigate("/manager/tickets");
                 setCurrentPage(1);
               }}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+              className={`h-full inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer ${
                 activeMode === "tickets"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
@@ -487,7 +487,7 @@ export default function ManagerQueueAndAssignmentPage() {
             >
               <FiList className="text-xs" />
               <span>All Tickets</span>
-              <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px] text-slate-700 font-mono">
+              <span className="rounded-full bg-slate-200/80 px-1.5 py-0.2 text-[10px] text-slate-700 font-mono">
                 {stats.total}
               </span>
             </button>
@@ -498,20 +498,20 @@ export default function ManagerQueueAndAssignmentPage() {
                 navigate("/manager/queue");
                 setCurrentPage(1);
               }}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+              className={`h-full inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer ${
                 activeMode === "queue"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <FiClock className="text-xs" />
-              <span>Ticket Queue</span>
+              <span>Queue</span>
               {stats.unassigned > 0 ? (
-                <span className="ml-1 rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.2 text-[10px] font-mono font-bold">
-                  {stats.unassigned} unassigned
+                <span className="rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.2 text-[10px] font-mono font-bold">
+                  {stats.unassigned}
                 </span>
               ) : (
-                <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px] text-slate-700 font-mono">
+                <span className="rounded-full bg-slate-200/80 px-1.5 py-0.2 text-[10px] text-slate-700 font-mono">
                   {stats.inProgress}
                 </span>
               )}
@@ -523,16 +523,16 @@ export default function ManagerQueueAndAssignmentPage() {
                 navigate("/manager/assignment");
                 setCurrentPage(1);
               }}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+              className={`h-full inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer ${
                 activeMode === "assignment"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <FiUsers className="text-xs" />
-              <span>Agent Assignment</span>
-              <span className="ml-1 rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[10px] font-mono font-bold">
-                {stats.availableStaff} avail
+              <span>Assignments</span>
+              <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[10px] font-mono font-bold">
+                {stats.availableStaff}
               </span>
             </button>
           </div>
@@ -760,9 +760,9 @@ export default function ManagerQueueAndAssignmentPage() {
         </div>
 
         {/* Filters Toolbar */}
-        <div className="p-4 border-b border-slate-200 bg-white flex flex-wrap items-center gap-3">
+        <div className="p-4 border-b border-slate-200 bg-white flex flex-wrap items-center gap-2.5">
           <div className="relative flex-1 min-w-[220px]">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
             <input
               type="text"
               value={searchTerm}
@@ -771,7 +771,7 @@ export default function ManagerQueueAndAssignmentPage() {
                 setCurrentPage(1);
               }}
               placeholder="Search ticket code, customer, subject, agent..."
-              className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/40 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition"
             />
           </div>
 
@@ -781,7 +781,7 @@ export default function ManagerQueueAndAssignmentPage() {
               setSelectedDepartment(e.target.value);
               setCurrentPage(1);
             }}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none cursor-pointer"
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-600 cursor-pointer shadow-2xs"
           >
             {departments.map((d) => (
               <option key={d} value={d}>
@@ -796,7 +796,7 @@ export default function ManagerQueueAndAssignmentPage() {
               setSelectedCategory(e.target.value);
               setCurrentPage(1);
             }}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none cursor-pointer"
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-600 cursor-pointer shadow-2xs"
           >
             {categoriesList.map((c) => (
               <option key={c} value={c}>
@@ -811,7 +811,7 @@ export default function ManagerQueueAndAssignmentPage() {
               setSelectedPriority(e.target.value);
               setCurrentPage(1);
             }}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none cursor-pointer"
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-600 cursor-pointer shadow-2xs"
           >
             <option value="ALL">All Priorities</option>
             <option value="P1">P1 – Critical</option>
@@ -826,7 +826,7 @@ export default function ManagerQueueAndAssignmentPage() {
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none cursor-pointer"
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-blue-600 cursor-pointer shadow-2xs"
           >
             {statuses.map((s) => (
               <option key={s} value={s}>
@@ -846,9 +846,10 @@ export default function ManagerQueueAndAssignmentPage() {
                 setSelectedAgentFilter(null);
                 setCurrentPage(1);
               }}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition cursor-pointer px-2 py-1 rounded bg-slate-100"
+              className="h-9 text-xs font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer px-3 rounded-lg bg-slate-100 hover:bg-slate-200 inline-flex items-center gap-1 shadow-2xs"
             >
-              Reset Filters
+              <FiX className="text-xs" />
+              <span>Reset Filters</span>
             </button>
           )}
         </div>

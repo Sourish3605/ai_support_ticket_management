@@ -146,19 +146,19 @@ export default function ManagerLayout({ children }) {
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 ml-64 flex flex-col min-h-screen bg-slate-50/60">
         {/* TOP BAR */}
-        <header className="h-16 border-b border-slate-200 bg-white px-8 flex items-center justify-between sticky top-0 z-20 shadow-xs">
-          <div>
-            <div className="text-[11px] font-medium text-slate-400">Operations Command / Support Manager</div>
-            <h1 className="text-base font-bold text-slate-900">{currentItem.label}</h1>
+        <header className="h-16 border-b border-slate-200 bg-white px-6 lg:px-8 flex items-center justify-between sticky top-0 z-20 shadow-xs">
+          <div className="flex flex-col justify-center">
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Operations Command / Manager</div>
+            <h1 className="text-base font-bold text-slate-900 leading-tight">{currentItem.label}</h1>
           </div>
 
           <div className="flex items-center gap-3">
             {stats.escalated > 0 && (
               <Link
                 to="/manager/escalations"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-semibold"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-100 transition shadow-2xs"
               >
                 <FiAlertCircle className="w-3.5 h-3.5" />
                 <span>{stats.escalated} Escalation{stats.escalated > 1 ? "s" : ""}</span>
@@ -167,24 +167,25 @@ export default function ManagerLayout({ children }) {
 
             <Link
               to="/manager/sla"
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition shadow-2xs"
             >
               <FiShield className="w-3.5 h-3.5" />
-              <span>SLA Tracking Active</span>
+              <span>SLA Active</span>
             </Link>
 
             <button
               onClick={handleLogout}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
             >
-              Sign Out
+              <FiLogOut className="w-3.5 h-3.5 text-slate-400" />
+              <span>Sign Out</span>
             </button>
           </div>
         </header>
 
         {/* BODY */}
-        <main className="flex-1 p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <main className="flex-1 px-6 lg:px-8 py-6">
+          <div className="w-full space-y-6">
             {children}
           </div>
         </main>
