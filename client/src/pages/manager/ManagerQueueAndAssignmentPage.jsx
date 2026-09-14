@@ -434,10 +434,10 @@ export default function ManagerQueueAndAssignmentPage() {
       )}
 
       {/* UNIFIED PAGE HEADER WITH TAB CONTROLLER */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 lg:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider">
-            <FiSliders className="text-xs" />
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">
+            <FiSliders className="w-3.5 h-3.5" />
             <span>Unified Manager Desk</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -447,7 +447,7 @@ export default function ManagerQueueAndAssignmentPage() {
               ? "All System Support Tickets"
               : "Live Ticket Queue & Dispatch"}
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
             {activeMode === "assignment"
               ? "Monitor live specialist availability status (Available / Busy), inspect capacity limits, and balance ticket assignments."
               : activeMode === "tickets"
@@ -463,33 +463,29 @@ export default function ManagerQueueAndAssignmentPage() {
               type="button"
               disabled={isAutoAssigning}
               onClick={handleAutoAssignAll}
-              className="h-9 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 shadow-xs active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 shadow-xs"
               title="Automatically assign tickets to Available working agents"
             >
               <FiCpu className={isAutoAssigning ? "animate-spin text-xs" : "text-xs"} />
-              <span>{isAutoAssigning ? "Allocating..." : "Auto-Assign to Available Staff"}</span>
+              <span>{isAutoAssigning ? "Allocating..." : "Auto-Assign"}</span>
             </button>
           )}
 
           {/* Unified In-Page View Switcher */}
-          <div className="h-9 flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200 shrink-0">
             <button
               type="button"
               onClick={() => {
                 navigate("/manager/tickets");
                 setCurrentPage(1);
               }}
-              className={`h-full inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${
                 activeMode === "tickets"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <FiList className="text-xs" />
-              <span>All Tickets</span>
-              <span className="rounded-full bg-slate-200/80 px-1.5 py-0.2 text-[10px] text-slate-700 font-mono">
-                {stats.total}
-              </span>
+              All Tickets ({stats.total})
             </button>
 
             <button
@@ -498,23 +494,13 @@ export default function ManagerQueueAndAssignmentPage() {
                 navigate("/manager/queue");
                 setCurrentPage(1);
               }}
-              className={`h-full inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${
                 activeMode === "queue"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <FiClock className="text-xs" />
-              <span>Queue</span>
-              {stats.unassigned > 0 ? (
-                <span className="rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.2 text-[10px] font-mono font-bold">
-                  {stats.unassigned}
-                </span>
-              ) : (
-                <span className="rounded-full bg-slate-200/80 px-1.5 py-0.2 text-[10px] text-slate-700 font-mono">
-                  {stats.inProgress}
-                </span>
-              )}
+              Queue {stats.unassigned > 0 ? `(${stats.unassigned})` : `(${stats.inProgress})`}
             </button>
 
             <button
@@ -523,17 +509,13 @@ export default function ManagerQueueAndAssignmentPage() {
                 navigate("/manager/assignment");
                 setCurrentPage(1);
               }}
-              className={`h-full inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-bold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${
                 activeMode === "assignment"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <FiUsers className="text-xs" />
-              <span>Assignments</span>
-              <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[10px] font-mono font-bold">
-                {stats.availableStaff}
-              </span>
+              Assignments ({stats.availableStaff})
             </button>
           </div>
         </div>
@@ -541,25 +523,25 @@ export default function ManagerQueueAndAssignmentPage() {
 
       {/* MODE-SPECIFIC DEDICATED KPI METRICS */}
       {activeMode === "tickets" && (
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Tickets</div>
             <div className="text-2xl font-bold text-slate-900 mt-1">{stats.total}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Across all departments</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Resolved Tickets</div>
             <div className="text-2xl font-bold text-emerald-600 mt-1">{stats.resolved}</div>
             <div className="text-[11px] text-emerald-600 font-medium mt-0.5">
               {stats.total > 0 ? `${Math.round((stats.resolved / stats.total) * 100)}% resolved` : "0%"}
             </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">P1 / Critical</div>
             <div className="text-2xl font-bold text-red-600 mt-1">{stats.critical}</div>
             <div className="text-[11px] text-red-500 font-medium mt-0.5">High severity tickets</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Active In-Progress</div>
             <div className="text-2xl font-bold text-blue-600 mt-1">{stats.inProgress}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Assigned to specialists</div>
@@ -568,23 +550,23 @@ export default function ManagerQueueAndAssignmentPage() {
       )}
 
       {activeMode === "queue" && (
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Unassigned Queue</div>
             <div className="text-2xl font-bold text-amber-600 mt-1">{stats.unassigned}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Awaiting agent assignment</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">SLA at Risk / Breached</div>
             <div className="text-2xl font-bold text-rose-600 mt-1">{stats.slaRisk}</div>
             <div className="text-[11px] text-rose-500 font-medium mt-0.5">Requires immediate dispatch</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">P1 / Critical Urgency</div>
             <div className="text-2xl font-bold text-red-600 mt-1">{stats.critical}</div>
             <div className="text-[11px] text-red-500 font-medium mt-0.5">Top dispatch priority</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Available Agents Online</div>
             <div className="text-2xl font-bold text-emerald-600 mt-1">
               {stats.availableStaff}{" "}
@@ -598,23 +580,23 @@ export default function ManagerQueueAndAssignmentPage() {
       )}
 
       {activeMode === "assignment" && (
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Support Agents</div>
             <div className="text-2xl font-bold text-slate-900 mt-1">{agents.length}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Dedicated department specialists</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Available Specialists</div>
             <div className="text-2xl font-bold text-emerald-600 mt-1">{stats.availableStaff}</div>
             <div className="text-[11px] text-emerald-600 font-medium mt-0.5">Eligible for auto-assignment</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Busy / Away Agents</div>
             <div className="text-2xl font-bold text-amber-600 mt-1">{stats.busyStaff}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Bypassed by auto-assign engine</div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Active Workloads</div>
             <div className="text-2xl font-bold text-blue-600 mt-1">{stats.inProgress}</div>
             <div className="text-[11px] text-slate-500 mt-0.5">Tickets distributed to agents</div>
@@ -855,19 +837,19 @@ export default function ManagerQueueAndAssignmentPage() {
         </div>
 
         {/* Data Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                <th className="py-3 px-4 w-[110px]">Ticket ID</th>
-                <th className="py-3 px-4 min-w-[240px]">Customer &amp; Subject</th>
-                <th className="py-3 px-4 w-[150px]">Department</th>
-                <th className="py-3 px-4 w-[140px]">Category &amp; Sub</th>
-                <th className="py-3 px-4 w-[110px]">Priority</th>
-                <th className="py-3 px-4 w-[110px]">Status</th>
-                <th className="py-3 px-4 w-[130px]">SLA Deadline</th>
-                <th className="py-3 px-4 w-[160px]">Assigned Specialist</th>
-                <th className="py-3 px-4 text-right min-w-[130px]">Actions</th>
+                <th className="py-3 px-3.5 w-[90px]">Ticket ID</th>
+                <th className="py-3 px-3.5 min-w-[180px]">Customer &amp; Subject</th>
+                <th className="py-3 px-3.5 w-[120px]">Department</th>
+                <th className="py-3 px-3.5 w-[110px]">Category &amp; Sub</th>
+                <th className="py-3 px-3.5 w-[95px]">Priority</th>
+                <th className="py-3 px-3.5 w-[110px]">Status</th>
+                <th className="py-3 px-3.5 w-[110px]">SLA Deadline</th>
+                <th className="py-3 px-3.5 w-[130px]">Assigned Specialist</th>
+                <th className="py-3 px-3.5 text-right w-[110px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -880,7 +862,7 @@ export default function ManagerQueueAndAssignmentPage() {
                 return (
                   <tr key={ticket.id} className="hover:bg-slate-50/80 transition-colors">
                     {/* Ticket ID */}
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
+                    <td className="py-3 px-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">
                       <Link
                         to={`/tickets/${ticketCode}`}
                         className="text-blue-600 hover:text-blue-800 hover:underline"
@@ -890,25 +872,25 @@ export default function ManagerQueueAndAssignmentPage() {
                     </td>
 
                     {/* Customer & Subject */}
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900 truncate max-w-xs" title={ticket.subject || ticket.title}>
+                    <td className="py-3 px-3.5 max-w-[240px]">
+                      <div className="font-semibold text-slate-900 truncate" title={ticket.subject || ticket.title}>
                         {ticket.subject || ticket.title}
                       </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
-                        <FiUser className="text-slate-400" />
-                        <span className="font-medium text-slate-700">{ticket.customerName || ticket.customer || "Customer"}</span>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 truncate">
+                        <FiUser className="text-slate-400 shrink-0" />
+                        <span className="font-medium text-slate-700 truncate">{ticket.customerName || ticket.customer || "Customer"}</span>
                       </div>
                     </td>
 
                     {/* Department */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                    <td className="py-3 px-3.5 whitespace-nowrap">
                       <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
                         {dept}
                       </span>
                     </td>
 
                     {/* Category & Sub */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                    <td className="py-3 px-3.5 whitespace-nowrap">
                       <div className="inline-flex flex-col">
                         <span className="font-semibold text-slate-800">{ticket.category || "General"}</span>
                         <span className="text-[10px] text-slate-500">
@@ -918,7 +900,7 @@ export default function ManagerQueueAndAssignmentPage() {
                     </td>
 
                     {/* Priority */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                    <td className="py-3 px-3.5 whitespace-nowrap">
                       <span
                         className={`inline-block rounded-md border px-2 py-0.5 text-[11px] ${
                           PRIORITY_CONFIG[ticket.priority]?.badge || "bg-slate-50 text-slate-600 border-slate-200"
@@ -929,7 +911,7 @@ export default function ManagerQueueAndAssignmentPage() {
                     </td>
 
                     {/* Status */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                    <td className="py-3 px-3.5 whitespace-nowrap">
                       <span
                         className={`inline-block rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
                           STATUS_CONFIG[ticket.status]?.badge || "bg-slate-50 text-slate-600 border-slate-200"
@@ -940,9 +922,9 @@ export default function ManagerQueueAndAssignmentPage() {
                     </td>
 
                     {/* SLA Deadline */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                    <td className="py-3 px-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        <FiClock className="text-slate-400" />
+                        <FiClock className="text-slate-400 shrink-0" />
                         <span className={`rounded border px-2 py-0.5 text-[10px] ${sla.badge}`}>
                           {sla.label}
                         </span>
@@ -950,11 +932,11 @@ export default function ManagerQueueAndAssignmentPage() {
                     </td>
 
                     {/* Assigned Agent */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                    <td className="py-3 px-3.5 whitespace-nowrap">
                       {hasAgent ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          <span className="font-medium text-slate-800 text-[11px]">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="font-medium text-slate-800 text-[11px] truncate">
                             {ticket.assignedAgentName || ticket.assignedAgent}
                           </span>
                         </div>
@@ -967,11 +949,11 @@ export default function ManagerQueueAndAssignmentPage() {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <td className="py-3 px-3.5 text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1.5">
                         <Link
                           to={`/tickets/${ticketCode}`}
-                          className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition"
+                          className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
                         >
                           View
                         </Link>
@@ -982,7 +964,7 @@ export default function ManagerQueueAndAssignmentPage() {
                             setReassignModalTicket(ticket);
                             setSelectedAgent(ticket.assignedAgentId || "");
                           }}
-                          className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
+                          className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer shadow-2xs"
                         >
                           {hasAgent ? "Reassign" : "Assign"}
                         </button>
