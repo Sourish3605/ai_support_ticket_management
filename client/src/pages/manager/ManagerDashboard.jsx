@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getAllTickets,
@@ -9,12 +9,47 @@ import {
   fetchAgentsApi,
   autoAssignTicketsApi,
 } from "../../services/ticketService";
+import { api } from "../../services/api";
 import { seedUsers } from "../../data/seedData";
+import GmailComposeButton from "../../components/GmailComposeButton";
+import AgentDetailsDrawer from "../../components/AgentDetailsDrawer";
+import {
+  FiInbox,
+  FiAlertCircle,
+  FiCheckCircle,
+  FiClock,
+  FiShield,
+  FiUsers,
+  FiSearch,
+  FiFilter,
+  FiChevronLeft,
+  FiChevronRight,
+  FiRefreshCw,
+  FiSend,
+  FiUserCheck,
+  FiUserX,
+  FiEye,
+  FiTrash2,
+  FiPlusCircle,
+  FiBarChart2,
+} from "react-icons/fi";
 
 export default function ManagerDashboard() {
   const [tickets, setTickets] = useState([]);
-  const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [assignedFilter, setAssignedFilter] = useState("all");
   const [selectedAgentFilter, setSelectedAgentFilter] = useState(null);
+  const [inspectingAgent, setInspectingAgent] = useState(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Actions state
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [reassignModalTicket, setReassignModalTicket] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState("");
@@ -33,48 +68,63 @@ export default function ManagerDashboard() {
     const agEmail = (ag.email || "").toLowerCase();
 
     if (agId && tAgentId && agId === tAgentId) return true;
-    if (agName && tAgentName.includes(agName)) return true;
+    if (agName && (tAgentName.includes(agName) || agName.includes(tAgentName))) return true;
     if (agUsername && (tAgentName.includes(agUsername) || tAgentId === agUsername)) return true;
     if (agEmail && (tAgentName.includes(agEmail) || tAgentId === agEmail)) return true;
     return false;
   };
 
   const loadTickets = async () => {
+    setLoading(true);
+    let apiAll = [];
     try {
       const apiTickets = await fetchAgentTicketsApi();
-      if (apiTickets && Array.isArray(apiTickets) && apiTickets.length > 0) {
-        setTickets(apiTickets);
-        return;
+      if (apiTickets && Array.isArray(apiTickets)) {
+        apiAll = apiTickets;
       }
     } catch (e) {}
-    const local = getAllTickets().map((t) => {
+
+    const localTickets = getAllTickets();
+    const apiIds = new Set(apiAll.map((t) => String(t.id ?? t.ticketNumber ?? "")));
+    const onlyLocal = localTickets.filter(
+      (t) => !apiIds.has(String(t.id ?? t.ticketNumber ?? ""))
+    );
+    const combined = [...apiAll, ...onlyLocal].map((t) => {
       const agName = t.assignedAgent || t.assignedAgentName;
       const cleanAgName = agName && agName !== "Unassigned" ? agName : null;
       return {
         ...t,
-        assignedAgent: cleanAgName,
-        assignedAgentName: cleanAgName,
+        assignedAgent: cleanAgName || t.assignedAgent,
+        assignedAgentName: cleanAgName || t.assignedAgentName,
       };
     });
-    setTickets(local);
+    setTickets(combined);
+    setLoading(false);
   };
 
-  const handleDelete = (ticket) => {
-    const code = ticket.ticketNumber || ticket.id;
-    if (window.confirm(`Are you sure you want to remove ticket #${code}?`)) {
-      deleteTicket(ticket.id);
-      setToast({ type: "success", message: `✓ Ticket #${code} removed successfully.` });
-      loadTickets();
-    }
+  const loadAgents = async () => {
+    try {
+      const list = await fetchAgentsApi();
+      if (list && Array.isArray(list) && list.length > 0) {
+        setAgents(list);
+      }
+    } catch (e) {}
   };
 
   useEffect(() => {
     loadTickets();
-    fetchAgentsApi().then((list) => {
-      if (list && Array.isArray(list) && list.length > 0) {
-        setAgents(list);
-      }
-    });
+    loadAgents();
+    const handleSync = () => {
+      setTickets(getAllTickets());
+      const localAgents = getDepartmentAgentsList();
+      if (localAgents && localAgents.length > 0) setAgents(localAgents);
+    };
+    window.addEventListener("supportpilot_tickets_changed", handleSync);
+    window.addEventListener("storage", handleSync);
+    return () => {
+      window.removeEventListener("supportpilot_tickets_changed", handleSync);
+      window.removeEventListener("storage", handleSync);
+    };
   }, []);
 
   useEffect(() => {
@@ -84,77 +134,157 @@ export default function ManagerDashboard() {
     }
   }, [toast]);
 
-  // Compute 5 PDF Section 7.C Metric Cards
-  const openTickets = tickets.filter(
-    (t) => !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
-  );
+  // Metrics
+  const metrics = useMemo(() => {
+    const total = tickets.length;
+    const open = tickets.filter(
+      (t) => !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
+    ).length;
+    const escalated = tickets.filter((t) =>
+      ["ESCALATED", "Escalated", "REOPENED", "Reopened"].includes(t.status)
+    ).length;
+    const highPriority = tickets.filter(
+      (t) =>
+        ["Critical", "P1", "High", "P2"].includes(t.priority) &&
+        !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
+    ).length;
+    const closed = tickets.filter((t) =>
+      ["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
+    ).length;
 
-  const highPriorityTickets = tickets.filter(
-    (t) =>
-      ["Critical", "P1", "High", "P2"].includes(t.priority) &&
-      !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
-  );
+    return { total, open, escalated, highPriority, closed };
+  }, [tickets]);
 
-  const escalatedTickets = tickets.filter(
-    (t) => ["ESCALATED", "Escalated"].includes(t.status)
-  );
-
-  const slaBreachedTickets = tickets.filter((t) => {
-    if (["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)) return false;
-    if (t.priority === "Critical" || t.priority === "P1") return true;
-    if (t.slaStatus === "BREACHED") return true;
-    return false;
-  });
-
-  const avgResolutionTimeHours = "3.4h";
+  // Agent Workload Calculation
+  const agentWorkloads = useMemo(() => {
+    return agents.map((ag) => {
+      const activeCount = tickets.filter(
+        (t) =>
+          isTicketAssignedToAgent(t, ag) &&
+          !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
+      ).length;
+      return {
+        ...ag,
+        activeCount,
+        availability: ag.availabilityStatus || ag.availability_status || "AVAILABLE",
+      };
+    });
+  }, [agents, tickets]);
 
   // Filtered tickets
-  const displayedTickets = tickets.filter((t) => {
-    if (selectedAgentFilter && !isTicketAssignedToAgent(t, selectedAgentFilter)) return false;
-    const isAssigned = Boolean((t.assignedAgentName || t.assignedAgent) && (t.assignedAgentName || t.assignedAgent) !== "Unassigned");
-    if (filter === "open") return !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status);
-    if (filter === "high") return ["Critical", "P1", "High", "P2"].includes(t.priority);
-    if (filter === "escalated") return ["ESCALATED", "Escalated"].includes(t.status);
-    if (filter === "unassigned") return !isAssigned;
-    return true;
-  });
+  const filteredTickets = useMemo(() => {
+    return tickets.filter((t) => {
+      // 1. Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const ticketCode = String(t.ticketNumber || t.id || "").toLowerCase();
+        const subject = String(t.subject || t.title || "").toLowerCase();
+        const category = String(t.category || "").toLowerCase();
+        const subCategory = String(t.subCategory || t.sub_category || "").toLowerCase();
+        const customer = String(t.customerName || t.customerEmail || "").toLowerCase();
+        const agent = String(t.assignedAgentName || t.assignedAgent || "").toLowerCase();
+        const matches =
+          ticketCode.includes(q) ||
+          subject.includes(q) ||
+          category.includes(q) ||
+          subCategory.includes(q) ||
+          customer.includes(q) ||
+          agent.includes(q);
+        if (!matches) return false;
+      }
 
+      // 2. Status filter
+      if (statusFilter !== "all") {
+        const s = String(t.status || "").toUpperCase();
+        if (statusFilter === "OPEN" && ["RESOLVED", "CLOSED"].includes(s)) return false;
+        if (statusFilter === "ACTIVE" && !["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"].includes(s)) return false;
+        if (statusFilter === "ESCALATED" && !["ESCALATED", "REOPENED"].includes(s)) return false;
+        if (statusFilter === "RESOLVED" && !["RESOLVED", "CLOSED"].includes(s)) return false;
+        if (statusFilter !== "OPEN" && statusFilter !== "ACTIVE" && statusFilter !== "ESCALATED" && statusFilter !== "RESOLVED") {
+          if (s !== statusFilter.toUpperCase()) return false;
+        }
+      }
+
+      // 3. Priority filter
+      if (priorityFilter !== "all") {
+        const p = String(t.priority || "").toUpperCase();
+        if (priorityFilter === "P1" && !["P1", "CRITICAL"].includes(p)) return false;
+        if (priorityFilter === "P2" && !["P2", "HIGH"].includes(p)) return false;
+        if (priorityFilter === "P3" && !["P3", "MEDIUM"].includes(p)) return false;
+        if (priorityFilter === "P4" && !["P4", "LOW"].includes(p)) return false;
+      }
+
+      // 4. Department filter
+      if (deptFilter !== "all") {
+        const d = String(t.department || "").toLowerCase();
+        if (!d.includes(deptFilter.toLowerCase())) return false;
+      }
+
+      // 5. Assignment filter
+      const isAssigned = Boolean(
+        (t.assignedAgentName || t.assignedAgent) &&
+        (t.assignedAgentName || t.assignedAgent) !== "Unassigned" &&
+        (t.assignedAgentName || t.assignedAgent) !== "null"
+      );
+      if (assignedFilter === "assigned" && !isAssigned) return false;
+      if (assignedFilter === "unassigned" && isAssigned) return false;
+
+      // 6. Selected agent filter
+      if (selectedAgentFilter && !isTicketAssignedToAgent(t, selectedAgentFilter)) return false;
+
+      return true;
+    });
+  }, [tickets, searchQuery, statusFilter, priorityFilter, deptFilter, assignedFilter, selectedAgentFilter]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / pageSize));
+  const paginatedTickets = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTickets.slice(start, start + pageSize);
+  }, [filteredTickets, currentPage, pageSize]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, priorityFilter, deptFilter, assignedFilter, selectedAgentFilter, pageSize]);
+
+  // Handlers
   const handleAutoAssignAll = async () => {
     setIsAutoAssigning(true);
     try {
       const res = await autoAssignTicketsApi();
-      if (res) {
-        setToast({
-          type: "success",
-          message: res.message || "✓ Successfully auto-assigned tickets based on category and priority!",
-        });
-        await loadTickets();
-      } else {
-        const unassigned = tickets.filter(
-          (t) => !(t.assignedAgent || t.assignedAgentName) && !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
-        );
-        for (const t of unassigned) {
-          const cat = (t.category || "").toLowerCase();
-          const targetAgent = agents.find((a) =>
-            cat.includes("network") ? a.name?.toLowerCase().includes("premalatha")
-            : (cat.includes("tech") || cat.includes("software")) ? a.name?.toLowerCase().includes("yogitha")
-            : a.name?.toLowerCase().includes("agent")
-          ) || agents[0];
-
-          if (targetAgent) {
-            await assignTicketApi(t.id, targetAgent.id, targetAgent.name);
-          }
-        }
-        setToast({
-          type: "success",
-          message: `✓ Auto-assigned ${unassigned.length} tickets based on Category & Priority rules.`,
-        });
-        await loadTickets();
-      }
+      setToast({
+        type: "success",
+        message: res?.message || "Successfully auto-assigned tickets based on category, priority, and balanced workload.",
+      });
+      await loadTickets();
+      await loadAgents();
     } catch (err) {
       setToast({ type: "error", message: "Auto-assignment encountered an issue." });
     } finally {
       setIsAutoAssigning(false);
+    }
+  };
+
+  const handleToggleAgentAvailability = async (agent, newStatus) => {
+    try {
+      const agId = agent.id != null && !String(agent.id).startsWith("USR") ? agent.id : (agent.username || agent.email);
+      await api.patch(`/agent/${agId}/availability/`, { availability_status: newStatus });
+      setToast({
+        type: "success",
+        message: `Updated availability for ${agent.name || agent.username} to ${newStatus}.`,
+      });
+      await loadAgents();
+      await loadTickets();
+    } catch (err) {
+      // update local
+      setAgents((prev) =>
+        prev.map((a) => (a.id === agent.id ? { ...a, availabilityStatus: newStatus, availability_status: newStatus } : a))
+      );
+      setToast({
+        type: "success",
+        message: `Updated availability for ${agent.name || agent.username} to ${newStatus}.`,
+      });
     }
   };
 
@@ -174,22 +304,6 @@ export default function ManagerDashboard() {
       const agentName = foundAgent?.name || foundAgent?.username || selectedAgent;
       const agentDisplayName = foundAgent ? `${agentName} (${foundAgent.department || "Support"})` : selectedAgent;
 
-      // Immediately update local state so table updates instantly
-      setTickets((prev) =>
-        prev.map((t) =>
-          t.id === reassignModalTicket.id
-            ? {
-                ...t,
-                assigned_to: agentId,
-                assignedAgent: agentName,
-                assignedAgentName: agentDisplayName,
-                assignedAgentId: agentId,
-                status: "ASSIGNED",
-              }
-            : t
-        )
-      );
-
       await assignTicketApi(reassignModalTicket.id, agentId, agentName);
 
       updateTicket(reassignModalTicket.id, {
@@ -202,14 +316,24 @@ export default function ManagerDashboard() {
 
       setToast({
         type: "success",
-        message: `✓ Ticket #${reassignModalTicket.ticketNumber || reassignModalTicket.id} assigned to ${agentName}.`,
+        message: `Ticket #${reassignModalTicket.ticketNumber || reassignModalTicket.id} assigned to ${agentName}.`,
       });
 
       setReassignModalTicket(null);
       setSelectedAgent("");
-      loadTickets();
+      await loadTickets();
+      await loadAgents();
     } catch (err) {
       setToast({ type: "error", message: "Failed to reassign ticket." });
+    }
+  };
+
+  const handleDelete = (ticket) => {
+    const code = ticket.ticketNumber || ticket.id;
+    if (window.confirm(`Are you sure you want to remove ticket #${code}?`)) {
+      deleteTicket(ticket.id);
+      setToast({ type: "success", message: `Ticket #${code} removed successfully.` });
+      loadTickets();
     }
   };
 
@@ -217,25 +341,30 @@ export default function ManagerDashboard() {
     <div className="space-y-6">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-20 right-6 z-50 animate-bounce">
-          <div className="rounded-xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-2xl border border-amber-500/50 backdrop-blur-md flex items-center gap-2">
-            <span className="text-amber-400">{toast.type === "success" ? "✓" : "⚠"}</span>
+        <div className="fixed top-20 right-8 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="rounded-lg bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-xl border border-slate-700 flex items-center gap-2">
+            {toast.type === "success" ? (
+              <FiCheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <FiAlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            )}
             <span>{toast.message}</span>
           </div>
         </div>
       )}
 
-      {/* TOP COMMAND BANNER (Warm Amber & Deep Navy) */}
-      <div className="rounded-2xl bg-[#090e1a] border border-[#1e293b] p-6 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* TOP COMMAND BAR */}
+      <div className="rounded-xl bg-white border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold tracking-wide uppercase mb-2">
-            <span>🛡️</span> Support Manager Operations Desk
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold uppercase tracking-wider mb-2">
+            <FiShield className="w-3.5 h-3.5" />
+            <span>Operations &amp; Workload Command</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            Queue Health, SLA Integrity &amp; Escalation Control
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+            Support Operations &amp; SLA Management
           </h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Real-time multi-agent supervisor console. Balance team capacity, enforce SLA response &amp; resolution deadlines, and guide complex ticket escalations.
+          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+            Monitor incoming queues, manage real-time agent availability, balance department workloads, and enforce SLA resolution deadlines.
           </p>
         </div>
 
@@ -244,220 +373,251 @@ export default function ManagerDashboard() {
             type="button"
             disabled={isAutoAssigning}
             onClick={handleAutoAssignAll}
-            className="rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-700 text-slate-950 font-bold text-xs px-4 py-2.5 transition shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer"
-            title="Automatically assign tickets based on Category and Priority"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 transition shadow-xs cursor-pointer disabled:opacity-50"
+            title="Automatically assign unassigned tickets based on Category, Priority, and Agent Workload"
           >
             {isAutoAssigning ? (
               <>
-                <div className="animate-spin inline-block w-3 h-3 border-2 border-slate-950 border-t-transparent rounded-full" />
+                <FiRefreshCw className="w-3.5 h-3.5 animate-spin" />
                 <span>Auto-Assigning...</span>
               </>
             ) : (
               <>
-                <span>⚡</span>
-                <span>AI Auto-Assign</span>
+                <FiUsers className="w-3.5 h-3.5" />
+                <span>Run AI Auto-Assignment</span>
               </>
             )}
           </button>
+
           <Link
             to="/manager/assignment"
-            className="rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-slate-700 font-bold text-xs px-4 py-2.5 transition flex items-center gap-2"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2.5 transition shadow-xs"
           >
-            <span>👥</span> Reassign Workload
+            <FiUsers className="w-3.5 h-3.5 text-blue-600" />
+            <span>Agent Workloads</span>
           </Link>
-          <Link
-            to="/manager/sla"
-            className="rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-amber-200 font-bold text-xs px-4 py-2.5 transition"
+
+          <button
+            onClick={loadTickets}
+            className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition shadow-xs cursor-pointer"
+            title="Refresh Tickets"
           >
-            <span>⏱</span> SLA Matrix
-          </Link>
+            <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          </button>
         </div>
       </div>
 
-      {/* 5 MAIN CONTENT METRIC CARDS (PDF SECTION 7.C) */}
+      {/* KPI METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Card 1: Open Tickets */}
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs hover:border-amber-300 hover:shadow-md transition relative overflow-hidden group">
+        {/* Total Tickets */}
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Open Tickets</span>
-            <span className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm font-bold border border-amber-100">
-              📂
-            </span>
+            <span>Total Tickets</span>
+            <div className="h-8 w-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+              <FiInbox className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900">{openTickets.length}</span>
-            <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-200">
-              Active
+            <span className="text-2xl font-bold text-slate-900">{metrics.total}</span>
+            <span className="text-[11px] text-slate-500">all time</span>
+          </div>
+          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
+            <div className="bg-slate-400 h-full rounded-full w-full" />
+          </div>
+        </div>
+
+        {/* Active / Open */}
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+            <span>Active / Open</span>
+            <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <FiClock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-blue-600">{metrics.open}</span>
+            <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+              In Progress
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {tickets.length - openTickets.length} resolved / closed
-          </p>
           <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
             <div
-              className="bg-amber-500 h-full rounded-full"
-              style={{ width: `${Math.min(100, (openTickets.length / Math.max(1, tickets.length)) * 100)}%` }}
+              className="bg-blue-600 h-full rounded-full"
+              style={{ width: `${Math.min(100, (metrics.open / Math.max(1, metrics.total)) * 100)}%` }}
             />
           </div>
         </div>
 
-        {/* Card 2: High Priority */}
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs hover:border-orange-300 hover:shadow-md transition relative overflow-hidden group">
+        {/* High / P1 / P2 Priority */}
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
             <span>High Priority</span>
-            <span className="h-8 w-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center text-sm font-bold border border-orange-100">
-              🔥
-            </span>
+            <div className="h-8 w-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+              <FiAlertCircle className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-orange-600">{highPriorityTickets.length}</span>
-            <span className="text-[11px] text-orange-700 bg-orange-50 px-2 py-0.5 rounded font-mono font-bold border border-orange-200">
+            <span className="text-2xl font-bold text-orange-600">{metrics.highPriority}</span>
+            <span className="text-[11px] font-semibold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded font-mono">
               P1 / P2
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Urgent attention needed</p>
           <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
             <div
               className="bg-orange-500 h-full rounded-full"
-              style={{ width: `${Math.min(100, (highPriorityTickets.length / Math.max(1, openTickets.length)) * 100)}%` }}
+              style={{ width: `${Math.min(100, (metrics.highPriority / Math.max(1, metrics.open)) * 100)}%` }}
             />
           </div>
         </div>
 
-        {/* Card 3: SLA Breaches */}
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs hover:border-red-300 hover:shadow-md transition relative overflow-hidden group">
+        {/* Escalations / Queued */}
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>SLA Breaches</span>
-            <span className="h-8 w-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-sm font-bold border border-red-100">
-              ⏱
-            </span>
+            <span>Escalated / Help</span>
+            <div className="h-8 w-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+              <FiAlertCircle className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-red-600">{slaBreachedTickets.length}</span>
-            <span className="text-[11px] text-red-700 bg-red-50 px-2 py-0.5 rounded font-bold border border-red-200">
-              At Risk
+            <span className="text-2xl font-bold text-red-600">{metrics.escalated}</span>
+            <span className="text-[11px] font-semibold text-red-700 bg-red-50 px-1.5 py-0.5 rounded">
+              Needs Review
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Page 14 threshold alerts</p>
           <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
             <div
               className="bg-red-500 h-full rounded-full"
-              style={{ width: `${Math.min(100, (slaBreachedTickets.length / Math.max(1, openTickets.length)) * 100)}%` }}
+              style={{ width: `${Math.min(100, (metrics.escalated / Math.max(1, metrics.open)) * 100)}%` }}
             />
           </div>
         </div>
 
-        {/* Card 4: Escalations */}
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs hover:border-amber-400 hover:shadow-md transition relative overflow-hidden group">
+        {/* Completed / Closed */}
+        <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Escalations</span>
-            <span className="h-8 w-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-sm font-bold border border-amber-100">
-              🚨
-            </span>
+            <span>Resolved / Closed</span>
+            <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <FiCheckCircle className="w-4 h-4" />
+            </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-amber-700">{escalatedTickets.length}</span>
-            <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded font-bold border border-amber-200">
-              Human Tier
+            <span className="text-2xl font-bold text-emerald-600">{metrics.closed}</span>
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+              {Math.round((metrics.closed / Math.max(1, metrics.total)) * 100)}%
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Low confidence / complex</p>
           <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
             <div
-              className="bg-amber-600 h-full rounded-full"
-              style={{ width: `${Math.min(100, (escalatedTickets.length / Math.max(1, openTickets.length)) * 100)}%` }}
+              className="bg-emerald-500 h-full rounded-full"
+              style={{ width: `${Math.min(100, (metrics.closed / Math.max(1, metrics.total)) * 100)}%` }}
             />
-          </div>
-        </div>
-
-        {/* Card 5: Average Resolution Time */}
-        <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs hover:border-emerald-300 hover:shadow-md transition relative overflow-hidden group">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Avg Resolution Time</span>
-            <span className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-bold border border-emerald-100">
-              ⚡
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-emerald-600">{avgResolutionTimeHours}</span>
-            <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-mono font-bold border border-emerald-200">
-              &lt; 8h SLA
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">57% faster via AI RAG</p>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full" style={{ width: "82%" }} />
           </div>
         </div>
       </div>
 
-      {/* TWO COLUMN OPERATIONS MONITOR */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* LEFT 2 COLS: ACTIVE OPERATIONS QUEUE */}
-        <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-          <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70">
-            <div>
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <span>📋</span> Operations Ticket Queue
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                Supervise tickets across ingestion, classification, and assignment states
-              </p>
+      {/* MAIN TWO-COLUMN SECTION: TICKETS & WORKLOADS */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* TICKET TABLE (LEFT 3 COLUMNS) */}
+        <div className="lg:col-span-3 rounded-xl bg-white border border-slate-200 shadow-xs overflow-hidden flex flex-col">
+          {/* SEARCH & FILTERS HEADER */}
+          <div className="p-4 border-b border-slate-200 bg-slate-50/60 space-y-3">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              {/* Search Box */}
+              <div className="relative flex-1 w-full">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by ticket #, subject, customer, agent, or category..."
+                  className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-600 focus:outline-none"
+              >
+                <option value="all">All Statuses</option>
+                <option value="OPEN">Open</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="ESCALATED">Escalated</option>
+                <option value="RESOLVED">Resolved / Closed</option>
+              </select>
+
+              {/* Priority Filter */}
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-600 focus:outline-none"
+              >
+                <option value="all">All Priorities</option>
+                <option value="P1">P1 – Critical</option>
+                <option value="P2">P2 – High</option>
+                <option value="P3">P3 – Medium</option>
+                <option value="P4">P4 – Low</option>
+              </select>
+
+              {/* Department Filter */}
+              <select
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-600 focus:outline-none"
+              >
+                <option value="all">All Departments</option>
+                <option value="IT">IT Department</option>
+                <option value="HR">HR Department</option>
+                <option value="Finance">Finance Department</option>
+              </select>
+
+              {/* Assignment Filter */}
+              <select
+                value={assignedFilter}
+                onChange={(e) => setAssignedFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-600 focus:outline-none"
+              >
+                <option value="all">All Assignments</option>
+                <option value="assigned">Assigned Only</option>
+                <option value="unassigned">Unassigned Only</option>
+              </select>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: "all", label: `All (${tickets.length})` },
-                { id: "open", label: `Open (${openTickets.length})` },
-                { id: "high", label: `High/Crit (${highPriorityTickets.length})` },
-                { id: "escalated", label: `Escalated (${escalatedTickets.length})` },
-                { id: "unassigned", label: "Unassigned" },
-              ].map((pill) => (
+            {/* Active Agent Filter Notice */}
+            {selectedAgentFilter && (
+              <div className="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-900 border border-blue-200">
+                <span className="font-semibold">
+                  Filtered by Agent: {selectedAgentFilter.name || selectedAgentFilter.username} ({filteredTickets.length} matching tickets)
+                </span>
                 <button
-                  key={pill.id}
-                  onClick={() => setFilter(pill.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    filter === pill.id
-                      ? "bg-amber-500 text-slate-950 font-bold shadow-xs"
-                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
+                  type="button"
+                  onClick={() => setSelectedAgentFilter(null)}
+                  className="text-xs font-bold text-blue-700 hover:underline cursor-pointer"
                 >
-                  {pill.label}
+                  Clear Agent Filter
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* Active Agent Filter Banner */}
-          {selectedAgentFilter && (
-            <div className="bg-amber-50 border-b border-amber-200 px-5 py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs">
-                <span>👤</span>
-                <span className="font-bold text-slate-900">
-                  Filtered by Agent: {selectedAgentFilter.name || selectedAgentFilter.username}
-                </span>
-                <span className="text-slate-500">
-                  ({displayedTickets.length} tickets matching)
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedAgentFilter(null)}
-                className="rounded-lg bg-white border border-amber-300 px-2.5 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition cursor-pointer"
-              >
-                ✕ Clear Filter
-              </button>
-            </div>
-          )}
-
-          <div className="overflow-x-auto">
+          {/* TABLE CONTAINER */}
+          <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 text-slate-400 bg-slate-50 font-semibold uppercase text-[10px] tracking-wider">
+                <tr className="border-b border-slate-200 text-slate-500 bg-slate-50 font-semibold uppercase text-[10px] tracking-wider">
                   <th className="py-3 px-4">Ticket</th>
-                  <th className="py-3 px-4">Subject</th>
-                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Subject &amp; Customer</th>
+                  <th className="py-3 px-4">Department &amp; Category</th>
                   <th className="py-3 px-4">Priority</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Assigned Agent</th>
@@ -465,91 +625,138 @@ export default function ManagerDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {displayedTickets.length === 0 ? (
+                {paginatedTickets.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="text-center py-12 text-slate-400 font-medium">
-                      No tickets matching filter.
+                      No tickets match the selected filters.
                     </td>
                   </tr>
                 ) : (
-                  displayedTickets.map((t) => {
+                  paginatedTickets.map((t) => {
                     const ticketCode = t.ticketNumber || t.id;
-                    const isCrit = t.priority === "Critical" || t.priority === "P1";
-                    const isHigh = t.priority === "High" || t.priority === "P2";
-                    const isEscalated = ["ESCALATED", "Escalated"].includes(t.status);
+                    const isP1 = t.priority === "Critical" || t.priority === "P1";
+                    const isP2 = t.priority === "High" || t.priority === "P2";
+                    const isP3 = t.priority === "Medium" || t.priority === "P3";
                     const assignedName = t.assignedAgentName || t.assignedAgent;
                     const isAssigned = Boolean(assignedName && assignedName !== "Unassigned" && assignedName !== "null");
+                    const isEscalated = ["ESCALATED", "Escalated", "REOPENED", "Reopened"].includes(t.status);
+                    const isClosed = ["RESOLVED", "Resolved", "CLOSED", "Closed"].includes(t.status);
 
                     return (
-                      <tr key={t.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 px-4 font-mono font-bold text-amber-700">
+                      <tr key={t.id} className="hover:bg-slate-50/70 transition">
+                        {/* Ticket Code */}
+                        <td className="py-3.5 px-4 font-mono font-bold text-blue-600 whitespace-nowrap">
                           <Link to={`/portal/tickets/${ticketCode}`} className="hover:underline">
                             {ticketCode}
                           </Link>
                         </td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-800 max-w-[200px] truncate" title={t.subject || t.title}>
-                          {t.subject || t.title}
+
+                        {/* Title & Customer */}
+                        <td className="py-3.5 px-4 max-w-[220px]">
+                          <div className="font-semibold text-slate-800 truncate" title={t.subject || t.title}>
+                            {t.subject || t.title}
+                          </div>
+                          <div className="text-[11px] text-slate-400 truncate">
+                            {t.customerName || t.customerEmail || "Customer"}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-600">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 font-mono text-[10px] text-slate-700">
-                            {t.category || "General"}
-                          </span>
+
+                        {/* Department & Category */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="text-xs font-medium text-slate-700">
+                            {t.department || "IT Department"}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {t.category || "General"} {t.subCategory ? `• ${t.subCategory}` : ""}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4">
+
+                        {/* Priority Badge */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold font-mono ${
-                              isCrit
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold font-mono ${
+                              isP1
                                 ? "bg-red-50 text-red-700 border border-red-200"
-                                : isHigh
-                                ? "bg-amber-50 text-amber-800 border border-amber-200"
-                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                                : isP2
+                                ? "bg-orange-50 text-orange-700 border border-orange-200"
+                                : isP3
+                                ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                : "bg-slate-100 text-slate-700 border border-slate-200"
                             }`}
                           >
-                            {t.priority || "Medium"}
+                            {isP1 ? "P1 – Critical" : isP2 ? "P2 – High" : isP3 ? "P3 – Medium" : "P4 – Low"}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4">
+
+                        {/* Status Badge */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              isEscalated
-                                ? "bg-red-50 text-red-700 border border-red-200"
-                                : t.status === "AI_RESOLUTION_READY"
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isClosed
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : isEscalated
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : t.status === "ASSIGNED" || t.status === "IN_PROGRESS"
+                                ? "bg-blue-50 text-blue-700 border border-blue-200"
                                 : "bg-slate-100 text-slate-700 border border-slate-200"
                             }`}
                           >
                             {t.status || "OPEN"}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-700">
+
+                        {/* Assigned Agent */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           {isAssigned ? (
-                            <span className="flex items-center gap-1.5 font-semibold text-xs text-slate-900">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0 shadow-xs" />
-                              <span>{assignedName}</span>
-                            </span>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-800 font-medium">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                              <span className="truncate max-w-[130px]">{assignedName}</span>
+                            </div>
                           ) : (
                             <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
-                              ⚠ Unassigned
+                              <FiAlertCircle className="w-3 h-3" />
+                              <span>Unassigned</span>
                             </span>
                           )}
                         </td>
+
+                        {/* Action Buttons */}
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
                             <button
+                              type="button"
                               onClick={() => {
                                 setReassignModalTicket(t);
                                 setSelectedAgent(t.assigned_to || t.assignedAgentId || assignedName || "");
                               }}
-                              className="px-3 py-1 rounded-lg bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-slate-950 border border-amber-200 text-[11px] font-bold transition cursor-pointer shadow-2xs"
+                              className="px-2.5 py-1 rounded-md bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold transition cursor-pointer"
                             >
-                              {isAssigned ? "Reassign" : "Assign / Route"}
+                              {isAssigned ? "Reassign" : "Assign"}
                             </button>
-                            <button
-                              onClick={() => handleDelete(t)}
-                              className="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-500 text-red-700 hover:text-white border border-red-200 font-bold text-[11px] transition shadow-2xs cursor-pointer"
-                              title="Remove Ticket"
+
+                            <GmailComposeButton
+                              ticketId={ticketCode}
+                              ticket={t}
+                              to={t.customerEmail}
+                              variant="icon"
+                              title="Send Transactional Email"
+                            />
+
+                            <Link
+                              to={`/portal/tickets/${ticketCode}`}
+                              className="p-1.5 rounded-md bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200 text-xs transition inline-flex items-center justify-center"
+                              title="View Details"
                             >
-                              ✕
+                              <FiEye className="w-3.5 h-3.5" />
+                            </Link>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(t)}
+                              className="p-1.5 rounded-md bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 border border-slate-200 text-xs transition cursor-pointer inline-flex items-center justify-center"
+                              title="Delete Ticket"
+                            >
+                              <FiTrash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -560,64 +767,140 @@ export default function ManagerDashboard() {
               </tbody>
             </table>
           </div>
-        </div>
 
-        {/* RIGHT COL: WORKLOAD BALANCE & SLA WATCH */}
-        <div className="space-y-6">
-          {/* Agent Workload Gauge Card */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                  <span>👥</span> Team Workload Capacity
-                </h3>
-                <p className="text-[10px] text-slate-400">Click any agent to filter queue</p>
-              </div>
-              <Link to="/manager/assignment" className="text-[11px] text-amber-700 font-bold hover:underline">
-                Manage
-              </Link>
+          {/* PAGINATION FOOTER */}
+          <div className="p-4 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:outline-none"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+              <span className="text-slate-400 pl-2">
+                Showing {filteredTickets.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} -{" "}
+                {Math.min(currentPage * pageSize, filteredTickets.length)} of {filteredTickets.length} tickets
+              </span>
             </div>
 
-            <div className="space-y-2">
-              {agents.map((ag) => {
-                const assignedCount = tickets.filter(
-                  (t) =>
-                    isTicketAssignedToAgent(t, ag) &&
-                    !["Resolved", "RESOLVED", "Closed", "CLOSED"].includes(t.status)
-                ).length;
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <FiChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
+              </button>
+              <span className="px-2 font-medium text-slate-700">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span>Next</span>
+                <FiChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
 
-                const maxCapacity = 5;
-                const loadPct = Math.min(100, Math.round((assignedCount / maxCapacity) * 100));
+        {/* RIGHT SIDEBAR: AGENT AVAILABILITY & WORKLOADS */}
+        <div className="space-y-6">
+          {/* Agent Capacity Card */}
+          <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <FiUsers className="w-4 h-4 text-blue-600" />
+                  <span>Agent Workload &amp; Status</span>
+                </h3>
+                <p className="text-[11px] text-slate-400">Manage real-time availability and queues</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {agentWorkloads.map((ag) => {
                 const isSelected = selectedAgentFilter?.id === ag.id || selectedAgentFilter?.username === ag.username;
+                const isAvailable = ag.availability === "AVAILABLE";
 
                 return (
                   <div
                     key={ag.id || ag.username}
-                    onClick={() => setSelectedAgentFilter(isSelected ? null : ag)}
-                    className={`space-y-1 text-xs p-2.5 rounded-xl transition cursor-pointer select-none ${
+                    className={`p-3 rounded-lg border transition ${
                       isSelected
-                        ? "bg-amber-50/90 border border-amber-400 ring-1 ring-amber-400 shadow-2xs"
-                        : "hover:bg-slate-50 border border-transparent"
+                        ? "bg-blue-50 border-blue-300 ring-1 ring-blue-300"
+                        : "border-slate-200 hover:border-slate-300 bg-slate-50/50"
                     }`}
-                    title={`Click to filter queue by ${ag.name || ag.username}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-slate-800">{ag.name || ag.username}</span>
-                        <span className="text-[10px] text-slate-400">({ag.department || "Support"})</span>
-                        {isSelected && <span className="text-[9px] text-amber-700 font-bold bg-amber-100 px-1.5 rounded">Active</span>}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div
+                        onClick={() => setSelectedAgentFilter(isSelected ? null : ag)}
+                        className="cursor-pointer font-semibold text-xs text-slate-900 hover:text-blue-600 truncate max-w-[130px]"
+                        title="Click to filter ticket table by this agent"
+                      >
+                        {ag.name || ag.username}
                       </div>
-                      <span className="font-mono font-bold text-amber-700">
-                        {assignedCount} / {maxCapacity} ({loadPct}%)
+
+                      {/* Status Toggle Dropdown */}
+                      <select
+                        value={ag.availability}
+                        onChange={(e) => handleToggleAgentAvailability(ag, e.target.value)}
+                        className={`text-[10px] font-bold rounded px-1.5 py-0.5 border cursor-pointer outline-none ${
+                          isAvailable
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                            : ag.availability === "BUSY"
+                            ? "bg-amber-50 text-amber-800 border-amber-300"
+                            : "bg-slate-200 text-slate-700 border-slate-300"
+                        }`}
+                      >
+                        <option value="AVAILABLE">Working / Available</option>
+                        <option value="BUSY">Busy</option>
+                        <option value="UNAVAILABLE">Not Working</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                      <span>{ag.department || "IT Department"}</span>
+                      <span className="font-mono font-semibold text-slate-700">
+                        {ag.activeCount} active tickets
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+
+                    {/* Capacity bar */}
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          loadPct >= 80 ? "bg-red-500" : loadPct >= 50 ? "bg-amber-500" : "bg-amber-500"
+                          ag.activeCount >= 5
+                            ? "bg-red-500"
+                            : ag.activeCount >= 3
+                            ? "bg-amber-500"
+                            : "bg-blue-600"
                         }`}
-                        style={{ width: `${loadPct}%` }}
+                        style={{ width: `${Math.min(100, (ag.activeCount / 5) * 100)}%` }}
                       />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 pt-1 border-t border-slate-100">
+                      <span>Cap: {Math.round((ag.activeCount / 5) * 100)}%</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInspectingAgent(ag);
+                        }}
+                        className="text-blue-600 hover:text-blue-800 font-semibold hover:underline cursor-pointer"
+                      >
+                        Profile &rarr;
+                      </button>
                     </div>
                   </div>
                 );
@@ -625,55 +908,56 @@ export default function ManagerDashboard() {
             </div>
           </div>
 
-          {/* SLA Rule Summary Card (PDF Page 14) */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-xs space-y-3">
+          {/* SLA Rule Reference Card */}
+          <div className="rounded-xl bg-white border border-slate-200 p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <span>⏱</span> PDF Page 14 SLA Policy
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                <FiClock className="w-4 h-4 text-blue-600" />
+                <span>SLA Policy Reference</span>
               </h3>
-              <span className="text-[10px] font-mono text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+              <span className="text-[10px] font-mono text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                 Automated
               </span>
             </div>
 
-            <div className="space-y-2 text-[11px]">
-              <div className="p-2.5 rounded-xl bg-red-50/60 border border-red-200 flex items-center justify-between">
+            <div className="space-y-2 text-xs">
+              <div className="p-2.5 rounded-lg bg-red-50/70 border border-red-200 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-red-700">Critical Priority</span>
-                  <div className="text-red-600/80 text-[10px]">Resp: 30m • Resol: 4h</div>
+                  <span className="font-bold text-red-700">P1 – Critical</span>
+                  <div className="text-red-600 text-[10px]">Resp: 15m • Resol: 4h</div>
                 </div>
                 <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-mono font-bold text-[10px]">
-                  Immediate
+                  24/7 Cover
                 </span>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200 flex items-center justify-between">
+              <div className="p-2.5 rounded-lg bg-orange-50/70 border border-orange-200 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-amber-800">High Priority</span>
-                  <div className="text-amber-700/80 text-[10px]">Resp: 2h • Resol: 8h</div>
+                  <span className="font-bold text-orange-700">P2 – High</span>
+                  <div className="text-orange-600 text-[10px]">Resp: 30m • Resol: 8h</div>
                 </div>
-                <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono font-bold text-[10px]">
-                  Manager Alert
+                <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-800 font-mono font-bold text-[10px]">
+                  24/7 Cover
                 </span>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-200 flex items-center justify-between">
+              <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-blue-700">Medium Priority</span>
-                  <div className="text-blue-600/80 text-[10px]">Resp: 8h • Resol: 24h</div>
+                  <span className="font-bold text-blue-700">P3 – Medium</span>
+                  <div className="text-blue-600 text-[10px]">Resp: 60m • Resol: 24h</div>
                 </div>
                 <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono font-bold text-[10px]">
-                  Agent Alert
+                  Biz Hours
                 </span>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-slate-700">Low Priority</span>
-                  <div className="text-slate-500 text-[10px]">Resp: 24h • Resol: 72h</div>
+                  <span className="font-bold text-slate-700">P4 – Low</span>
+                  <div className="text-slate-500 text-[10px]">Resp: 120m • Resol: 48h</div>
                 </div>
                 <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px]">
-                  Normal Queue
+                  Biz Hours
                 </span>
               </div>
             </div>
@@ -683,47 +967,47 @@ export default function ManagerDashboard() {
 
       {/* REASSIGNMENT MODAL */}
       {reassignModalTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 space-y-4 text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-xl bg-white border border-slate-200 shadow-2xl p-6 space-y-4 text-slate-800 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-sm text-slate-900">
                 Reassign Ticket #{reassignModalTicket.ticketNumber || reassignModalTicket.id}
               </h3>
               <button
                 onClick={() => setReassignModalTicket(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
               >
-                ✕
+                Cancel
               </button>
             </div>
 
-            <div className="text-xs space-y-2 text-slate-600 bg-amber-50/40 p-3 rounded-xl border border-amber-100">
+            <div className="text-xs space-y-2 text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200">
               <p className="font-bold text-slate-900">{reassignModalTicket.subject || reassignModalTicket.title}</p>
               <div className="flex gap-2">
                 <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600 font-mono">
-                  Category: {reassignModalTicket.category || "General"}
+                  {reassignModalTicket.category || "General"}
                 </span>
-                <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-200 text-amber-900 font-mono font-bold">
-                  Priority: {reassignModalTicket.priority || "Medium"}
+                <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 font-mono font-bold">
+                  {reassignModalTicket.priority || "P3"}
                 </span>
               </div>
             </div>
 
             <form onSubmit={handleReassign} className="space-y-4 pt-1">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Select Target Agent
                 </label>
                 <select
                   value={selectedAgent}
                   onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
                   required
                 >
                   <option value="">-- Choose Agent --</option>
                   {agents.map((ag) => (
                     <option key={ag.id || ag.username} value={ag.id != null && !String(ag.id).startsWith("USR") ? ag.id : (ag.name || ag.username)}>
-                      {ag.name || ag.username} ({ag.department || ag.role || "Support Team"})
+                      {ag.name || ag.username} ({ag.department || "Support"} - {ag.availabilityStatus || ag.availability_status || "AVAILABLE"})
                     </option>
                   ))}
                 </select>
@@ -733,13 +1017,13 @@ export default function ManagerDashboard() {
                 <button
                   type="button"
                   onClick={() => setReassignModalTicket(null)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-xs font-bold text-slate-950 transition shadow-md shadow-amber-500/20 cursor-pointer"
+                  className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white transition shadow-xs cursor-pointer"
                 >
                   Save Assignment
                 </button>
@@ -748,6 +1032,16 @@ export default function ManagerDashboard() {
           </div>
         </div>
       )}
+
+      {/* PROFESSIONAL AGENT DETAILS DRAWER */}
+      <AgentDetailsDrawer
+        agent={inspectingAgent}
+        isOpen={Boolean(inspectingAgent)}
+        onClose={() => setInspectingAgent(null)}
+        allTickets={tickets}
+        onTicketAssigned={() => loadTickets()}
+        onStatusChanged={() => loadAgents()}
+      />
     </div>
   );
 }

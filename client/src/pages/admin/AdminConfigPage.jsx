@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { FiCheck, FiX, FiInfo, FiSettings } from "react-icons/fi";
 import { storage } from "../../services/storageService";
 
 export default function AdminConfigPage({
@@ -65,7 +66,7 @@ export default function AdminConfigPage({
       const timeStr = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
       setSavedAt(timeStr);
       setIsSaving(false);
-      triggerToast(`✓ ${title} configuration saved successfully! Applied across SupportPilot.`, "success");
+      triggerToast(`${title} configuration saved successfully! Applied across SupportPilot.`, "success");
     }, 300);
   };
 
@@ -92,7 +93,7 @@ export default function AdminConfigPage({
             <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-bold text-sm ${
               toastType === "success" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"
             }`}>
-              {toastType === "success" ? "✓" : "ℹ"}
+              {toastType === "success" ? <FiCheck className="w-4 h-4" /> : <FiInfo className="w-4 h-4" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
@@ -102,9 +103,9 @@ export default function AdminConfigPage({
                 <button
                   type="button"
                   onClick={() => setShowToast(false)}
-                  className="text-slate-400 hover:text-white text-xs font-bold ml-2 cursor-pointer"
+                  className="text-slate-400 hover:text-white p-1 cursor-pointer"
                 >
-                  ✕
+                  <FiX className="w-3.5 h-3.5" />
                 </button>
               </div>
               <p className="text-xs text-slate-300 mt-1 leading-relaxed">{toastMessage}</p>
@@ -119,8 +120,8 @@ export default function AdminConfigPage({
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-cyan-700 uppercase tracking-wider mb-1">
-            <span>⚙</span>
+          <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">
+            <FiSettings className="w-3.5 h-3.5" />
             <span>Admin Policy & Operations</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{title}</h1>
@@ -156,14 +157,14 @@ export default function AdminConfigPage({
                   onChange={handleChange}
                   rows={field.rows || 4}
                   placeholder={`Enter ${field.label.toLowerCase()}...`}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs text-slate-800 outline-none focus:border-cyan-600 focus:bg-white focus:ring-1 focus:ring-cyan-600 transition"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs text-slate-800 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition"
                 />
               ) : field.type === "select" ? (
                 <select
                   name={field.name}
                   value={form[field.name] ?? field.options?.[0]?.value ?? ""}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-cyan-600 focus:bg-white focus:ring-1 focus:ring-cyan-600 transition cursor-pointer"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition cursor-pointer"
                 >
                   {field.options?.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -176,7 +177,7 @@ export default function AdminConfigPage({
                   value={form[field.name] ?? ""}
                   onChange={handleChange}
                   placeholder={`Enter ${field.label.toLowerCase()}...`}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-800 outline-none focus:border-cyan-600 focus:bg-white focus:ring-1 focus:ring-cyan-600 transition"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-800 outline-none focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 transition"
                 />
               )}
             </label>
@@ -203,7 +204,7 @@ export default function AdminConfigPage({
           <div className="text-xs text-slate-500">
             {savedAt ? (
               <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
-                <span>✓</span>
+                <FiCheck className="w-3.5 h-3.5" />
                 <span>Last saved successfully at {savedAt}</span>
               </span>
             ) : (
@@ -223,7 +224,7 @@ export default function AdminConfigPage({
             <button
               type="submit"
               disabled={isSaving}
-              className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-6 py-2.5 text-xs font-bold transition shadow-md cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-2 disabled:opacity-50"
             >
               {isSaving ? (
                 <>
@@ -232,7 +233,7 @@ export default function AdminConfigPage({
                 </>
               ) : (
                 <>
-                  <span>✓</span>
+                  <FiCheck className="w-4 h-4" />
                   <span>Save changes</span>
                 </>
               )}

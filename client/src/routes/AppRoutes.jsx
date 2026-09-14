@@ -14,6 +14,7 @@ import RegisterPage from "../pages/RegisterPage";
 import DashboardPage from "../pages/DashboardPage";
 import MyTicketsPage from "../pages/MyTicketsPage";
 import AgentTicketDetails from "../pages/agent/AgentTicketDetails";
+import AgentTaskView from "../pages/agent/AgentTaskView";
 import CreateTicketPage from "../pages/CreateTicketPage";
 import AllTicketsPage from "../pages/AllTicketsPage";
 import AiAssistantPage from "../pages/AiAssistantPage";
@@ -175,6 +176,16 @@ const AppRoutes = () => {
         <Route
           path="/agent/dashboard"
           element={<DashboardPage />}
+        />
+
+        <Route
+          path="/agent/tasks/:agentName"
+          element={<AgentTaskView />}
+        />
+
+        <Route
+          path="/agent/:agentName"
+          element={<AgentTaskView />}
         />
 
         <Route

@@ -266,7 +266,7 @@ export async function executeAgentAction(ticketId, action, payload = {}, current
         isCustomer: false,
         isAgent: true,
         isInfoRequest: true,
-        message: `ℹ️ Information Requested from Customer:\n\n${requestText}`,
+        message: `[Information Requested from Customer]\n\n${requestText}`,
         created_at: now,
       });
 
@@ -396,7 +396,7 @@ export async function customerConfirmResolution(ticketId, isSolved, details = {}
   let logDesc = "";
 
   if (isSolved) {
-    // Happy Path: Customer confirms resolved -> Move to CLOSED (Page 4 Step 10 & 14)
+    // Happy Path: Customer confirms resolved -> Move to CLOSED
     newStatus = M4_STATUSES.CLOSED;
     ticket.closedAt = now;
     ticket.customerConfirmedAt = now;
@@ -406,14 +406,13 @@ export async function customerConfirmResolution(ticketId, isSolved, details = {}
       id: `REP-${Date.now()}`,
       author_name: customerName,
       isCustomer: true,
-      message: `✅ Customer Confirmation: I confirmed that my issue has been completely resolved. Thank you!`,
+      message: `Customer Confirmation: I confirmed that my issue has been completely resolved. Thank you!`,
       created_at: now,
     });
 
     logDesc = `${customerName} confirmed resolution. Ticket transitioned to CLOSED.`;
   } else {
-    // Reopen Path: Customer not resolved -> Return to active state (Page 4 Step 11, Page 12 REOPENED)
-    newStatus = M4_STATUSES.REOPENED;
+    // Reopen & Need Help Path: Customer not resolved -> Check availability & auto-assign or queue
     ticket.reopenedAt = now;
     ticket.isReopened = true;
     const reopenReason = details.reason || details.message || "Customer reported that the suggested resolution did not solve the issue.";
@@ -422,11 +421,34 @@ export async function customerConfirmResolution(ticketId, isSolved, details = {}
       id: `REP-${Date.now()}`,
       author_name: customerName,
       isCustomer: true,
-      message: `⚠️ Customer Follow-up: Issue is NOT resolved.\n\n${reopenReason}`,
+      message: `Customer Follow-up (Need More Help): Issue is not resolved.\n\n${reopenReason}`,
       created_at: now,
     });
 
-    logDesc = `${customerName} reported issue remains unresolved. Ticket status changed to REOPENED for further agent investigation.`;
+    // Run intelligent assignment engine across available agents in matching department
+    const { autoAssignDepartmentAgent } = await import("./ticketService.js");
+    const autoAgent = autoAssignDepartmentAgent(ticket.department || ticket.category, ticket.category);
+
+    if (autoAgent) {
+      newStatus = "ASSIGNED";
+      ticket.assignedTo = autoAgent.id;
+      ticket.assignedAgent = autoAgent.name;
+      ticket.assignedAgentName = autoAgent.name;
+      ticket.assignedAgentId = autoAgent.id;
+      ticket.assignedAgentDepartment = autoAgent.department;
+      ticket.assignedAgentTitle = autoAgent.title;
+      ticket.assignedQueue = `${autoAgent.department} Active Queue`;
+      logDesc = `${customerName} requested more help. Ticket reopened and automatically assigned to available agent ${autoAgent.name} (${autoAgent.department}) with balanced workload.`;
+    } else {
+      newStatus = M4_STATUSES.ESCALATED;
+      ticket.assignedTo = null;
+      ticket.assignedAgent = "Unassigned (Queued)";
+      ticket.assignedAgentName = "Unassigned (Queued)";
+      ticket.assignedAgentId = null;
+      ticket.assignedQueue = `${ticket.department || "IT"} Pending Queue`;
+      ticket.escalationReason = "All suitable agents in department are currently busy or unavailable. Queued for next available agent.";
+      logDesc = `${customerName} requested more help. All suitable agents are currently busy or unavailable. Ticket placed in pending queue for assignment.`;
+    }
   }
 
   ticket.status = newStatus;
@@ -437,7 +459,7 @@ export async function customerConfirmResolution(ticketId, isSolved, details = {}
     newStatus,
     actor: customerName,
     role: "Customer",
-    action: isSolved ? "CUSTOMER_CONFIRMED_SOLVED" : "CUSTOMER_REPORTED_UNRESOLVED",
+    action: isSolved ? "CUSTOMER_CONFIRMED_SOLVED" : "CUSTOMER_REQUESTED_HELP",
     description: logDesc,
     timestamp: now,
   });

@@ -65,7 +65,7 @@ const AiAssistantPage = () => {
           ...current,
           {
             from: "ai",
-            text: `⚠️ ${data?.reason || "No matching classification found for this request."}`,
+            text: `${data?.reason || "No matching classification found for this request."}`,
           },
         ]);
       }
@@ -76,7 +76,7 @@ const AiAssistantPage = () => {
         ...current,
         {
           from: "ai",
-          text: `⚠️ Notice: ${errorMsg}`,
+          text: `Notice: ${errorMsg}`,
         },
       ]);
     } finally {
@@ -100,18 +100,18 @@ const AiAssistantPage = () => {
   return (
     <div className="mx-auto max-w-4xl">
       {/* Header Banner */}
-      <div className="rounded-3xl bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-950 p-7 text-white shadow-xl border border-emerald-500/20">
+      <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-xs text-slate-900">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">
-            AI TICKET ENGINE & ASSISTANT
+          <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+            AI Ticket Engine & Assistant
           </p>
-          <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-0.5 font-mono text-[10px] text-emerald-300">
-            ⚡ AI Engine & RAG Active
+          <span className="rounded-md bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+            AI Engine &amp; RAG Active
           </span>
         </div>
 
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">SupportPilot AI Assistant</h1>
-        <p className="mt-1.5 text-sm text-slate-300">
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">SupportPilot AI Assistant</h1>
+        <p className="mt-1 text-xs text-slate-500">
           Real-time issue classification, severity prediction, SLA calculation, and guided troubleshooting steps.
         </p>
 
@@ -122,9 +122,9 @@ const AiAssistantPage = () => {
               key={idx}
               type="button"
               onClick={() => handleAsk(item)}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-emerald-200/90 hover:bg-white/15 transition text-left"
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition text-left cursor-pointer"
             >
-              ✦ {item.length > 40 ? item.slice(0, 40) + "..." : item}
+              {item.length > 45 ? item.slice(0, 45) + "..." : item}
             </button>
           ))}
         </div>
@@ -186,9 +186,9 @@ const AiAssistantPage = () => {
                   </div>
 
                   {/* RAG Knowledge Resolution Steps */}
-                  <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
-                    <div className="text-xs font-bold uppercase tracking-wider text-emerald-900">
-                      📚 RAG Knowledge Source: {message.data.knowledgeSource}
+                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+                    <div className="text-xs font-bold uppercase tracking-wider text-blue-900">
+                      RAG Knowledge Source: {message.data.knowledgeSource}
                     </div>
                     <div className="mt-2 space-y-1.5 text-xs text-slate-700">
                       {message.data.suggestedResolution && message.data.suggestedResolution.length > 0 ? (

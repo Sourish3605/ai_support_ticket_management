@@ -17,6 +17,8 @@ from .views import (
     AgentListView,
     TicketAutoAssignView,
     AgentAvailabilityUpdateView,
+    AgentDetailView,
+    AgentReassignTicketsView,
 )
 from .views_m3 import (
     AgentWorkflowStartView,
@@ -36,6 +38,7 @@ from .views_m3 import (
     EmailEscalationView,
     EmailResolvedView,
     EmailLogsView,
+    SendTicketEmailAPIView,
     ActivityLogsView,
 )
 from .views_m4 import (
@@ -63,6 +66,9 @@ urlpatterns = [
     path("agents/", AgentListView.as_view(), name="agents"),
     re_path(r"^agent/availability/?$", AgentAvailabilityUpdateView.as_view(), name="agent-availability-current"),
     re_path(r"^agent/(?P<pk>[A-Za-z0-9_-]+)/availability/?$", AgentAvailabilityUpdateView.as_view(), name="agent-availability-user"),
+    re_path(r"^agent/(?P<pk>[A-Za-z0-9_-]+)/details/?$", AgentDetailView.as_view(), name="agent-details"),
+    re_path(r"^agents/(?P<pk>[A-Za-z0-9_-]+)/?$", AgentDetailView.as_view(), name="agent-details-alt"),
+    re_path(r"^agent/(?P<pk>[A-Za-z0-9_-]+)/reassign-tickets/?$", AgentReassignTicketsView.as_view(), name="agent-reassign-tickets"),
 
     # Individual Ticket Operations (by numeric ID or string ticket_number like TKT-1001)
     re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/status/?$", TicketStatusUpdateView.as_view(), name="ticket-status-update"),
@@ -127,6 +133,9 @@ urlpatterns = [
     path("email/escalation/", EmailEscalationView.as_view(), name="email-escalation"),
     path("email/resolved", EmailResolvedView.as_view(), name="email-resolved-no-slash"),
     path("email/resolved/", EmailResolvedView.as_view(), name="email-resolved"),
+    path("email/send", SendTicketEmailAPIView.as_view(), name="email-send-no-slash"),
+    path("email/send/", SendTicketEmailAPIView.as_view(), name="email-send"),
+    re_path(r"^tickets/(?P<pk>[A-Za-z0-9_-]+)/send-email/?$", SendTicketEmailAPIView.as_view(), name="ticket-send-email"),
     re_path(r"^email/logs/(?P<ticketId>[A-Za-z0-9_-]+)/?$", EmailLogsView.as_view(), name="email-logs-ticket"),
     path("email/logs", EmailLogsView.as_view(), name="email-logs-all-no-slash"),
     path("email/logs/", EmailLogsView.as_view(), name="email-logs-all"),

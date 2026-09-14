@@ -158,10 +158,13 @@ class M4ValidateAgentActionView(APIView):
 
 
 class M4CustomerConfirmationView(APIView):
-    """POST /api/support/m4/customer-confirmation/ - Customer confirms solved (CLOSED) or reports issue unresolved (REOPENED)."""
+    """POST /api/support/m4/customer-confirmation/ - Customer confirms solved (CLOSED) or reports issue unresolved (REOPENED & Auto-Assigned)."""
     permission_classes = [AllowAny]
 
     def post(self, request):
+        from django.utils import timezone
+        from .department_assignment import auto_assign_ticket_to_department_agent
+
         ticket_id = request.data.get("ticket_id")
         is_solved = bool(request.data.get("is_solved", True))
         details = request.data.get("details", {})
@@ -178,17 +181,42 @@ class M4CustomerConfirmationView(APIView):
 
         old_status = ticket.status
         customer_name = request.user.get_full_name() if request.user.is_authenticated else "Customer"
+        assigned_agent = None
 
         if is_solved:
             ticket.status = "CLOSED"
+            ticket.closed_at = timezone.now()
             action = "CUSTOMER_CONFIRMED_SOLVED"
-            desc = f"{customer_name} confirmed issue is resolved. Ticket closed."
+            desc = f"{customer_name} confirmed issue is resolved. Ticket closed automatically."
+            ticket.save(update_fields=["status", "closed_at", "updated_at"])
+            try:
+                from .email_service import send_resolved_email
+                send_resolved_email(ticket, resolution_notes="Customer confirmed resolution from AI troubleshooting.")
+            except Exception as mail_err:
+                print(f"[Email Notice] {mail_err}")
         else:
             ticket.status = "REOPENED"
-            action = "CUSTOMER_REPORTED_UNRESOLVED"
-            desc = f"{customer_name} reported issue is NOT resolved. Ticket reopened for agent follow-up."
+            reopen_reason = details.get("reason") or details.get("message") or "Customer reported suggested resolution did not resolve issue."
+            ticket.escalation_reason = reopen_reason
+            ticket.save(update_fields=["status", "escalation_reason", "updated_at"])
 
-        ticket.save()
+            action = "CUSTOMER_REPORTED_UNRESOLVED"
+            desc = f"{customer_name} requested more help. Ticket reopened and evaluated for agent assignment."
+
+            try:
+                from .email_service import send_ticket_reopened_email
+                send_ticket_reopened_email(ticket, reason=reopen_reason)
+            except Exception as mail_err:
+                print(f"[Email Notice] {mail_err}")
+
+            # Automatically assign available suitable agent based on department, workload & SLA
+            assigned_agent = auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True)
+            if assigned_agent:
+                try:
+                    from .email_service import send_ticket_assigned_email
+                    send_ticket_assigned_email(ticket, assigned_agent=assigned_agent)
+                except Exception as mail_err:
+                    print(f"[Email Notice] {mail_err}")
 
         TicketStatusHistory.objects.create(
             history_id=f"HST-{uuid.uuid4().hex[:8].upper()}",
@@ -201,11 +229,23 @@ class M4CustomerConfirmationView(APIView):
             description=desc,
         )
 
+        agent_data = None
+        if assigned_agent:
+            agent_data = {
+                "id": assigned_agent.id,
+                "name": assigned_agent.get_full_name() or assigned_agent.username,
+                "email": assigned_agent.email,
+                "department": getattr(getattr(assigned_agent, "profile", None), "department", ticket.department),
+            }
+
         return Response({
             "success": True,
             "ticket_number": ticket.ticket_number,
             "new_status": ticket.status,
             "is_solved": is_solved,
+            "assigned_agent": agent_data,
+            "assigned_queue": ticket.assigned_queue,
+            "department": ticket.department,
         }, status=status.HTTP_200_OK)
 
 

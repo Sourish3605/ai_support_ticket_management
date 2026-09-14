@@ -37,11 +37,12 @@ button, a {
 }
 
 /* =====================================================
-   1. CUSTOMER PORTAL THEME (Emerald / Forest Green)
+/* =====================================================
+   1. CUSTOMER PORTAL THEME (Clean Enterprise Light)
 ===================================================== */
 .sp-customer-shell, .sp-shell {
   min-height: 100vh;
-  background: #f4f6f5;
+  background: #f8fafc;
 }
 
 .sp-portal-nav {
@@ -51,9 +52,9 @@ button, a {
   gap: 20px;
   min-height: 58px;
   padding: 13px clamp(18px, 4vw, 30px);
-  background: #0f2b1d;
-  color: #fff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .sp-portal-links {
@@ -63,15 +64,16 @@ button, a {
 }
 
 .sp-portal-links a {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12.5px;
-  font-weight: 550;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .sp-portal-links a:hover, .sp-portal-links a.active {
-  color: #6ee7b7;
+  color: #2563eb;
+  font-weight: 600;
 }
 
 .sp-logo {
@@ -84,20 +86,20 @@ button, a {
 .sp-logo-mark, .sp-avatar {
   display: grid;
   place-items: center;
-  background: #166534;
+  background: #2563eb;
   color: #fff;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .sp-logo-mark {
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: 6px;
   font-size: 11px;
 }
 
 .sp-logo-name {
-  color: #fff;
+  color: #0f172a;
   font-size: 14px;
   font-weight: 700;
 }
@@ -116,13 +118,13 @@ button, a {
 
 
 /* =====================================================
-   2. AGENT WORKSPACE THEME (Royal Navy / Blue / Cyan)
+   2. AGENT WORKSPACE THEME (Enterprise White / Blue Accent)
 ===================================================== */
 .sp-agent-shell {
   display: grid;
-  grid-template-columns: 265px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   min-height: 100vh;
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 
 .sp-agent-sidebar {
@@ -132,8 +134,8 @@ button, a {
   position: sticky;
   top: 0;
   flex-direction: column;
-  background: #0c1a2e;
-  border-right: 1px solid #1e3a5f;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
   padding: 18px 0 0;
   overflow: hidden;
   z-index: 30;
@@ -147,20 +149,20 @@ button, a {
 }
 
 .sp-sidebar-scrollable::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 
 .sp-sidebar-scrollable::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
+  background: #f8fafc;
 }
 
 .sp-sidebar-scrollable::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
+  background: #cbd5e1;
   border-radius: 9999px;
 }
 
 .sp-sidebar-scrollable::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+  background: #94a3b8;
 }
 
 .sp-agent-sidebar .sp-logo-mark {
@@ -168,51 +170,52 @@ button, a {
   color: #fff;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
-  font-weight: 800;
+  border-radius: 6px;
+  font-weight: 700;
 }
 
 .sp-agent-sidebar .sp-sidebar-sub {
-  color: #60a5fa;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 7.5px;
-  letter-spacing: 1.5px;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.2px;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
 .sp-agent-sidebar .sp-sidebar-logo {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 0 18px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 18px 18px;
+  border-bottom: 1px solid #f1f5f9;
   text-decoration: none;
 }
 
 .sp-agent-sidebar .sp-sidebar-nav a {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 36px;
+  gap: 10px;
+  min-height: 38px;
   padding: 8px 18px;
   border-left: 3px solid transparent;
-  color: #94a3b8;
-  font-size: 12.5px;
+  color: #475569;
+  font-size: 13px;
   font-weight: 500;
   text-decoration: none;
   transition: all 0.15s ease;
 }
 
 .sp-agent-sidebar .sp-sidebar-nav a:hover {
-  background: rgba(37, 99, 235, 0.12);
-  color: #ffffff;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .sp-agent-sidebar .sp-sidebar-nav a.active {
-  background: rgba(37, 99, 235, 0.18);
-  border-left-color: #3b82f6;
-  color: #bfdbfe;
-  font-weight: 700;
+  background: #eff6ff;
+  border-left-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .sp-agent-sidebar .sp-sidebar-nav a.active .sp-sidebar-count {
@@ -222,18 +225,18 @@ button, a {
 
 .sp-agent-sidebar .sp-sidebar-count {
   margin-left: auto;
-  padding: 1px 6px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 10px;
-  font-weight: 700;
-  color: #93c5fd;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
 }
 
 .sp-agent-sidebar .sp-sidebar-footer {
   margin-top: auto;
   padding: 14px 18px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #f1f5f9;
 }
 
 .sp-agent-topbar {
@@ -266,13 +269,13 @@ button, a {
 
 
 /* =====================================================
-   3. ADMIN CONSOLE THEME (Mission Control Dark / Slate / Cyan)
+   3. ADMIN CONSOLE THEME (Enterprise White / Blue Accent)
 ===================================================== */
 .sp-admin-shell {
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #0f172a;
 }
 
@@ -280,76 +283,77 @@ button, a {
   display: flex;
   min-height: 100vh;
   flex-direction: column;
-  background: #070a10;
-  border-right: 1px solid #1e293b;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
   padding: 18px 0 0;
 }
 
 .sp-admin-sidebar .sp-logo-mark {
-  background: #06b6d4;
-  color: #020617;
+  background: #2563eb;
+  color: #ffffff;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
-  font-weight: 900;
+  border-radius: 6px;
+  font-weight: 700;
 }
 
 .sp-admin-sidebar .sp-sidebar-sub {
-  color: #67e8f9;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 7.5px;
-  letter-spacing: 1.5px;
-  font-weight: 800;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .sp-admin-sidebar .sp-sidebar-logo {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 0 18px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 18px 18px;
+  border-bottom: 1px solid #f1f5f9;
   text-decoration: none;
 }
 
 .sp-admin-sidebar .sp-nav-heading {
-  padding: 14px 18px 7px;
-  color: #64748b;
-  font-size: 9.5px;
+  padding: 14px 18px 6px;
+  color: #94a3b8;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
 }
 
 .sp-admin-sidebar .sp-sidebar-nav a {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 36px;
+  gap: 10px;
+  min-height: 38px;
   padding: 8px 18px;
   border-left: 3px solid transparent;
-  color: #94a3b8;
-  font-size: 12.5px;
+  color: #475569;
+  font-size: 13px;
   font-weight: 500;
   text-decoration: none;
   transition: all 0.15s ease;
 }
 
 .sp-admin-sidebar .sp-sidebar-nav a:hover {
-  background: rgba(6, 182, 212, 0.1);
-  color: #38bdf8;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .sp-admin-sidebar .sp-sidebar-nav a.active {
-  background: rgba(6, 182, 212, 0.16);
-  border-left-color: #06b6d4;
-  color: #67e8f9;
-  font-weight: 700;
+  background: #eff6ff;
+  border-left-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .sp-admin-sidebar .sp-sidebar-footer {
   margin-top: auto;
   padding: 14px 18px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #f1f5f9;
 }
 
 .sp-admin-topbar {
@@ -358,12 +362,12 @@ button, a {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 24px;
-  border-bottom: 1px solid #1e293b;
-  background: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
 .sp-admin-topbar .sp-breadcrumb {
-  color: #38bdf8;
+  color: #2563eb;
   font-size: 11px;
   font-weight: 600;
 }
@@ -372,22 +376,22 @@ button, a {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #f8fafc;
+  color: #0f172a;
 }
 
 .sp-admin-avatar {
-  background: #06b6d4;
-  color: #020617;
-  font-weight: 800;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 
 /* =====================================================
-   4. SUPPORT MANAGER THEME (Warm Amber & Deep Navy)
+   4. SUPPORT MANAGER THEME (Enterprise White / Blue Accent)
 ===================================================== */
 .sp-manager-shell {
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
   background: #f8fafc;
   color: #0f172a;
@@ -397,91 +401,92 @@ button, a {
   display: flex;
   min-height: 100vh;
   flex-direction: column;
-  background: #090e1a;
-  border-right: 1px solid #1e293b;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
   padding: 18px 0 0;
 }
 
 .sp-manager-sidebar .sp-logo-mark {
-  background: #f59e0b;
-  color: #000;
+  background: #2563eb;
+  color: #ffffff;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
-  font-weight: 900;
+  border-radius: 6px;
+  font-weight: 700;
 }
 
 .sp-manager-sidebar .sp-sidebar-sub {
-  color: #fbbf24;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 7.5px;
-  letter-spacing: 1.5px;
-  font-weight: 800;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .sp-manager-sidebar .sp-sidebar-logo {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 0 18px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 18px 18px;
+  border-bottom: 1px solid #f1f5f9;
   text-decoration: none;
 }
 
 .sp-manager-sidebar .sp-nav-heading {
-  padding: 14px 18px 7px;
+  padding: 14px 18px 6px;
   color: #94a3b8;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
 }
 
 .sp-manager-sidebar .sp-sidebar-nav a {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 36px;
+  gap: 10px;
+  min-height: 38px;
   padding: 8px 18px;
   border-left: 3px solid transparent;
-  color: #94a3b8;
-  font-size: 12.5px;
+  color: #475569;
+  font-size: 13px;
   font-weight: 500;
   text-decoration: none;
   transition: all 0.15s ease;
 }
 
 .sp-manager-sidebar .sp-sidebar-nav a:hover {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fde68a;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .sp-manager-sidebar .sp-sidebar-nav a.active {
-  background: rgba(245, 158, 11, 0.18);
-  border-left-color: #f59e0b;
-  color: #fef3c7;
-  font-weight: 700;
+  background: #eff6ff;
+  border-left-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .sp-manager-sidebar .sp-sidebar-nav a.active .sp-sidebar-count {
-  background: #f59e0b;
-  color: #0f172a;
+  background: #2563eb;
+  color: #ffffff;
 }
 
 .sp-manager-sidebar .sp-sidebar-count {
   margin-left: auto;
-  padding: 1px 6px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 10px;
-  font-weight: 700;
-  color: #fde68a;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
 }
 
 .sp-manager-sidebar .sp-sidebar-footer {
   margin-top: auto;
   padding: 14px 18px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #f1f5f9;
 }
 
 .sp-manager-topbar {
@@ -495,7 +500,7 @@ button, a {
 }
 
 .sp-manager-topbar .sp-breadcrumb {
-  color: #d97706;
+  color: #2563eb;
   font-size: 11px;
   font-weight: 600;
 }
@@ -508,9 +513,9 @@ button, a {
 }
 
 .sp-manager-avatar {
-  background: #f59e0b;
-  color: #000;
-  font-weight: 800;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 

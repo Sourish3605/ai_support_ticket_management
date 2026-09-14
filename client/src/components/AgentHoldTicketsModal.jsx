@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  FiCheck,
+  FiX,
+  FiPause,
+  FiRefreshCw,
+  FiShield,
+  FiInbox,
+  FiArrowRight,
+  FiExternalLink,
+} from "react-icons/fi";
+import {
   getAllTickets,
   updateTicket,
   updateTicketStatusApi,
@@ -161,7 +171,7 @@ export default function AgentHoldTicketsModal({
       }
       window.dispatchEvent(new Event("storage"));
       window.dispatchEvent(new CustomEvent("supportpilot_tickets_changed", { detail: updated }));
-      setToastNotice(`✓ Status updated to ${newStatus}`);
+      setToastNotice(`Status updated to ${newStatus}`);
       setTimeout(() => setToastNotice(null), 3000);
     } catch (err) {
       console.error("Failed to update ticket status:", err);
@@ -217,8 +227,9 @@ export default function AgentHoldTicketsModal({
                   {agent.name}
                 </h2>
                 {agent.isTeamLead && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black">
-                    👑 Team Lead
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black flex items-center gap-1">
+                    <FiShield className="w-3 h-3 text-amber-400" />
+                    <span>Team Lead</span>
                   </span>
                 )}
                 <span
@@ -245,7 +256,8 @@ export default function AgentHoldTicketsModal({
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition cursor-pointer"
                 title="Switch session to this agent"
               >
-                <span>🔄 Switch Session</span>
+                <FiRefreshCw className="w-3.5 h-3.5" />
+                <span>Switch Session</span>
               </button>
             )}
             <button
@@ -254,15 +266,16 @@ export default function AgentHoldTicketsModal({
               className="rounded-xl p-2 text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               title="Close modal"
             >
-              <span className="text-lg leading-none">✕</span>
+              <FiX className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* NOTIFICATION NOTICE */}
         {toastNotice && (
-          <div className="mx-5 mt-3 rounded-lg bg-emerald-950/90 border border-emerald-500/50 px-3 py-2 text-xs font-bold text-emerald-200 text-center animate-fade-in">
-            {toastNotice}
+          <div className="mx-5 mt-3 rounded-lg bg-emerald-950/90 border border-emerald-500/50 px-3 py-2 text-xs font-bold text-emerald-200 text-center animate-fade-in flex items-center justify-center gap-1.5">
+            <FiCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{toastNotice}</span>
           </div>
         )}
 
@@ -279,8 +292,8 @@ export default function AgentHoldTicketsModal({
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
-                <span>⏸️</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <FiPause className="w-3.5 h-3.5" />
                 <span>On Hold</span>
               </span>
               <span className="text-[10px] font-bold text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
@@ -301,23 +314,23 @@ export default function AgentHoldTicketsModal({
             onClick={() => setActiveTab("incomplete")}
             className={`p-3.5 rounded-xl border text-left transition cursor-pointer relative overflow-hidden group ${
               activeTab === "incomplete"
-                ? "bg-cyan-950/70 border-cyan-500/80 shadow-lg shadow-cyan-950/50 ring-1 ring-cyan-400/50"
-                : "bg-slate-900/80 border-slate-800 hover:border-cyan-500/40 hover:bg-slate-800/80"
+                ? "bg-blue-950/70 border-blue-500/80 shadow-lg shadow-blue-950/50 ring-1 ring-blue-400/50"
+                : "bg-slate-900/80 border-slate-800 hover:border-blue-500/40 hover:bg-slate-800/80"
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-cyan-300 flex items-center gap-1">
-                <span>⏳</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
+                <FiClock className="w-3.5 h-3.5" />
                 <span>Not Completed</span>
               </span>
-              <span className="text-[10px] font-bold text-cyan-400/80 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+              <span className="text-[10px] font-bold text-blue-400/80 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
                 In Progress
               </span>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-cyan-400 mt-1">
+            <div className="text-2xl sm:text-3xl font-black text-blue-400 mt-1">
               {notCompletedTickets.length}
             </div>
-            <p className="text-[11px] text-cyan-200/70 mt-0.5 truncate">
+            <p className="text-[11px] text-blue-200/70 mt-0.5 truncate">
               Pending & Active backlog
             </p>
           </button>
@@ -333,8 +346,8 @@ export default function AgentHoldTicketsModal({
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1">
-                <span>📋</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <FiInbox className="w-3.5 h-3.5" />
                 <span>Total Assigned</span>
               </span>
             </div>
@@ -357,8 +370,8 @@ export default function AgentHoldTicketsModal({
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1">
-                <span>✅</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                <FiCheck className="w-3.5 h-3.5" />
                 <span>Completed</span>
               </span>
             </div>
@@ -380,11 +393,12 @@ export default function AgentHoldTicketsModal({
               onClick={() => setActiveTab("hold")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === "hold"
-                  ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md font-black"
+                  ? "bg-amber-600 text-white shadow-md"
                   : "text-amber-300/80 hover:text-amber-200 hover:bg-slate-800/70"
               }`}
             >
-              <span>⏸️ On Hold</span>
+              <FiPause className="w-3 h-3" />
+              <span>On Hold</span>
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900/60 font-black">
                 {holdTickets.length}
               </span>
@@ -395,11 +409,12 @@ export default function AgentHoldTicketsModal({
               onClick={() => setActiveTab("incomplete")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === "incomplete"
-                  ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md font-black"
+                  ? "bg-blue-600 text-white shadow-md"
                   : "text-slate-300 hover:text-white hover:bg-slate-800/70"
               }`}
             >
-              <span>⏳ Not Completed</span>
+              <FiClock className="w-3 h-3" />
+              <span>Not Completed</span>
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900/60 font-black">
                 {notCompletedTickets.length}
               </span>
@@ -410,11 +425,12 @@ export default function AgentHoldTicketsModal({
               onClick={() => setActiveTab("all")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === "all"
-                  ? "bg-slate-700 text-white shadow-md font-black"
+                  ? "bg-slate-700 text-white shadow-md"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/70"
               }`}
             >
-              <span>📋 All Assigned</span>
+              <FiInbox className="w-3 h-3" />
+              <span>All Assigned</span>
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900/60 font-black">
                 {agentTickets.length}
               </span>
@@ -425,11 +441,12 @@ export default function AgentHoldTicketsModal({
               onClick={() => setActiveTab("completed")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === "completed"
-                  ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md font-black"
+                  ? "bg-emerald-600 text-white shadow-md"
                   : "text-slate-400 hover:text-emerald-300 hover:bg-slate-800/70"
               }`}
             >
-              <span>✅ Completed</span>
+              <FiCheck className="w-3 h-3" />
+              <span>Completed</span>
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900/60 font-black">
                 {completedTickets.length}
               </span>
@@ -443,15 +460,15 @@ export default function AgentHoldTicketsModal({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search tickets by ID, title..."
-              className="w-full rounded-xl bg-slate-950 border border-slate-700/80 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition"
+              className="w-full rounded-xl bg-slate-950 border border-slate-700/80 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-white"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
               >
-                ✕
+                <FiX className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -461,8 +478,8 @@ export default function AgentHoldTicketsModal({
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
           {filteredTickets.length === 0 ? (
             <div className="text-center py-12 px-4 rounded-xl border border-dashed border-slate-800 bg-slate-950/30">
-              <div className="text-3xl mb-2">
-                {activeTab === "hold" ? "🎉" : "📋"}
+              <div className="mb-2 flex justify-center text-slate-500">
+                <FiInbox className="w-8 h-8" />
               </div>
               <h3 className="text-sm font-bold text-white">
                 {activeTab === "hold"
@@ -480,9 +497,10 @@ export default function AgentHoldTicketsModal({
                 <button
                   type="button"
                   onClick={() => setActiveTab("all")}
-                  className="mt-3 px-3 py-1.5 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-700 text-xs font-semibold hover:bg-cyan-900 transition cursor-pointer"
+                  className="mt-3 px-3 py-1.5 rounded-lg bg-blue-950 text-blue-300 border border-blue-700 text-xs font-semibold hover:bg-blue-900 transition cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  View all {agentTickets.length} assigned tickets →
+                  <span>View all {agentTickets.length} assigned tickets</span>
+                  <FiArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -502,7 +520,7 @@ export default function AgentHoldTicketsModal({
                       ? "bg-amber-950/20 border-amber-500/40 hover:border-amber-500/70 shadow-sm shadow-amber-950/20"
                       : isCompleted
                       ? "bg-slate-900/40 border-slate-800 hover:border-slate-700 opacity-80"
-                      : "bg-slate-900/80 border-slate-800 hover:border-cyan-500/40 hover:bg-slate-850"
+                      : "bg-slate-900/80 border-slate-800 hover:border-blue-500/40 hover:bg-slate-850"
                   }`}
                 >
                   {/* TICKET TOP ROW */}
@@ -512,11 +530,11 @@ export default function AgentHoldTicketsModal({
                         <button
                           type="button"
                           onClick={() => handleOpenTicket(ticket)}
-                          className="text-xs font-black text-cyan-400 hover:text-cyan-300 hover:underline font-mono cursor-pointer flex items-center gap-1"
+                          className="text-xs font-black text-blue-400 hover:text-blue-300 hover:underline font-mono cursor-pointer flex items-center gap-1"
                           title="Open ticket details"
                         >
                           <span>{ticket.ticketNumber || ticket.id}</span>
-                          <span>↗</span>
+                          <FiExternalLink className="w-3 h-3" />
                         </button>
                         <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${priorityClass}`}>
                           {ticket.priority || "Medium"}
@@ -526,25 +544,26 @@ export default function AgentHoldTicketsModal({
                         </span>
                         {isOnHold && (
                           <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/50 flex items-center gap-1 animate-pulse">
-                            <span>⏸️</span>
+                            <FiPause className="w-3 h-3" />
                             <span>ON HOLD</span>
                           </span>
                         )}
                         {!isOnHold && !isCompleted && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/40">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/40">
                             {ticket.status || "IN_PROGRESS"}
                           </span>
                         )}
                         {isCompleted && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                            ✓ {ticket.status || "RESOLVED"}
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                            <FiCheck className="w-3 h-3" />
+                            <span>{ticket.status || "RESOLVED"}</span>
                           </span>
                         )}
                       </div>
 
                       <h4
                         onClick={() => handleOpenTicket(ticket)}
-                        className="text-sm font-bold text-white hover:text-cyan-300 transition cursor-pointer mt-1"
+                        className="text-sm font-bold text-white hover:text-blue-300 transition cursor-pointer mt-1"
                       >
                         {ticket.title || ticket.subject || "Support Ticket"}
                       </h4>
@@ -558,7 +577,10 @@ export default function AgentHoldTicketsModal({
                       {/* HOLD REASON CALLOUT */}
                       {isOnHold && (
                         <div className="mt-2 p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-xs text-amber-200 flex items-start gap-1.5">
-                          <span className="text-amber-400 shrink-0">⏸️ Hold Reason:</span>
+                          <span className="text-amber-400 shrink-0 flex items-center gap-1 font-semibold">
+                            <FiPause className="w-3.5 h-3.5" />
+                            <span>Hold Reason:</span>
+                          </span>
                           <span className="italic">
                             {ticket.holdReason ||
                               ticket.escalationReason ||
@@ -590,20 +612,20 @@ export default function AgentHoldTicketsModal({
                         className="bg-slate-950 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-bold py-1 px-2 rounded-lg outline-none cursor-pointer"
                         title="Change ticket status"
                       >
-                        <option value="ON_HOLD">⏸️ Set On Hold</option>
-                        <option value="IN_PROGRESS">⚡ In Progress</option>
-                        <option value="NEW">🆕 Open / New</option>
-                        <option value="RESOLVED">✅ Resolved</option>
-                        <option value="CLOSED">🔒 Closed</option>
+                        <option value="ON_HOLD">Set On Hold</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="NEW">Open / New</option>
+                        <option value="RESOLVED">Resolved</option>
+                        <option value="CLOSED">Closed</option>
                       </select>
 
                       <button
                         type="button"
                         onClick={() => handleOpenTicket(ticket)}
-                        className="px-2.5 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 border border-cyan-700/60 text-cyan-300 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg bg-blue-950 hover:bg-blue-900 border border-blue-700/60 text-blue-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                       >
                         <span>View Details</span>
-                        <span>→</span>
+                        <FiArrowRight className="w-3 h-3" />
                       </button>
                     </div>
                   </div>

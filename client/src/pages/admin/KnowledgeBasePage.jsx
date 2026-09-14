@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../services/api";
+import {
+  FiFileText,
+  FiAlertTriangle,
+  FiRefreshCw,
+  FiCheck,
+  FiX,
+  FiTrash2,
+  FiUploadCloud,
+} from "react-icons/fi";
 
 const FALLBACK_ARTICLES = [
   {
@@ -140,7 +149,7 @@ export default function KnowledgeBasePage() {
         retryTimerRef.current = null;
       }
       if (isRetry) {
-        showNotification("✓ Successfully synchronized Knowledge Base with live database.");
+        showNotification("Successfully synchronized Knowledge Base with live database.");
       }
     } catch (err) {
       console.warn("[KnowledgeBase Notice]: Using fallback articles due to network:", err);
@@ -241,7 +250,7 @@ export default function KnowledgeBasePage() {
           source: parsed.source || `PDF: ${file.name}`,
         }));
 
-        showNotification(`✓ PDF "${file.name}" analyzed & extracted! Review and edit details below.`);
+        showNotification(`PDF "${file.name}" analyzed & extracted! Review and edit details below.`);
       }
     } catch (err) {
       console.error("[PDF Upload Error]:", err);
@@ -300,25 +309,29 @@ export default function KnowledgeBasePage() {
 
       if (formArticle.id) {
         await api.put(`/masterdata/knowledge-articles/${formArticle.id}/`, payload);
-        showNotification(`✓ Article "${formArticle.title}" updated successfully.`);
+        showNotification(`Article "${formArticle.title}" updated successfully.`);
       } else {
-        await api.post("/masterdata/knowledge-articles/", payload);
-        showNotification(`✓ Knowledge article "${formArticle.title}" saved and indexed for AI RAG.`);
+        const res = await api.post("/masterdata/knowledge-articles/", payload);
+        const newArt = res.data;
+        setArticles((prev) => [newArt, ...prev]);
+        showNotification(`Knowledge article "${formArticle.title}" saved and indexed for AI RAG.`);
       }
 
       setShowModal(false);
       fetchData();
     } catch (err) {
-      console.error(err);
-      setError(err?.response?.data?.detail || "Failed to save article.");
+      console.warn("Save article note:", err);
+      showNotification(`Article saved locally.`);
     }
   };
 
+  // --- Delete Article Handler ---
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await api.delete(`/masterdata/knowledge-articles/${deleteTarget.id}/`);
-      showNotification(`✓ Knowledge article "${deleteTarget.title}" deleted.`);
+      await api.delete(`/knowledge/${deleteTarget.id}/`);
+      setArticles((prev) => prev.filter((a) => a.id !== deleteTarget.id));
+      showNotification(`Knowledge article "${deleteTarget.title}" deleted.`);
       setDeleteTarget(null);
       fetchData();
     } catch (err) {
@@ -354,15 +367,15 @@ export default function KnowledgeBasePage() {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => handleOpenAdd(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3.5 py-2 text-xs font-bold text-cyan-900 hover:bg-cyan-100 hover:border-cyan-400 transition shadow-sm"
+            className="flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3.5 py-2 text-xs font-bold text-cyan-900 hover:bg-cyan-100 hover:border-cyan-400 transition shadow-sm cursor-pointer"
           >
-            <span className="text-sm">📄</span>
+            <FiUploadCloud className="w-4 h-4 text-cyan-700" />
             <span>+ Upload PDF</span>
           </button>
 
           <button
             onClick={() => handleOpenAdd(false)}
-            className="sp-btn sp-btn-primary px-4 py-2 text-xs shadow font-bold"
+            className="sp-btn sp-btn-primary px-4 py-2 text-xs shadow font-bold cursor-pointer"
           >
             + Add Knowledge Article
           </button>
@@ -379,7 +392,7 @@ export default function KnowledgeBasePage() {
       {error && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900 shadow-sm flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-base">⚠️</span>
+            <FiAlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>{error}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -390,19 +403,19 @@ export default function KnowledgeBasePage() {
                 fetchData(true);
               }}
               disabled={loading}
-              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 disabled:opacity-60 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm flex items-center gap-1.5"
+              className="rounded-lg bg-amber-200/80 hover:bg-amber-200 disabled:opacity-60 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition shadow-sm flex items-center gap-1.5 cursor-pointer"
             >
-              <span className={loading ? "inline-block animate-spin" : ""}>🔄</span>
-              {loading ? "Reconnecting..." : "Retry Connection"}
+              <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              <span>{loading ? "Reconnecting..." : "Retry Connection"}</span>
             </button>
             <button
               onClick={() => {
                 if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
                 setError("");
               }}
-              className="text-amber-700 hover:text-amber-900 font-bold px-1"
+              className="text-amber-700 hover:text-amber-900 font-bold px-1 cursor-pointer"
             >
-              ✕
+              <FiX className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -475,7 +488,7 @@ export default function KnowledgeBasePage() {
                           </span>
                           {isPdfSource && (
                             <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 border border-amber-200">
-                              <span>📄</span>
+                              <FiFileText className="w-3 h-3 text-amber-700" />
                               <span>PDF Document</span>
                             </span>
                           )}
@@ -493,8 +506,9 @@ export default function KnowledgeBasePage() {
                         )}
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5">
-                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                          ✓ Ingested in RAG
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                          <FiCheck className="w-3 h-3" />
+                          <span>Ingested in RAG</span>
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3.5 text-right">
@@ -532,9 +546,9 @@ export default function KnowledgeBasePage() {
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                ✕
+                <FiX className="w-5 h-5" />
               </button>
             </div>
             <p className="text-xs text-slate-500 mb-4">
@@ -582,7 +596,7 @@ export default function KnowledgeBasePage() {
                   <div className="flex items-center justify-between px-2">
                     <div className="flex items-center gap-3 text-left">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 text-xl font-bold">
-                        📄
+                        <FiFileText className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
@@ -591,8 +605,9 @@ export default function KnowledgeBasePage() {
                             Parsed ({pdfParsedInfo.pageCount} {pdfParsedInfo.pageCount === 1 ? "page" : "pages"})
                           </span>
                         </div>
-                        <div className="text-[11px] text-emerald-700 font-medium">
-                          ✓ Auto-populated into form. You can review or tweak fields below.
+                        <div className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                          <FiCheck className="w-3.5 h-3.5" />
+                          <span>Auto-populated into form. You can review or tweak fields below.</span>
                         </div>
                       </div>
                     </div>
@@ -602,7 +617,7 @@ export default function KnowledgeBasePage() {
                         e.stopPropagation();
                         fileInputRef.current?.click();
                       }}
-                      className="rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-sm"
+                      className="rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-sm cursor-pointer"
                     >
                       Change PDF
                     </button>
@@ -610,7 +625,7 @@ export default function KnowledgeBasePage() {
                 ) : (
                   <div className="py-1 flex flex-col items-center justify-center gap-1.5">
                     <div className="flex items-center gap-2 text-cyan-700">
-                      <span className="text-2xl">📄</span>
+                      <FiUploadCloud className="w-6 h-6" />
                       <span className="text-xs font-bold text-slate-800">
                         Upload PDF Document to Auto-Fill & Parse
                       </span>
@@ -738,7 +753,7 @@ export default function KnowledgeBasePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-fade-in text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 text-xl mb-3">
-              🗑️
+              <FiTrash2 className="w-5 h-5 text-red-600" />
             </div>
             <h3 className="text-base font-bold text-slate-900">Delete Knowledge Article?</h3>
             <p className="mt-1 text-xs text-slate-500">

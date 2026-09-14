@@ -13,7 +13,7 @@ import {
 import { AuthProvider } from "./context/AuthContext";
 import { useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { getAllTickets, getDepartmentAgentsList, updateAgentAvailabilityApi, isUserDeleted } from "./services/ticketService";
+import { getAllTickets, getDepartmentAgentsList, updateAgentAvailabilityApi, isUserDeleted, getAgentTicketSummary, fetchAndSyncAllTickets, isTicketAssignedToAgent } from "./services/ticketService";
 import { storage, STORAGE_KEYS } from "./services/storageService";
 
 import LoginPage from "./pages/auth/LoginPage";
@@ -29,6 +29,7 @@ import WorkQueuePage from "./pages/agent/WorkQueuePage";
 import AgentTicketDetails from "./pages/agent/AgentTicketDetails";
 import AgentAllTicketsPage from "./pages/agent/AgentAllTicketsPage";
 import AiReviewQueuePage from "./pages/agent/AiReviewQueuePage";
+import ValidateAiSolutionPage from "./pages/agent/ValidateAiSolutionPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -44,8 +45,32 @@ import ManagerDashboard from "./pages/manager/ManagerDashboard";
 import ManagerQueueAndAssignmentPage from "./pages/manager/ManagerQueueAndAssignmentPage";
 import ManagerSlaAndEscalationsPage from "./pages/manager/ManagerSlaAndEscalationsPage";
 import ManagerAnalyticsPages from "./pages/manager/ManagerAnalyticsPages";
-import AgentHoldTicketsModal from "./components/AgentHoldTicketsModal";
-
+import AgentDirectoryModal from "./components/AgentDirectoryModal";
+import AgentDetailsDrawer from "./components/AgentDetailsDrawer";
+import AgentTaskView from "./pages/agent/AgentTaskView";
+import ErrorBoundary from "./components/ErrorBoundary";
+import {
+  FiGrid,
+  FiList,
+  FiInbox,
+  FiShield,
+  FiCpu,
+  FiUsers,
+  FiClock,
+  FiBookOpen,
+  FiBarChart2,
+  FiActivity,
+  FiShare2,
+  FiSliders,
+  FiGitPullRequest,
+  FiLogOut,
+  FiCheck,
+  FiX,
+  FiLayers,
+  FiSearch,
+  FiExternalLink,
+  FiArrowLeft,
+} from "react-icons/fi";
 
 function initials(name) {
   if (!name) return "?";
@@ -78,8 +103,8 @@ function CustomerLayout({ children }) {
           <Link to="/portal/self-help">Self-help</Link>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-white/70 hidden sm:block">{user?.name || user?.username}</span>
-          <button onClick={handleLogout} className="rounded-lg border border-white/25 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10 cursor-pointer">Logout</button>
+          <span className="text-xs text-slate-600 font-medium hidden sm:block">{user?.name || user?.username}</span>
+          <button onClick={handleLogout} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer">Logout</button>
           <div className="sp-avatar" title={user?.name}>{initials(user?.name)}</div>
         </div>
       </header>
@@ -110,6 +135,9 @@ function AgentLayout({ children }) {
   const [allTickets, setAllTickets] = useState(() => getAllTickets());
 
   useEffect(() => {
+    fetchAndSyncAllTickets().then((res) => {
+      if (res) setAllTickets(res);
+    });
     const handleSyncTickets = () => {
       setAllTickets(getAllTickets());
     };
@@ -121,42 +149,10 @@ function AgentLayout({ children }) {
     };
   }, []);
 
-  const isTicketAssignedToAgent = (ticket, agent) => {
-    if (!ticket || !agent) return false;
-    const tAgentName = String(ticket.assignedAgentName || ticket.assignedAgent || "").toLowerCase();
-    const tAgentId = String(ticket.assignedAgentId ?? ticket.assigned_to ?? ticket.assignedTo ?? "").toLowerCase();
-    const agId = String(agent.id || "").toLowerCase();
-    const agName = String(agent.name || "").toLowerCase();
-    const agUsername = String(agent.username || "").toLowerCase();
-    const agEmail = String(agent.email || "").toLowerCase();
-
-    if (agId && tAgentId && agId === tAgentId) return true;
-    if (agName && (tAgentName.includes(agName) || agName.includes(tAgentName))) return true;
-    if (agUsername && (tAgentName.includes(agUsername) || tAgentId === agUsername)) return true;
-    if (agEmail && (tAgentName.includes(agEmail) || tAgentId === agEmail)) return true;
-    return false;
-  };
-
   const getAgentTicketCounts = (agent) => {
     if (!agent) return { hold: 0, incomplete: 0, total: 0 };
-    const agentTickets = allTickets.filter((t) => isTicketAssignedToAgent(t, agent));
-    const hold = agentTickets.filter((t) => {
-      const s = String(t.status || "").toUpperCase();
-      return (
-        s === "ON_HOLD" ||
-        s === "ON HOLD" ||
-        s === "HOLD" ||
-        s === "PENDING" ||
-        s === "WAITING" ||
-        s.includes("HOLD") ||
-        s.includes("WAIT")
-      );
-    }).length;
-    const incomplete = agentTickets.filter((t) => {
-      const s = String(t.status || "").toUpperCase();
-      return s !== "RESOLVED" && s !== "CLOSED";
-    }).length;
-    return { hold, incomplete, total: agentTickets.length };
+    const summary = getAgentTicketSummary(agent, allTickets);
+    return { hold: summary.hold, incomplete: summary.pending, total: summary.total };
   };
 
   useEffect(() => {
@@ -179,8 +175,12 @@ function AgentLayout({ children }) {
 
   useEffect(() => {
     const tickets = getAllTickets();
-    const open = tickets.filter((t) => !["Resolved", "Closed"].includes(t.status));
-    setTicketCounts({ all: tickets.length, open: open.length });
+    const myOpen = tickets.filter(
+      (t) =>
+        isTicketAssignedToAgent(t, user) &&
+        !["Resolved", "Closed", "RESOLVED", "CLOSED"].includes(t.status)
+    );
+    setTicketCounts({ all: tickets.length, open: myOpen.length });
     setAllTickets(tickets);
   }, [location.pathname, user?.email, user?.id]);
 
@@ -214,7 +214,7 @@ function AgentLayout({ children }) {
       } else {
         await login(ag.email, "password123", ag.role || (ag.department === "Admin" ? "admin" : "agent"));
       }
-      setSwitchNotice(`✓ Switched to ${ag.name} (${ag.department})`);
+      setSwitchNotice(`Switched to ${ag.name} (${ag.department})`);
       setTimeout(() => setSwitchNotice(null), 3500);
       if (showAllAgentsModal) setShowAllAgentsModal(false);
 
@@ -257,7 +257,21 @@ function AgentLayout({ children }) {
     return true;
   });
 
-  const pageMeta = location.pathname === "/dashboard"
+  const isAgentTaskView = location.pathname.startsWith("/agent/tasks/") || (location.pathname.startsWith("/agent/") && !location.pathname.includes("/dashboard"));
+  const selectedAgentParam = isAgentTaskView ? decodeURIComponent(location.pathname.split("/").pop()) : null;
+  const selectedAgentObj = selectedAgentParam
+    ? agentsList.find(
+        (ag) =>
+          String(ag.name || "").toLowerCase() === selectedAgentParam.toLowerCase() ||
+          String(ag.username || "").toLowerCase() === selectedAgentParam.toLowerCase() ||
+          String(ag.id || "").toLowerCase() === selectedAgentParam.toLowerCase() ||
+          String(ag.email || "").toLowerCase() === selectedAgentParam.toLowerCase()
+      ) || { name: selectedAgentParam, department: "IT", specialty: "Support Specialist", availabilityStatus: "AVAILABLE" }
+    : null;
+
+  const pageMeta = isAgentTaskView
+    ? ["Staff Directory", `${selectedAgentObj?.name || "Specialist"}'s Task View`]
+    : location.pathname === "/dashboard"
     ? ["Overview", "Dashboard"]
     : location.pathname === "/tickets/queue"
       ? ["Tickets / Queue", "My queue"]
@@ -273,12 +287,12 @@ function AgentLayout({ children }) {
   }).length;
 
   const navigation = [
-    ["/dashboard", "▦", "Dashboard", null],
-    ["/tickets", "▤", "All tickets", ticketCounts.all],
-    ["/tickets/queue", "◉", "My queue / Assigned", ticketCounts.open],
-    ["/tickets/ai-review", "🛡️", "AI Review Queue", pendingReviewCount],
-    ["/ai-agent/workbench", "🤖", "AI Suggestions", null],
-    ["/jira", "🔗", "Jira Sync", null],
+    ["/dashboard", FiGrid, "Dashboard", null],
+    ["/tickets", FiList, "All Tickets", ticketCounts.all],
+    ["/tickets/queue", FiInbox, "My Queue / Assigned", ticketCounts.open],
+    ["/tickets/ai-review", FiShield, "AI Review Queue", pendingReviewCount],
+    ["/ai-agent/workbench", FiCpu, "AI Suggestions", null],
+    ["/jira", FiShare2, "Jira Sync", null],
   ];
 
   const userInitials = initials(user?.name);
@@ -296,6 +310,28 @@ function AgentLayout({ children }) {
       default:
         return "bg-emerald-400";
     }
+  };
+
+  const AGENT_COLORS = [
+    "bg-blue-600",
+    "bg-violet-600",
+    "bg-emerald-600",
+    "bg-rose-500",
+    "bg-amber-500",
+    "bg-cyan-600",
+    "bg-indigo-600",
+    "bg-pink-500",
+    "bg-teal-600",
+    "bg-orange-500",
+  ];
+
+  const getAgentColor = (name) => {
+    if (!name) return AGENT_COLORS[0];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length];
   };
 
   const getAvailabilityLabel = (status) => {
@@ -363,9 +399,9 @@ function AgentLayout({ children }) {
           {/* WORK QUEUE NAVIGATION */}
           <nav className="sp-sidebar-nav">
             <div className="sp-nav-heading">Work Queue</div>
-            {navigation.map(([to, icon, label, count]) => (
+            {navigation.map(([to, IconComp, label, count]) => (
               <NavLink end key={to} to={to} className={({ isActive }) => isActive ? "active" : ""}>
-                <span>{icon}</span>
+                <IconComp className="w-4 h-4 shrink-0 text-slate-500" />
                 <span>{label}</span>
                 {count !== null && <span className="sp-sidebar-count">{count}</span>}
               </NavLink>
@@ -374,7 +410,7 @@ function AgentLayout({ children }) {
 
           {/* NOTIFICATION BANNER */}
           {switchNotice && (
-            <div className="mx-3 mt-3 mb-1 rounded-lg bg-emerald-950/80 border border-emerald-500/40 p-2 text-center text-[11px] font-semibold text-emerald-200 shadow-sm animate-fade-in">
+            <div className="mx-3 mt-3 mb-1 rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-center text-[11px] font-semibold text-emerald-800 shadow-xs animate-fade-in">
               {switchNotice}
             </div>
           )}
@@ -383,21 +419,36 @@ function AgentLayout({ children }) {
           <div className="mt-4 px-3">
             <div className="flex items-center justify-between px-1 mb-2">
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-200">
-                  All Departments
+                <span className="h-2 w-2 rounded-full bg-blue-600" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                  Staff Directory
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAllAgentsModal(true)}
-                className="text-[10px] font-bold text-cyan-300 hover:text-white bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/60 px-2 py-0.5 rounded-md transition shadow-xs flex items-center gap-1 cursor-pointer"
+                className="text-[10px] font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md transition shadow-xs flex items-center gap-1 cursor-pointer"
                 title="Open full department agents directory"
               >
-                <span>👥</span>
+                <FiUsers className="w-3 h-3" />
                 <span>Directory</span>
               </button>
             </div>
+
+            {/* IF IN AGENT TASK VIEW: SHOW RETURN TO DASHBOARD SHORTCUT */}
+            {isAgentTaskView && (
+              <div className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => navigate("/dashboard")}
+                  className="w-full py-1.5 px-2.5 rounded-xl bg-slate-100 border border-slate-300 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 text-slate-700 font-bold text-[11px] transition shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer group"
+                  title="Return to Main Dashboard"
+                >
+                  <FiArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-700 group-hover:-translate-x-0.5 transition-transform" />
+                  <span>← Return to Main Dashboard</span>
+                </button>
+              </div>
+            )}
 
             {/* QUICK SEARCH */}
             <div className="relative mb-2">
@@ -406,21 +457,21 @@ function AgentLayout({ children }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search agent (Yogitha, Prem...)"
-                className="w-full rounded-lg bg-slate-900/90 border border-slate-700/80 px-2.5 py-1.5 text-[11px] text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition"
+                className="w-full rounded-lg bg-white border border-slate-300 px-2.5 py-1.5 text-[11px] text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 hover:text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 hover:text-slate-700 cursor-pointer"
                 >
-                  ✕
+                  <FiX className="w-3 h-3" />
                 </button>
               )}
             </div>
 
             {/* DEPARTMENT FILTER TABS */}
-            <div className="grid grid-cols-5 gap-1 p-1 bg-slate-950/90 rounded-lg border border-slate-800/90 mb-2.5">
+            <div className="grid grid-cols-5 gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200 mb-2.5">
               {[
                 { id: "ALL", label: "All", count: deptCounts.ALL },
                 { id: "IT", label: "IT", count: deptCounts.IT },
@@ -434,10 +485,10 @@ function AgentLayout({ children }) {
                     key={tab.id}
                     type="button"
                     onClick={() => setSelectedDeptFilter(tab.id)}
-                    className={`py-1 px-0.5 rounded-md text-[10px] font-bold transition text-center cursor-pointer ${
+                    className={`py-1 px-0.5 rounded-md text-[10px] font-semibold transition text-center cursor-pointer ${
                       isActive
-                        ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-xs font-black"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/70"
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
                     }`}
                   >
                     {tab.label} <span className="text-[9px] opacity-75">({tab.count})</span>
@@ -449,12 +500,18 @@ function AgentLayout({ children }) {
             {/* AGENT CARDS LIST */}
             <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-0.5">
               {filteredAgents.length === 0 ? (
-                <div className="p-3 text-center text-xs text-slate-400 rounded-lg bg-slate-900/40 border border-slate-800">
+                <div className="p-3 text-center text-xs text-slate-500 rounded-lg bg-slate-50 border border-slate-200">
                   No agents found matching "{searchQuery}"
                 </div>
               ) : (
                 filteredAgents.map((ag) => {
                   const isCurrent = isCurrentAgent(ag);
+                  const isSelectedInView = isAgentTaskView && selectedAgentParam && (
+                    String(ag.name || "").toLowerCase() === selectedAgentParam.toLowerCase() ||
+                    String(ag.username || "").toLowerCase() === selectedAgentParam.toLowerCase() ||
+                    String(ag.id || "").toLowerCase() === selectedAgentParam.toLowerCase() ||
+                    String(ag.email || "").toLowerCase() === selectedAgentParam.toLowerCase()
+                  );
                   const effectiveStatus = isCurrent
                     ? (user?.availability_status || user?.availabilityStatus || ag.availabilityStatus)
                     : ag.availabilityStatus;
@@ -462,91 +519,98 @@ function AgentLayout({ children }) {
                   const counts = getAgentTicketCounts(ag);
 
                   return (
-                    <button
+                    <div
                       key={ag.email}
-                      type="button"
-                      onClick={() => {
-                        setInspectingAgent(ag);
-                        setInspectingTab(counts.hold > 0 ? "hold" : "incomplete");
-                      }}
-                      className={`w-full text-left rounded-xl p-2.5 transition-all flex items-center gap-2.5 border cursor-pointer group ${
-                        isCurrent
-                          ? "bg-slate-900/90 border-cyan-500/70 shadow-md ring-1 ring-cyan-400/40 text-white"
-                          : "bg-slate-900/60 border-slate-800/80 hover:border-cyan-500/50 hover:bg-slate-850 hover:shadow-xs text-slate-200"
+                      className={`w-full text-left rounded-xl p-2.5 transition-all flex items-center gap-2 border bg-white hover:border-slate-300 hover:bg-slate-50/80 text-slate-800 group ${
+                        isSelectedInView ? "border-blue-500 bg-blue-50/50 ring-1 ring-blue-400/40" : "border-slate-200"
                       }`}
-                      title={`Click to inspect ${ag.name}'s tickets (${counts.hold} Hold, ${counts.incomplete} Incomplete)`}
                     >
-                      {/* AVATAR WITH LIVE STATUS BEACON */}
-                      <div className="relative shrink-0">
-                        <div
-                          className={`h-8 w-8 rounded-lg ${ag.avatarBg || "bg-gradient-to-br from-blue-600 to-cyan-500"} text-white font-black text-xs flex items-center justify-center shadow-xs ring-1 ring-white/10`}
-                        >
-                          {initials(ag.name)}
-                        </div>
-                        {isAvail ? (
-                          <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 ring-1 ring-slate-900" />
-                          </span>
-                        ) : (
-                          <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ${getAvailabilityDot(effectiveStatus)} ring-1 ring-slate-900`} />
-                        )}
-                      </div>
-
-                      {/* AGENT INFO */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs font-bold truncate text-white flex items-center gap-1.5">
-                            <span className="truncate group-hover:text-cyan-300 transition-colors">{ag.name}</span>
-                            {ag.isTeamLead && (
-                              <span
-                                className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black shrink-0"
-                                title="Team Lead"
-                              >
-                                👑 Lead
-                              </span>
-                            )}
-                          </span>
-                          <span
-                            className={`text-[9px] font-black px-1.5 py-0.2 rounded-md border ${ag.badgeColor || "bg-cyan-500/20 text-cyan-300 border-cyan-400/40"}`}
+                      {/* CLICKABLE AGENT INFO: DIRECTLY OPENS AGENT DEDICATED TASK VIEW */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate(`/agent/tasks/${encodeURIComponent(ag.name || ag.username || ag.id)}`);
+                        }}
+                        className="min-w-0 flex-1 flex items-center gap-2.5 text-left cursor-pointer"
+                        title={`Click to open ${ag.name}'s dedicated task view`}
+                      >
+                        {/* AVATAR WITH LIVE STATUS BEACON */}
+                        <div className="relative shrink-0">
+                          <div
+                            className={`h-8 w-8 rounded-lg ${getAgentColor(ag.name)} text-white font-bold text-xs flex items-center justify-center shadow-xs`}
                           >
-                            {ag.deptBadge || ag.department}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate flex items-center justify-between mt-0.5">
-                          <span className="truncate">{ag.specialty || ag.title}</span>
-                        </div>
-
-                        {/* REAL-TIME HOLD & INCOMPLETE TICKETS BADGES */}
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          {counts.hold > 0 ? (
-                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-500/40 flex items-center gap-0.5 shadow-xs">
-                              <span>⏸️</span>
-                              <span>{counts.hold} Hold</span>
+                            {initials(ag.name)}
+                          </div>
+                          {isAvail ? (
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 ring-1 ring-white" />
                             </span>
                           ) : (
-                            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50">
-                              0 Hold
-                            </span>
+                            <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ${getAvailabilityDot(effectiveStatus)} ring-1 ring-white`} />
                           )}
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                            {counts.incomplete} Pending
-                          </span>
                         </div>
-                      </div>
 
-                      {/* INSPECT ACTION ARROW */}
-                      <div className="shrink-0 flex flex-col items-end justify-center">
-                        <span className="text-[11px] text-slate-500 group-hover:text-cyan-400 transition-colors">
-                          ↗
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
+                            {/* AGENT INFO */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-semibold truncate text-slate-900 flex items-center gap-1.5">
+                                  <span className="truncate group-hover:text-blue-600 transition-colors">{ag.name}</span>
+                                  {ag.isTeamLead && (
+                                    <span
+                                      className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-300 font-bold shrink-0"
+                                      title="Team Lead"
+                                    >
+                                      Lead
+                                    </span>
+                                  )}
+                                </span>
+                                <span
+                                  className="text-[9px] font-bold px-1.5 py-0.2 rounded-md border bg-slate-100 text-slate-700 border-slate-300"
+                                >
+                                  {ag.deptBadge || ag.department}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate flex items-center justify-between mt-0.5">
+                                <span className="truncate">{ag.specialty || ag.title}</span>
+                              </div>
+
+                              {/* REAL-TIME HOLD & INCOMPLETE TICKETS BADGES */}
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                {counts.hold > 0 ? (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-0.5">
+                                    <span>{counts.hold} Hold</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                                    0 Hold
+                                  </span>
+                                )}
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  {counts.incomplete} Pending
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* EXPLICIT DRAWER ACTION BUTTON */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInspectingAgent(ag);
+                              setInspectingTab(counts.hold > 0 ? "hold" : "incomplete");
+                            }}
+                            className="shrink-0 p-1.5 rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                            title={`Open ${ag.name}'s specialist profile drawer`}
+                          >
+                            <FiExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
         </div>
 
         {/* SIDEBAR FOOTER (CURRENT LOGGED-IN AGENT) */}
@@ -557,19 +621,19 @@ function AgentLayout({ children }) {
                 {userInitials}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-white truncate">{displayName}</div>
+                <div className="text-xs font-semibold text-slate-900 truncate">{displayName}</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={`h-2 w-2 rounded-full ${getAvailabilityDot(user?.availability_status || user?.availabilityStatus)} shrink-0`} />
                   <select
                     value={user?.availability_status || user?.availabilityStatus || "AVAILABLE"}
                     onChange={(e) => handleGlobalAvailabilityChange(e.target.value)}
-                    className="bg-slate-900/90 text-cyan-300 text-[10px] font-bold py-0.5 px-1 rounded border border-slate-700 outline-none cursor-pointer w-full truncate"
+                    className="bg-white text-slate-700 text-[10px] font-medium py-0.5 px-1 rounded border border-slate-300 outline-none cursor-pointer w-full truncate"
                     title="Change your availability status"
                   >
-                    <option value="AVAILABLE" className="bg-slate-900 text-white">🟢 Available</option>
-                    <option value="BUSY" className="bg-slate-900 text-white">🟡 Busy</option>
-                    <option value="UNAVAILABLE" className="bg-slate-900 text-white">🟠 Unavailable</option>
-                    <option value="INACTIVE" className="bg-slate-900 text-white">⚪ Inactive</option>
+                    <option value="AVAILABLE">Available</option>
+                    <option value="BUSY">Busy</option>
+                    <option value="UNAVAILABLE">Unavailable</option>
+                    <option value="INACTIVE">Inactive</option>
                   </select>
                 </div>
               </div>
@@ -578,9 +642,9 @@ function AgentLayout({ children }) {
               type="button"
               onClick={handleLogout}
               title="Sign Out"
-              className="rounded p-1.5 text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              className="rounded p-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
             >
-              ⎋
+              <FiLogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -602,17 +666,17 @@ function AgentLayout({ children }) {
                 <span className="text-[10px] text-slate-500 font-semibold">{currentDepartment} Dept</span>
               </div>
               <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden sm:inline">My Status:</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden sm:inline">Status:</span>
                 <select
                   value={user?.availability_status || user?.availabilityStatus || "AVAILABLE"}
                   onChange={(e) => handleGlobalAvailabilityChange(e.target.value)}
                   className="rounded-lg bg-slate-50 text-slate-800 font-semibold text-xs py-1 px-2 border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   title="Change your availability status"
                 >
-                  <option value="AVAILABLE">🟢 Working / Available</option>
-                  <option value="BUSY">🟡 Busy</option>
-                  <option value="UNAVAILABLE">🟠 Not Working / Unavailable</option>
-                  <option value="INACTIVE">⚪ Inactive</option>
+                  <option value="AVAILABLE">Working / Available</option>
+                  <option value="BUSY">Busy</option>
+                  <option value="UNAVAILABLE">Not Working / Unavailable</option>
+                  <option value="INACTIVE">Inactive</option>
                 </select>
               </div>
             </div>
@@ -630,245 +694,27 @@ function AgentLayout({ children }) {
         <div className="sp-content">
           {children}
         </div>
-      </main>
+      </main>      {/* ALL DEPARTMENTS & AGENTS DIRECTORY MODAL */}
+      <AgentDirectoryModal
+        isOpen={showAllAgentsModal}
+        onClose={() => setShowAllAgentsModal(false)}
+        agents={agentsList}
+        allTickets={allTickets}
+        onSelectAgent={(ag) => {
+          navigate(`/agent/tasks/${encodeURIComponent(ag.name || ag.username || ag.id)}`);
+          setShowAllAgentsModal(false);
+        }}
+        onSwitchUser={handleSwitchAgent}
+        currentUser={user}
+      />
 
-      {/* ALL DEPARTMENTS & AGENTS DIRECTORY MODAL */}
-      {showAllAgentsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="relative w-full max-w-5xl max-h-[90vh] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            {/* MODAL HEADER */}
-            <div className="p-5 border-b border-slate-800 bg-slate-900/90 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-lg shadow-md">
-                  👥
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white leading-tight">
-                    All Departments & Agents Directory
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Switch active profile instantly across IT, HR, Finance & Admin teams with zero page reload.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAllAgentsModal(false)}
-                className="rounded-lg p-2 text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                title="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* MODAL CONTROLS / FILTERS */}
-            <div className="p-4 border-b border-slate-800/80 bg-slate-950/40 flex flex-col sm:flex-row items-center justify-between gap-3">
-              {/* DEPARTMENT TABS */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-800 w-full sm:w-auto overflow-x-auto">
-                {[
-                  { id: "ALL", label: "All Depts", count: deptCounts.ALL },
-                  { id: "IT", label: "IT Support", count: deptCounts.IT },
-                  { id: "HR", label: "HR", count: deptCounts.HR },
-                  { id: "Finance", label: "Finance", count: deptCounts.Finance },
-                  { id: "Admin", label: "Admin", count: deptCounts.Admin },
-                ].map((tab) => {
-                  const isActive = selectedDeptFilter === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setSelectedDeptFilter(tab.id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                        isActive
-                          ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-xs"
-                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-                      }`}
-                    >
-                      {tab.label} <span className="text-[10px] opacity-75">({tab.count})</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* SEARCH INPUT */}
-              <div className="relative w-full sm:w-72">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, skill, email..."
-                  className="w-full rounded-xl bg-slate-900 border border-slate-700/80 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-white"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* AGENTS GRID */}
-            <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredAgents.length === 0 ? (
-                <div className="col-span-full text-center py-12 text-slate-400">
-                  <div className="text-3xl mb-2">🔍</div>
-                  <p className="text-sm font-semibold">No agents found matching &quot;{searchQuery}&quot;</p>
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedDeptFilter("ALL"); setSearchQuery(""); }}
-                    className="mt-3 text-xs text-cyan-400 hover:underline cursor-pointer"
-                  >
-                    Reset filters
-                  </button>
-                </div>
-              ) : (
-                filteredAgents.map((ag) => {
-                  const isCurrent = isCurrentAgent(ag);
-                  const isBusy = switchingEmail === ag.email;
-                  const initials = (ag.name || "A")
-                    .split(" ")
-                    .map((w) => w[0])
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase();
-
-                  return (
-                    <div
-                      key={ag.email}
-                      className={`relative rounded-xl p-4 border transition-all duration-200 flex flex-col justify-between gap-3 ${
-                        isCurrent
-                          ? "bg-slate-800/90 border-emerald-500/80 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/40"
-                          : "bg-slate-800/40 border-slate-700/70 hover:bg-slate-800 hover:border-cyan-500/50 hover:shadow-md"
-                      }`}
-                    >
-                      {/* CARD TOP */}
-                      <div className="flex items-start gap-3">
-                        <div className="relative shrink-0">
-                          <div
-                            className={`h-11 w-11 rounded-xl flex items-center justify-center font-extrabold text-sm text-white shadow-md bg-gradient-to-br ${
-                              ag.avatarGradient || "from-blue-600 to-indigo-700"
-                            }`}
-                          >
-                            {initials}
-                          </div>
-                          {/* STATUS BEACON */}
-                          <span
-                            className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-slate-900 ${
-                              ag.availability === "BUSY" ? "bg-amber-400" : "bg-emerald-400"
-                            }`}
-                          />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1">
-                            <h3 className="text-sm font-bold text-white truncate flex items-center gap-1.5">
-                              <span>{ag.name}</span>
-                              {ag.isTeamLead && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40 font-black">
-                                  LEAD
-                                </span>
-                              )}
-                            </h3>
-                          </div>
-                          <div className="text-xs text-slate-300 font-medium truncate mt-0.5">
-                            {ag.specialty || ag.title}
-                          </div>
-                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {ag.email}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* BADGES / ATTRIBUTES */}
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-700/50 text-[11px]">
-                        <span
-                          className={`font-bold px-2 py-0.5 rounded-md border ${
-                            ag.badgeColor || "bg-cyan-500/20 text-cyan-300 border-cyan-400/40"
-                          }`}
-                        >
-                          {ag.deptBadge || ag.department}
-                        </span>
-
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <span>★ {ag.rating || "4.9"}</span>
-                          <span>•</span>
-                          <span className={ag.availability === "BUSY" ? "text-amber-400" : "text-emerald-400"}>
-                            {ag.availability === "BUSY" ? "Busy" : "Available"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* WORKLOAD & HOLD TICKETS METRICS */}
-                      {(() => {
-                        const agCounts = getAgentTicketCounts(ag);
-                        return (
-                          <div className="space-y-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowAllAgentsModal(false);
-                                setInspectingAgent(ag);
-                                setInspectingTab(agCounts.hold > 0 ? "hold" : "incomplete");
-                              }}
-                              className="w-full py-2.5 px-3 rounded-lg text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white shadow-md shadow-amber-950/40"
-                              title={`Inspect ${ag.name}'s tickets (${agCounts.hold} On Hold, ${agCounts.incomplete} Not Completed)`}
-                            >
-                              <span>⏸️ Inspect Tickets ({agCounts.hold} Hold • {agCounts.incomplete} Pending)</span>
-                              <span>→</span>
-                            </button>
-
-                            <div className="flex items-center justify-between text-[11px] pt-1 px-1">
-                              <span className="text-slate-400">Total: <strong className="text-slate-200">{agCounts.total}</strong> assigned</span>
-                              <button
-                                type="button"
-                                disabled={isCurrent || isBusy}
-                                onClick={() => handleSwitchAgent(ag)}
-                                className="text-cyan-400 hover:underline hover:text-cyan-300 font-semibold cursor-pointer disabled:opacity-50"
-                              >
-                                {isCurrent ? "✓ Active Profile" : isBusy ? "Switching..." : "Switch Session"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* MODAL FOOTER */}
-            <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between text-xs text-slate-400 px-5">
-              <span>
-                Showing {filteredAgents.length} of {agentsList.length} staff across IT, HR, Finance & Admin.
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowAllAgentsModal(false)}
-                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition cursor-pointer"
-              >
-                Close Directory
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AGENT WORKLOAD & HOLD TICKETS INSPECTOR MODAL */}
-      <AgentHoldTicketsModal
+      {/* PROFESSIONAL AGENT DETAILS DRAWER */}
+      <AgentDetailsDrawer
         agent={inspectingAgent}
         isOpen={Boolean(inspectingAgent)}
         onClose={() => setInspectingAgent(null)}
-        initialTab={inspectingTab}
         allTickets={allTickets}
-        onTicketStatusChange={() => {
-          setAllTickets(getAllTickets());
-        }}
-        onSwitchUser={(ag) => handleSwitchAgent(ag)}
+        onTicketAssigned={() => setAllTickets(getAllTickets())}
       />
     </div>
   );
@@ -889,18 +735,18 @@ function AdminLayout({ children }) {
   };
 
   const adminNav = [
-    { to: "/admin", icon: "▦", label: "Dashboard" },
-    { to: "/tickets", icon: "▤", label: "All Tickets" },
-    { to: "/ai-agent/workbench", icon: "🤖", label: "AI Agent Ops" },
-    { to: "/admin/master-data", icon: "🗂️", label: "Master Data" },
-    { to: "/admin/users", icon: "👥", label: "Users" },
-    { to: "/admin/routing", icon: "⇆", label: "Routing Rules" },
-    { to: "/admin/sla", icon: "⏱", label: "SLA Policies" },
-    { to: "/admin/ai-settings", icon: "✦", label: "AI Settings" },
-    { to: "/knowledge", icon: "📚", label: "Knowledge Base" },
-    { to: "/integrations", icon: "🔗", label: "Integrations" },
-    { to: "/analytics", icon: "📊", label: "Analytics" },
-    { to: "/admin/audit", icon: "☷", label: "Audit Logs" },
+    { to: "/admin", icon: FiGrid, label: "Dashboard" },
+    { to: "/tickets", icon: FiList, label: "All Tickets" },
+    { to: "/ai-agent/workbench", icon: FiCpu, label: "AI Agent Ops" },
+    { to: "/admin/master-data", icon: FiLayers, label: "Master Data" },
+    { to: "/admin/users", icon: FiUsers, label: "Users" },
+    { to: "/admin/routing", icon: FiGitPullRequest, label: "Routing Rules" },
+    { to: "/admin/sla", icon: FiClock, label: "SLA Policies" },
+    { to: "/admin/ai-settings", icon: FiSliders, label: "AI Settings" },
+    { to: "/knowledge", icon: FiBookOpen, label: "Knowledge Base" },
+    { to: "/integrations", icon: FiShare2, label: "Integrations" },
+    { to: "/analytics", icon: FiBarChart2, label: "Analytics" },
+    { to: "/admin/audit", icon: FiActivity, label: "Audit Logs" },
   ];
 
   const userInitials = initials(user?.name);
@@ -918,14 +764,14 @@ function AdminLayout({ children }) {
         </Link>
         <nav className="sp-sidebar-nav">
           <div className="sp-nav-heading">Mission Control</div>
-          {adminNav.map(({ to, icon, label }) => (
+          {adminNav.map(({ to, icon: IconComp, label }) => (
             <NavLink
               end
               key={to}
               to={to}
               className={({ isActive }) => isActive ? "active" : ""}
             >
-              <span>{icon}</span>
+              <IconComp className="w-4 h-4 shrink-0 text-slate-500" />
               <span>{label}</span>
             </NavLink>
           ))}
@@ -934,8 +780,8 @@ function AdminLayout({ children }) {
           <div className="flex items-center gap-2">
             <div className="sp-avatar sp-admin-avatar" title={displayName}>{userInitials}</div>
             <div>
-              <div className="text-xs font-semibold text-white">{displayName}</div>
-              <div className="text-[10px] text-cyan-300">Administrator</div>
+              <div className="text-xs font-semibold text-slate-900">{displayName}</div>
+              <div className="text-[10px] text-blue-600 font-medium">Administrator</div>
             </div>
           </div>
         </div>
@@ -947,7 +793,7 @@ function AdminLayout({ children }) {
             <h1>{adminNav.find((n) => n.to === location.pathname)?.label || "Admin"}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={handleLogout} className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-slate-700 transition">Logout</button>
+            <button onClick={handleLogout} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer">Logout</button>
             <div className="sp-avatar sp-admin-avatar" title={displayName}>{userInitials}</div>
           </div>
         </header>
@@ -1091,20 +937,20 @@ function UnauthorizedPage() {
   const portalName = user?.role === "admin" ? "Admin Control Center" : user?.role === "manager" ? "Manager Portal" : user?.role === "agent" ? "Agent Workspace" : "Customer Portal";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 px-6">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white backdrop-blur-xl shadow-2xl">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/20 text-3xl text-amber-400 border border-amber-500/30">
-          🛡️
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-900 shadow-xl">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
+          <FiShield className="w-8 h-8" />
         </div>
 
-        <h1 className="mt-5 text-2xl font-bold text-white tracking-tight">
+        <h1 className="mt-5 text-xl font-bold text-slate-900 tracking-tight">
           Restricted Resource
         </h1>
 
-        <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+        <p className="mt-2 text-xs text-slate-500 leading-relaxed">
           {user ? (
             <>
-              You are currently logged in as <strong className="text-emerald-400">{user.name || user.username}</strong> ({user.role?.toUpperCase()}). This specific section requires different authorization credentials.
+              You are currently logged in as <strong className="text-slate-800 font-semibold">{user.name || user.username}</strong> ({user.role?.toUpperCase()}). This specific section requires different authorization credentials.
             </>
           ) : (
             "Authentication is required to access this system area."
@@ -1149,15 +995,19 @@ function TicketDetailDispatcher() {
   const { user } = useAuth();
   if (user?.role === "customer") {
     return (
-      <CustomerLayout>
-        <CustomerTicketDetails />
-      </CustomerLayout>
+      <ErrorBoundary>
+        <CustomerLayout>
+          <CustomerTicketDetails />
+        </CustomerLayout>
+      </ErrorBoundary>
     );
   }
   return (
-    <AgentLayout>
-      <AgentTicketDetails />
-    </AgentLayout>
+    <ErrorBoundary>
+      <AgentLayout>
+        <AgentTicketDetails />
+      </AgentLayout>
+    </ErrorBoundary>
   );
 }
 
@@ -1209,7 +1059,7 @@ export default function App() {
             path="/portal/tickets/new"
             element={
               <ProtectedRoute
-                allowedRoles={["customer"]}
+                allowedRoles={["customer", "agent", "manager", "admin"]}
               >
                 <CustomerLayout>
                   <NewTicketPage />
@@ -1275,6 +1125,32 @@ export default function App() {
           />
 
           <Route
+            path="/agent/tasks/:agentName"
+            element={
+              <ProtectedRoute
+                allowedRoles={["agent", "admin", "manager"]}
+              >
+                <AgentLayout>
+                  <AgentTaskView />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/agent/:agentName"
+            element={
+              <ProtectedRoute
+                allowedRoles={["agent", "admin", "manager"]}
+              >
+                <AgentLayout>
+                  <AgentTaskView />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/tickets"
             element={
               <ProtectedRoute allowedRoles={["agent", "admin", "manager"]}>
@@ -1303,6 +1179,38 @@ export default function App() {
               <ProtectedRoute allowedRoles={["agent", "admin", "manager"]}>
                 <AgentLayout>
                   <AiReviewQueuePage />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Open & Validate AI Solution Route */}
+          <Route
+            path="/tickets/:id/validate-ai"
+            element={
+              <ProtectedRoute allowedRoles={["agent", "admin", "manager"]}>
+                <AgentLayout>
+                  <ValidateAiSolutionPage />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets/:id/validate"
+            element={
+              <ProtectedRoute allowedRoles={["agent", "admin", "manager"]}>
+                <AgentLayout>
+                  <ValidateAiSolutionPage />
+                </AgentLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets/ai-review/:id"
+            element={
+              <ProtectedRoute allowedRoles={["agent", "admin", "manager"]}>
+                <AgentLayout>
+                  <ValidateAiSolutionPage />
                 </AgentLayout>
               </ProtectedRoute>
             }
@@ -1711,6 +1619,8 @@ export default function App() {
             }
           />
 
+          <Route path="/admin/config" element={<Navigate to="/admin/ai-settings" replace />} />
+          <Route path="/agent/tickets/:id" element={<Navigate to="/tickets/:id" replace />} />
           <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
           <Route path="/admin/all-tickets" element={<Navigate to="/tickets" replace />} />
           <Route path="/agent" element={<Navigate to="/dashboard" replace />} />

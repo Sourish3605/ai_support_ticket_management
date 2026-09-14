@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getAllTickets, updateTicket } from "../../services/ticketService";
 import { syncJiraStatusApi, fetchJiraConfigApi } from "../../services/m3AgentService";
+import { FiCheck, FiX, FiLayers, FiAlertCircle } from "react-icons/fi";
 
 export default function JiraCloudPortal() {
   const { key } = useParams();
@@ -98,8 +99,9 @@ export default function JiraCloudPortal() {
     <div className="min-h-screen bg-[#f4f5f7] flex flex-col font-sans text-slate-800 antialiased">
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold border border-slate-700">
-          ✓ {toast}
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold border border-slate-700 flex items-center gap-1.5">
+          <FiCheck className="text-emerald-400" />
+          <span>{toast}</span>
         </div>
       )}
 
@@ -108,7 +110,7 @@ export default function JiraCloudPortal() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/jira")}>
             <div className="h-6 w-6 rounded bg-white text-[#0052cc] flex items-center justify-center font-black text-xs shadow-sm">
-              ✦
+              <FiLayers className="w-3.5 h-3.5" />
             </div>
             <span className="font-bold text-sm tracking-tight flex items-center gap-1.5">
               <span>Jira Software</span>
@@ -306,8 +308,9 @@ export default function JiraCloudPortal() {
                     </p>
                     <div className="flex items-center justify-between text-[11px] pt-1">
                       <span className="font-mono font-bold text-emerald-700">{jKey}</span>
-                      <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold text-[10px]">
-                        ✓ Resolved
+                      <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold text-[10px] inline-flex items-center gap-1">
+                        <FiCheck className="w-3 h-3" />
+                        <span>Resolved</span>
                       </span>
                     </div>
                   </div>
@@ -336,7 +339,7 @@ export default function JiraCloudPortal() {
                 }}
                 className="text-slate-500 hover:text-slate-900 font-bold text-base px-2 py-0.5 rounded hover:bg-slate-200 transition"
               >
-                ✕
+                <FiX className="w-4 h-4" />
               </button>
             </div>
 
@@ -346,7 +349,7 @@ export default function JiraCloudPortal() {
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="bg-red-100 text-red-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded font-mono">
-                      ⚡ {jiraConfig.issue_type}
+                      {jiraConfig.issue_type}
                     </span>
                     <span className="font-mono text-xs font-bold text-slate-400">
                       {selectedIssue.jira_issue_key}

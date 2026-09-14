@@ -33,136 +33,106 @@ def normalize_text(text: str) -> str:
 
 
 # ----------------------------------------------------------------------
-# 1. USER SPECIFIED CATEGORY KEYWORDS & PHRASES
+# 1. USER SPECIFIED CATEGORY KEYWORDS & PHRASES (Exact Requirement 7)
 # ----------------------------------------------------------------------
 CATEGORY_TAXONOMY = {
-    "Account": {
-        "keywords": [
-            "login", "unable to login", "cannot login", "can't login", "password", "forgot password",
-            "reset password", "change email", "email address", "update email", "account locked",
-            "locked out", "credentials", "sign in", "signin", "auth", "authentication", "sso", "profile"
-        ],
-        "sub_rules": {
-            "Login Issue": ["unable to login", "cannot login", "can't login", "login issue", "login error", "sign in", "signin", "credentials", "login"],
-            "Password Reset": ["password", "reset password", "forgot password", "change password", "password expired"],
-            "Account Locked": ["account locked", "locked out", "too many attempts", "account disabled", "locked"],
-            "Email Change": ["change email", "update email", "how to change email", "new email", "email address"],
-        }
-    },
-    "Billing": {
-        "keywords": [
-            "invoice", "charge", "payment", "receipt", "refund", "debited",
-            "subscription", "pricing", "overcharged", "card", "transaction",
-            "bank", "stripe", "paypal", "pay now", "checkout", "billing",
-            "deducted twice", "duplicate payment", "charged twice", "invoice copy"
-        ],
-        "sub_rules": {
-            "Duplicate Payment": ["payment deducted twice", "deducted twice", "charged twice", "double charge", "duplicate payment", "charged two times"],
-            "Invoice": ["invoice copy", "need invoice", "invoice", "receipt", "charge", "overcharged", "refund", "bill", "billing", "tax invoice"],
-            "Payment Failure": ["payment", "card", "transaction", "pay now", "checkout", "debited", "stripe", "paypal", "payment failed", "declined"],
-            "Subscription": ["subscription", "pricing", "plan", "upgrade", "renew", "renewal", "tier", "seats", "membership"],
-        }
-    },
-    "Technical": {
-        "keywords": [
-            "application crashes", "crashes", "crash", "freeze", "data missing", "dashboard",
-            "system down", "api error", "telemetry", "broken screen", "loading time",
-            "500", "502", "503", "404", "technical issue", "backend error", "white screen"
-        ],
-        "sub_rules": {
-            "Application Crashes": ["application crashes", "crashes", "crash", "crashing", "force close", "freeze", "crashed"],
-            "Data Missing": ["data missing", "data missing from dashboard", "dashboard data", "missing data", "empty graph", "telemetry missing"],
-            "System Error": ["500", "502", "503", "system error", "api failure", "internal server error"],
-        }
-    },
-    "Product": {
-        "keywords": [
-            "feature request", "request", "suggestion", "enhancement", "new feature",
-            "feedback", "add feature", "would like", "idea", "product feedback"
-        ],
-        "sub_rules": {
-            "Feature Request": ["feature request", "request", "suggestion", "new feature", "add feature", "would like to request", "enhancement"],
-            "User Feedback": ["feedback", "user feedback", "improvement", "design feedback"],
-        }
-    },
-    "Software": {
-        "keywords": [
-            "bug", "error", "crash", "button", "freeze", "broken", "loading",
-            "failed to", "glitch", "feature", "dropdown",
-            "blank screen", "unexpected", "404", "500", "502", "503", "application", "app", "ui"
-        ],
-        "sub_rules": {
-            "Crash": ["crash", "crashing", "force close", "unexpected quit", "freeze", "blank screen"],
-            "Application Error": ["bug", "error", "404", "500", "502", "503", "button", "broken", "loading", "failed to", "glitch", "unexpected", "dropdown"],
-            "License Expired": ["license", "activation", "key", "expired", "unlicensed"],
-            "Installation": ["installation", "install", "update", "patch", "setup", "installer"]
-        }
-    },
-    "Authentication": {
-        "keywords": [
-            "login", "password", "signin", "2fa", "mfa", "otp", "account locked",
-            "credentials", "register", "sign up", "verification code", "access denied",
-            "authentication", "auth", "authenticator", "sso", "saml", "verify"
-        ],
-        "sub_rules": {
-            "Password Reset": ["password", "reset password", "forgot password", "change password", "password expired"],
-            "Account Locked": ["account locked", "locked out", "too many attempts", "account disabled"],
-            "MFA / SSO": ["2fa", "mfa", "otp", "verification code", "authenticator", "sso", "okta", "duo", "totp"],
-            "Login Issue": ["login", "signin", "credentials", "register", "sign up", "access denied", "authentication", "auth", "verify"]
-        }
-    },
     "Network": {
         "keywords": [
-            "internet", "interent", "intenet", "connectivity", "internet connection",
-            "slow", "timeout", "latency", "vpn", "wifi", "connection", "connecting",
-            "offline", "disconnected", "server down", "loading time", "gateway", "ping", "dns",
-            "ethernet", "broadband", "network", "firewall", "no internet"
+            "internet", "wifi", "wi-fi", "vpn", "dns", "connectivity",
+            "connection", "connecting", "offline", "disconnected", "latency",
+            "timeout", "gateway", "ping", "ethernet", "broadband", "network",
+            "slow connection", "no internet", "network down", "wifi drop"
         ],
         "sub_rules": {
-            "Internet": ["internet", "interent", "intenet", "connectivity", "internet connection", "no internet", "broadband", "ethernet", "internet down", "offline", "disconnected", "server down", "network down", "dsl outage"],
-            "VPN": ["vpn", "anyconnect", "globalprotect", "cisco vpn", "openvpn", "wireguard", "vpn tunnel", "vpn connection", "vpn gateway", "corporate vpn"],
-            "Wi-Fi": ["wifi", "wi-fi", "wireless", "ssid", "hotspot", "access point"],
-            "DNS / Gateway": ["dns", "gateway", "ping", "timeout", "latency", "dhcp", "ip conflict"],
-            "Firewall": ["firewall", "blocked port", "port", "rule", "udp 500"]
-        }
-    },
-    "Email": {
-        "keywords": [
-            "inbox", "outlook", "gmail", "spam", "not receiving", "bounce back",
-            "smtp", "imap", "mailbox", "newsletter", "verification email", "attachment",
-            "mail", "email", "calendar", "invite"
-        ],
-        "sub_rules": {
-            "Spam": ["spam", "newsletter", "junk", "filter"],
-            "Delivery Failure": ["not receiving", "bounce back", "smtp", "undeliverable", "rejected"],
-            "Calendar Issue": ["calendar", "invite", "meeting", "schedule"],
-            "Outlook Sync": ["inbox", "outlook", "gmail", "imap", "mailbox", "verification email", "attachment", "mail", "email"]
+            "Wi-Fi": ["wifi", "wi-fi", "wireless", "ssid", "hotspot", "access point", "wlan"],
+            "VPN": ["vpn", "anyconnect", "globalprotect", "cisco vpn", "openvpn", "wireguard", "vpn tunnel", "vpn connection", "remote access"],
+            "Internet": ["internet", "broadband", "ethernet", "no internet", "dsl", "isp", "offline", "web connection", "disconnected"],
+            "DNS": ["dns", "domain", "nameserver", "host lookup", "resolve host", "ip address", "dhcp"],
+            "Connectivity": ["connectivity", "connection lost", "timeout", "latency", "ping", "dropped packets", "intermittent connection", "gateway unreachable"]
         }
     },
     "Security": {
         "keywords": [
-            "hack", "phishing", "compromised", "virus", "malware", "suspicious",
-            "leak", "unauthorized", "breach", "spam link", "vulnerability",
-            "ransomware", "trojan", "spyware", "identity theft"
+            "hack", "phishing", "malware", "virus", "data security", "suspicious activity",
+            "suspicious", "compromised", "leak", "unauthorized", "breach", "ransomware",
+            "trojan", "spyware", "identity theft", "vulnerability", "security alert"
         ],
         "sub_rules": {
-            "Phishing": ["phishing", "suspicious", "spam link", "fake email", "scam"],
-            "Malware": ["virus", "malware", "ransomware", "trojan", "spyware"],
-            "Unauthorized Access": ["hack", "compromised", "unauthorized", "breach", "identity theft", "takeover"],
-            "Security Alert": ["leak", "vulnerability", "cve", "security alert", "audit"]
+            "Malware": ["malware", "virus", "ransomware", "trojan", "spyware", "infected", "antivirus"],
+            "Phishing": ["phishing", "phishing email", "suspicious email", "fake link", "scam", "credential harvesting"],
+            "Data Security": ["data security", "leak", "breach", "data exposure", "unencrypted", "confidential leak", "pii"],
+            "Suspicious Activity": ["suspicious activity", "hack", "unauthorized", "unauthorized access", "compromised account", "unrecognized login", "audit alert"]
+        }
+    },
+    "Authentication": {
+        "keywords": [
+            "login", "password", "mfa", "sso", "account lockout", "access request",
+            "signin", "sign in", "2fa", "otp", "locked out", "account locked",
+            "credentials", "authenticator", "okta", "saml", "verify", "permission",
+            "grant access", "forgot password", "reset password", "change password"
+        ],
+        "sub_rules": {
+            "Password": ["password", "forgot password", "reset password", "change password", "password expired", "temp password"],
+            "MFA": ["mfa", "2fa", "otp", "authenticator", "verification code", "push notification", "totp", "duo"],
+            "SSO": ["sso", "single sign on", "single sign-on", "okta", "saml", "azure ad", "identity provider", "sso portal"],
+            "Account Lockout": ["account lockout", "account locked", "locked out", "too many attempts", "account disabled"],
+            "Access Request": ["access request", "request access", "permission", "need access", "grant access", "role request", "folder access"]
         }
     },
     "Hardware": {
         "keywords": [
-            "laptop", "monitor", "mouse", "keyboard", "printer", "cable",
-            "broken screen", "battery", "charger", "headset", "physical device",
-            "hdmi", "displayport", "dock", "desktop"
+            "laptop", "desktop", "monitor", "printer", "keyboard/mouse",
+            "keyboard", "mouse", "screen", "display", "charger", "battery",
+            "headset", "dock", "hdmi", "cable", "scanner", "trackpad", "physical device"
         ],
         "sub_rules": {
-            "Monitor": ["monitor", "broken screen", "hdmi", "displayport", "external display", "second screen", "flicker", "resolution"],
-            "Laptop": ["laptop", "battery", "charger", "desktop", "overheating", "fan noise", "hardware"],
-            "Keyboard / Mouse": ["mouse", "keyboard", "trackpad", "touchpad"],
-            "Printer": ["printer", "scanner", "toner", "cartridge", "paper jam"]
+            "Laptop": ["laptop", "notebook", "macbook", "thinkpad", "dell laptop", "battery", "charger", "overheating", "fan"],
+            "Desktop": ["desktop", "workstation", "tower", "pc", "power supply", "cpu"],
+            "Monitor": ["monitor", "display", "screen", "broken screen", "hdmi", "displayport", "second monitor", "flickering screen"],
+            "Printer": ["printer", "scanner", "paper jam", "toner", "cartridge", "print queue", "printing"],
+            "Keyboard/Mouse": ["keyboard", "mouse", "trackpad", "touchpad", "wireless mouse", "mechanical keyboard", "keyboard/mouse"]
+        }
+    },
+    "Software": {
+        "keywords": [
+            "application error", "installation", "update", "license", "performance",
+            "crash", "freeze", "bug", "error", "404", "500", "502", "503",
+            "installer", "install", "upgrade", "patch", "key expired", "unlicensed",
+            "slow application", "app lagging", "memory leak", "software"
+        ],
+        "sub_rules": {
+            "Application Error": ["application error", "crash", "crashing", "freeze", "force close", "bug", "glitch", "error code", "500", "502", "503", "404", "ui error"],
+            "Installation": ["installation", "install", "setup", "installer", "cannot install", "failed to install"],
+            "Update": ["update", "upgrade", "patch", "new version", "update failing"],
+            "License": ["license", "activation", "license expired", "product key", "unlicensed", "subscription key"],
+            "Performance": ["performance", "slow software", "app slow", "lagging", "high cpu", "memory leak", "unresponsive"]
+        }
+    },
+    "Email": {
+        "keywords": [
+            "email", "mail", "sending/receiving", "spam", "mailbox", "outlook",
+            "configuration", "inbox", "bounce", "smtp", "imap", "exchange",
+            "calendar", "meeting invite", "delivery failure", "undelivered"
+        ],
+        "sub_rules": {
+            "Sending/Receiving": ["sending/receiving", "cannot send", "cannot receive", "not receiving email", "bounce", "delivery failure", "undelivered", "sent mail"],
+            "Spam": ["spam", "junk", "filter", "newsletter", "unsolicited"],
+            "Mailbox": ["mailbox", "inbox full", "mailbox full", "quota", "archive mailbox", "shared mailbox"],
+            "Outlook": ["outlook", "microsoft outlook", "outlook sync", "ost", "exchange", "calendar sync", "meeting invite"],
+            "Configuration": ["configuration", "smtp", "imap", "pop3", "email settings", "mail client setup", "signature"]
+        }
+    },
+    "Billing": {
+        "keywords": [
+            "billing", "invoice", "payment", "subscription", "refund",
+            "charge", "receipt", "debited", "overcharged", "card", "transaction",
+            "stripe", "paypal", "duplicate payment", "deducted twice", "charged twice"
+        ],
+        "sub_rules": {
+            "Invoice": ["invoice", "receipt", "tax invoice", "invoice copy", "need invoice", "billing statement"],
+            "Payment": ["payment", "payment failure", "declined", "card", "pay now", "checkout", "transaction", "debited twice", "deducted twice", "duplicate payment", "charged twice"],
+            "Subscription": ["subscription", "plan", "upgrade", "renew", "renewal", "tier", "seats", "pricing"],
+            "Refund": ["refund", "credit", "money back", "reimbursement", "chargeback", "cancel charge"]
         }
     }
 }

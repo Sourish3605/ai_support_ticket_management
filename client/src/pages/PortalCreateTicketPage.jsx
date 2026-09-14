@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { FiAlertTriangle, FiSend } from "react-icons/fi";
 
 
 const PortalCreateTicketPage = () => {
@@ -91,9 +92,9 @@ p-5
 ">
 
 
-<h2 className="font-semibold text-[#92400e]">
+<h2 className="font-semibold text-[#92400e] flex items-center gap-1.5">
 
-⚠ You have a similar open ticket
+<FiAlertTriangle className="w-4 h-4 text-amber-600" /> You have a similar open ticket
 
 </h2>
 
@@ -724,7 +725,7 @@ onClick={()=>navigate("/portal/tickets")}
 
 >
 
-➤ Submit ticket
+<span className="flex items-center gap-1.5 justify-center"><FiSend className="w-3.5 h-3.5" /> Submit ticket</span>
 
 </button>
 
