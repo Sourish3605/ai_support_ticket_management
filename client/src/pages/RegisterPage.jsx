@@ -62,13 +62,13 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-950 via-slate-900 to-indigo-950 p-5">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-lime-50 to-teal-100 p-5">
 
-      <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl sm:p-10">
+      <div className="w-full max-w-lg rounded-3xl bg-white/95 border border-emerald-200/70 p-8 shadow-2xl sm:p-10 backdrop-blur-sm">
 
         <div className="flex items-center gap-3">
 
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 font-bold text-white">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-700 font-bold text-white shadow-xs">
             SP
           </div>
 
@@ -93,7 +93,7 @@ const RegisterPage = () => {
         </p>
 
         {error && (
-          <div className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
           </div>
         )}
@@ -113,7 +113,7 @@ const RegisterPage = () => {
               value={form.name}
               onChange={handleChange}
               placeholder="Your name"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-emerald-500"
+              className="w-full rounded-xl border border-emerald-100 bg-emerald-50/30 px-4 py-3 outline-none focus:border-emerald-500 focus:bg-white transition"
             />
           </div>
 
@@ -128,7 +128,7 @@ const RegisterPage = () => {
               value={form.email}
               onChange={handleChange}
               placeholder="you@example.com"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-emerald-500"
+              className="w-full rounded-xl border border-emerald-100 bg-emerald-50/30 px-4 py-3 outline-none focus:border-emerald-500 focus:bg-white transition"
             />
           </div>
 
@@ -143,13 +143,14 @@ const RegisterPage = () => {
               value={form.password}
               onChange={handleChange}
               placeholder="Create password"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-emerald-500"
+              className="w-full rounded-xl border border-emerald-100 bg-emerald-50/30 px-4 py-3 outline-none focus:border-emerald-500 focus:bg-white transition"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-xl bg-emerald-600 py-3.5 font-semibold text-white hover:bg-emerald-700"
+            disabled={loading}
+            className="w-full rounded-xl bg-emerald-700 py-3.5 font-semibold text-white shadow-md shadow-emerald-900/10 hover:bg-emerald-800 transition disabled:opacity-60"
           >
             {loading ? "Creating account..." : "Create account"}
           </button>
@@ -160,7 +161,7 @@ const RegisterPage = () => {
           Already have an account?{" "}
           <Link
             to="/login"
-            className="font-semibold text-emerald-600"
+            className="font-semibold text-emerald-700 hover:text-emerald-800"
           >
             Sign in
           </Link>
