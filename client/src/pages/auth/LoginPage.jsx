@@ -19,123 +19,61 @@ import { GoogleLogin } from "@react-oauth/google";
 import { normalizeRole, getDefaultRouteForRole } from "../../utils/roleUtils";
 
 
+const sharedGreenTheme = {
+  pageBg: "bg-gradient-to-br from-emerald-50 via-lime-50 to-teal-100",
+  frameBg: "bg-white/90",
+  shellBorder: "border border-emerald-200/70",
+  leftPanel: "bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900",
+  glowA: "bg-lime-200/30",
+  glowB: "bg-emerald-200/20",
+  brandChip: "bg-white/20 text-white",
+  statCard: "border border-white/20 bg-white/10",
+  statMuted: "text-emerald-50/80",
+  rightPanel: "bg-white",
+  mobileLogo: "bg-emerald-700 text-white",
+  titleAccent: "text-emerald-700",
+  titleText: "text-slate-900",
+  copyText: "text-slate-500",
+  tabWrap: "bg-emerald-50",
+  tabIdle: "text-emerald-500 hover:text-emerald-700",
+  tabActive: "bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200",
+  inputClass:
+    "border-emerald-100 bg-emerald-50/40 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500/10",
+  iconClass: "text-emerald-400",
+  signInButton:
+    "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:ring-emerald-400/50 shadow-md shadow-emerald-900/10",
+  linkClass: "text-emerald-700 hover:text-emerald-800",
+};
+
 const portalThemes = {
   admin: {
+    ...sharedGreenTheme,
     portalLabel: "Admin Portal",
     eyebrow: "Control Center",
     headline: "Operate support like mission control.",
     subText: "Govern users, security rules, and system health with executive-level visibility.",
-    pageBg: "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800",
-    frameBg: "bg-slate-900/70",
-    shellBorder: "border border-slate-700/60",
-    leftPanel: "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700",
-    glowA: "bg-cyan-300/20",
-    glowB: "bg-indigo-300/20",
-    brandChip: "bg-cyan-300/20 text-cyan-100",
-    statCard: "border border-cyan-200/20 bg-white/5",
-    statMuted: "text-cyan-100/70",
-    rightPanel: "bg-slate-50",
-    mobileLogo: "bg-slate-900 text-cyan-100",
-    titleAccent: "text-cyan-700",
-    titleText: "text-slate-900",
-    copyText: "text-slate-500",
-    tabWrap: "bg-slate-200",
-    tabIdle: "text-slate-500 hover:text-slate-700",
-    tabActive: "bg-slate-900 text-cyan-100 shadow-sm",
-    inputClass:
-      "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:ring-cyan-500/10",
-    iconClass: "text-slate-400",
-    signInButton:
-      "bg-slate-900 text-cyan-100 hover:bg-slate-800 focus-visible:ring-cyan-400/50",
-    linkClass: "text-cyan-700 hover:text-cyan-800",
   },
   agent: {
+    ...sharedGreenTheme,
     portalLabel: "Agent Workspace",
     eyebrow: "Work Queue",
     headline: "Resolve faster. Stay in flow.",
     subText: "Triage priority tickets, track SLAs, and deliver quick outcomes with confidence.",
-    pageBg: "bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-100",
-    frameBg: "bg-white/85",
-    shellBorder: "border border-blue-200/70",
-    leftPanel: "bg-gradient-to-br from-blue-700 via-cyan-700 to-indigo-700",
-    glowA: "bg-cyan-200/35",
-    glowB: "bg-blue-100/20",
-    brandChip: "bg-white/20 text-white",
-    statCard: "border border-white/20 bg-white/10",
-    statMuted: "text-cyan-50/80",
-    rightPanel: "bg-white",
-    mobileLogo: "bg-blue-700 text-white",
-    titleAccent: "text-blue-700",
-    titleText: "text-slate-900",
-    copyText: "text-slate-600",
-    tabWrap: "bg-blue-50",
-    tabIdle: "text-blue-500 hover:text-blue-700",
-    tabActive: "bg-white text-blue-700 shadow-sm ring-1 ring-blue-200",
-    inputClass:
-      "border-blue-100 bg-blue-50/40 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/10",
-    iconClass: "text-blue-400",
-    signInButton:
-      "bg-blue-700 text-white hover:bg-blue-800 focus-visible:ring-blue-400/50",
-    linkClass: "text-blue-700 hover:text-blue-800",
   },
   customer: {
+    ...sharedGreenTheme,
     portalLabel: "Customer Portal",
     eyebrow: "Smart Support",
     headline: "Support tickets. Simplified.",
     subText: "Raise requests, follow updates, and get AI-guided help from one clean workspace.",
-    pageBg: "bg-gradient-to-br from-emerald-50 via-lime-50 to-teal-100",
-    frameBg: "bg-white/90",
-    shellBorder: "border border-emerald-200/70",
-    leftPanel: "bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-900",
-    glowA: "bg-lime-200/30",
-    glowB: "bg-emerald-200/20",
-    brandChip: "bg-white/20 text-white",
-    statCard: "border border-white/20 bg-white/10",
-    statMuted: "text-emerald-50/80",
-    rightPanel: "bg-white",
-    mobileLogo: "bg-emerald-700 text-white",
-    titleAccent: "text-emerald-700",
-    titleText: "text-slate-900",
-    copyText: "text-slate-500",
-    tabWrap: "bg-emerald-50",
-    tabIdle: "text-emerald-500 hover:text-emerald-700",
-    tabActive: "bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200",
-    inputClass:
-      "border-emerald-100 bg-emerald-50/40 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500/10",
-    iconClass: "text-emerald-400",
-    signInButton:
-      "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:ring-emerald-400/50",
-    linkClass: "text-emerald-700 hover:text-emerald-800",
   },
   manager: {
+    ...sharedGreenTheme,
     portalKey: "manager",
     portalLabel: "Support Manager Portal",
     eyebrow: "Operations & Escalations",
     headline: "Supervise queues. Safeguard SLAs.",
     subText: "Monitor workload, balance agent queues, manage critical escalations, and track AI performance.",
-    pageBg: "bg-gradient-to-br from-[#090e1a] via-[#0f172a] to-slate-900",
-    frameBg: "bg-white",
-    shellBorder: "border border-amber-200/80 shadow-2xl",
-    leftPanel: "bg-gradient-to-br from-[#090e1a] via-[#111c35] to-[#0f172a]",
-    glowA: "bg-amber-500/20",
-    glowB: "bg-orange-500/20",
-    brandChip: "bg-amber-400/20 text-amber-300",
-    statCard: "border border-white/10 bg-white/5",
-    statMuted: "text-amber-200/70",
-    rightPanel: "bg-white",
-    mobileLogo: "bg-amber-500 text-slate-950 font-black",
-    titleAccent: "text-amber-600",
-    titleText: "text-slate-900",
-    copyText: "text-slate-500",
-    tabWrap: "bg-slate-100",
-    tabIdle: "text-slate-600 hover:text-slate-900",
-    tabActive: "bg-amber-500 text-slate-950 font-black shadow-xs",
-    inputClass:
-      "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:ring-amber-500/10",
-    iconClass: "text-slate-400",
-    signInButton:
-      "bg-amber-500 text-slate-950 font-black hover:bg-amber-400 focus-visible:ring-amber-500/50 shadow-md shadow-amber-500/25",
-    linkClass: "text-amber-700 hover:text-amber-800",
   },
 };
 
@@ -436,20 +374,10 @@ const LoginPage = () => {
                   <button
                     type="button"
                     onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-                    className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xs hover:border-slate-300 hover:bg-slate-50/50 transition cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                    className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xs hover:border-emerald-300 hover:bg-emerald-50/20 transition cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${
-                          selectedRole === "admin"
-                            ? "bg-slate-900 text-cyan-300"
-                            : selectedRole === "manager"
-                            ? "bg-indigo-900 text-purple-200"
-                            : selectedRole === "agent"
-                            ? "bg-blue-700 text-white"
-                            : "bg-emerald-700 text-white"
-                        }`}
-                      >
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold bg-emerald-700 text-white shadow-xs">
                         {selectedRole === "admin" ? (
                           <FiShield />
                         ) : selectedRole === "manager" ? (
@@ -489,7 +417,7 @@ const LoginPage = () => {
                       </span>
                       <FiChevronDown
                         className={`w-4 h-4 transition-transform duration-200 ${
-                          roleDropdownOpen ? "rotate-180 text-slate-700" : ""
+                          roleDropdownOpen ? "rotate-180 text-emerald-700" : ""
                         }`}
                       />
                     </div>
@@ -497,7 +425,7 @@ const LoginPage = () => {
 
                   {/* FLOATING SELECTION POPOVER */}
                   {roleDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl bg-white border border-slate-200/90 shadow-xl p-1.5 space-y-1 backdrop-blur-sm">
+                    <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl bg-white border border-emerald-100 shadow-xl p-1.5 space-y-1 backdrop-blur-sm">
                       {[
                         {
                           id: "admin",
@@ -505,17 +433,13 @@ const LoginPage = () => {
                           subtitle: "Governance, RBAC policies & system health",
                           tag: "Executive",
                           Icon: FiShield,
-                          activeIcon: "bg-slate-900 text-cyan-300",
-                          tagColor: "bg-cyan-50 text-cyan-800 border-cyan-200",
                         },
                         {
                           id: "manager",
                           title: "Support Manager",
                           subtitle: "Queues, SLA governance, workload & escalations",
                           tag: "Supervisor",
-                          Icon: FiCheck,
-                          activeIcon: "bg-indigo-900 text-purple-200",
-                          tagColor: "bg-purple-50 text-purple-800 border-purple-200",
+                          Icon: FiBriefcase,
                         },
                         {
                           id: "agent",
@@ -523,8 +447,6 @@ const LoginPage = () => {
                           subtitle: "Incident triage, AI routing & SLAs",
                           tag: "Operations",
                           Icon: FiHeadphones,
-                          activeIcon: "bg-blue-700 text-white",
-                          tagColor: "bg-blue-50 text-blue-800 border-blue-200",
                         },
                         {
                           id: "customer",
@@ -532,8 +454,6 @@ const LoginPage = () => {
                           subtitle: "Raise tickets, track status & AI self-service",
                           tag: "End User",
                           Icon: FiUser,
-                          activeIcon: "bg-emerald-700 text-white",
-                          tagColor: "bg-emerald-50 text-emerald-800 border-emerald-200",
                         },
                       ].map((item) => {
                         const isSelected = selectedRole === item.id;
@@ -548,14 +468,14 @@ const LoginPage = () => {
                             }}
                             className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl text-left transition-all cursor-pointer ${
                               isSelected
-                                ? "bg-slate-50 border border-slate-200 text-slate-900 shadow-2xs"
-                                : "hover:bg-slate-50 text-slate-700 border border-transparent"
+                                ? "bg-emerald-50/70 border border-emerald-200/80 text-slate-900 shadow-2xs"
+                                : "hover:bg-emerald-50/30 text-slate-700 border border-transparent"
                             }`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <div
                                 className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm font-bold ${
-                                  isSelected ? item.activeIcon : "bg-slate-100 text-slate-500"
+                                  isSelected ? "bg-emerald-700 text-white" : "bg-slate-100 text-slate-500"
                                 }`}
                               >
                                 <item.Icon />
@@ -566,7 +486,11 @@ const LoginPage = () => {
                                     {item.title}
                                   </span>
                                   <span
-                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${item.tagColor}`}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                      isSelected
+                                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                        : "bg-slate-100 text-slate-600 border-slate-200"
+                                    }`}
                                   >
                                     {item.tag}
                                   </span>
@@ -579,7 +503,7 @@ const LoginPage = () => {
 
                             <div className="shrink-0 pr-1">
                               {isSelected && (
-                                <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-extrabold shadow-xs">
+                                <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-extrabold shadow-xs">
                                   <FiCheck className="stroke-[3]" />
                                 </div>
                               )}
@@ -785,73 +709,33 @@ const LoginPage = () => {
                 </div>
 
                 <div className="grid grid-cols-4 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole("admin");
-                      setForm({ email: "admin@gmail.com", password: "password123" });
-                      setError("");
-                    }}
-                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
-                      selectedRole === "admin"
-                        ? "border-slate-900 bg-slate-900 text-cyan-300 ring-2 ring-cyan-400/20"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
-                    }`}
-                  >
-                    <FiShield className="w-4 h-4" />
-                    <span className="text-[11px]">Admin</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole("manager");
-                      setForm({ email: "manager@gmail.com", password: "password123" });
-                      setError("");
-                    }}
-                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
-                      selectedRole === "manager"
-                        ? "border-amber-500 bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400/20"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
-                    }`}
-                  >
-                    <FiBriefcase className="w-4 h-4" />
-                    <span className="text-[11px]">Manager</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole("agent");
-                      setForm({ email: "agent@gmail.com", password: "password123" });
-                      setError("");
-                    }}
-                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
-                      selectedRole === "agent"
-                        ? "border-blue-700 bg-blue-700 text-white ring-2 ring-blue-400/20"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
-                    }`}
-                  >
-                    <FiHeadphones className="w-4 h-4" />
-                    <span className="text-[11px]">Agent</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole("customer");
-                      setForm({ email: "customer@gmail.com", password: "password123" });
-                      setError("");
-                    }}
-                    className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
-                      selectedRole === "customer"
-                        ? "border-emerald-700 bg-emerald-700 text-white ring-2 ring-emerald-400/20"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
-                    }`}
-                  >
-                    <FiUser className="w-4 h-4" />
-                    <span className="text-[11px]">Customer</span>
-                  </button>
+                  {[
+                    { id: "admin", label: "Admin", email: "admin@gmail.com", Icon: FiShield },
+                    { id: "manager", label: "Manager", email: "manager@gmail.com", Icon: FiBriefcase },
+                    { id: "agent", label: "Agent", email: "agent@gmail.com", Icon: FiHeadphones },
+                    { id: "customer", label: "Customer", email: "customer@gmail.com", Icon: FiUser },
+                  ].map(({ id, label, email, Icon }) => {
+                    const isSelected = selectedRole === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedRole(id);
+                          setForm({ email, password: "password123" });
+                          setError("");
+                        }}
+                        className={`rounded-xl border py-2 px-1 text-xs font-bold transition shadow-xs cursor-pointer text-center flex flex-col items-center justify-center gap-0.5 ${
+                          isSelected
+                            ? "border-emerald-700 bg-emerald-700 text-white ring-2 ring-emerald-400/20 shadow-sm"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-emerald-50/40 hover:border-emerald-200"
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-[11px]">{label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
