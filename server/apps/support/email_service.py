@@ -43,6 +43,7 @@ def get_ai_email_config() -> AIEmailAutomationConfig:
             "closed_enabled": True,
             "auto_send_enabled": True,
             "resend_api_key": "",
+            "brevo_api_key": "",
             "from_email": "SupportPilot <onboarding@resend.dev>",
         }
     )
@@ -67,19 +68,30 @@ def update_ai_email_config(data: dict) -> dict:
         config.auto_send_enabled = bool(data["auto_send_enabled"])
     if "resend_api_key" in data:
         config.resend_api_key = str(data["resend_api_key"]).strip()
+    if "brevo_api_key" in data:
+        config.brevo_api_key = str(data["brevo_api_key"]).strip()
     if "from_email" in data and str(data["from_email"]).strip():
         config.from_email = str(data["from_email"]).strip()
         
     config.save()
     
-    effective_key = (
+    effective_resend_key = (
         (config.resend_api_key or "").strip()
         or getattr(settings, "RESEND_API_KEY", "")
         or os.environ.get("RESEND_API_KEY", "")
     ).strip()
-    masked_key = ""
-    if effective_key:
-        masked_key = effective_key[:6] + "..." + effective_key[-4:] if len(effective_key) > 10 else "***"
+    masked_resend_key = ""
+    if effective_resend_key:
+        masked_resend_key = effective_resend_key[:6] + "..." + effective_resend_key[-4:] if len(effective_resend_key) > 10 else "***"
+
+    effective_brevo_key = (
+        (config.brevo_api_key or "").strip()
+        or getattr(settings, "BREVO_API_KEY", "")
+        or os.environ.get("BREVO_API_KEY", "")
+    ).strip()
+    masked_brevo_key = ""
+    if effective_brevo_key:
+        masked_brevo_key = effective_brevo_key[:6] + "..." + effective_brevo_key[-4:] if len(effective_brevo_key) > 10 else "***"
 
     return {
         "open_enabled": config.open_enabled,
@@ -89,8 +101,10 @@ def update_ai_email_config(data: dict) -> dict:
         "closed_enabled": config.closed_enabled,
         "auto_send_enabled": config.auto_send_enabled,
         "from_email": config.from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "SupportPilot <onboarding@resend.dev>"),
-        "has_resend_api_key": bool(effective_key),
-        "masked_resend_api_key": masked_key,
+        "has_resend_api_key": bool(effective_resend_key),
+        "masked_resend_api_key": masked_resend_key,
+        "has_brevo_api_key": bool(effective_brevo_key),
+        "masked_brevo_api_key": masked_brevo_key,
         "updated_at": config.updated_at.isoformat() if config.updated_at else datetime.now(timezone.utc).isoformat(),
     }
 
@@ -210,16 +224,27 @@ def _dispatch_via_any_backend(
 
             return False, f"Resend API Error: {raw_err_msg}"
 
-    # 2. Brevo API (HTTPS Port 443)
-    brevo_api_key = (getattr(settings, "BREVO_API_KEY", "") or os.environ.get("BREVO_API_KEY", "")).strip()
+    # 2. Brevo REST API (HTTPS Port 443 - Can send to ANY email worldwide without domain requirement)
+    brevo_api_key = (
+        (config.brevo_api_key or "").strip()
+        or getattr(settings, "BREVO_API_KEY", "")
+        or os.environ.get("BREVO_API_KEY", "")
+    ).strip()
     if brevo_api_key:
         try:
             import urllib.request
+            # Extract clean sender email
+            import re
+            match = re.search(r'<([^>]+)>', from_email)
+            clean_sender = match.group(1).strip() if match else from_email.strip()
+            if "onboarding@resend.dev" in clean_sender:
+                clean_sender = "sourishnarendrula@gmail.com"
+
             payload = {
-                "sender": {"name": "SupportPilot", "email": "onboarding@resend.dev"},
+                "sender": {"name": "SupportPilot", "email": clean_sender},
                 "to": [{"email": recipient}],
                 "subject": subject,
-                "htmlContent": html_body or body,
+                "htmlContent": html_body or f"<pre>{body}</pre>",
                 "textContent": body,
             }
             req = urllib.request.Request(
@@ -228,13 +253,23 @@ def _dispatch_via_any_backend(
                 headers={
                     "api-key": brevo_api_key,
                     "Content-Type": "application/json",
+                    "User-Agent": "SupportPilot-MailEngine/1.0",
                 }
             )
             with urllib.request.urlopen(req, timeout=12) as resp:
                 if resp.status in [200, 201, 202]:
                     return True, None
         except Exception as b_err:
-            return False, f"Brevo API Error: {b_err}"
+            raw_b = ""
+            if hasattr(b_err, "read"):
+                try:
+                    b_json = json.loads(b_err.read().decode("utf-8"))
+                    raw_b = b_json.get("message") or str(b_err)
+                except Exception:
+                    raw_b = str(b_err)
+            else:
+                raw_b = str(b_err)
+            return False, f"Brevo API Error: {raw_b}"
 
     # 3. Standard SMTP (Local server fallback)
     try:

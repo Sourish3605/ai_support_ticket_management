@@ -608,6 +608,16 @@ class AIEmailAutomationConfigView(APIView):
         masked_key = ""
         if effective_key:
             masked_key = effective_key[:6] + "..." + effective_key[-4:] if len(effective_key) > 10 else "***"
+
+        effective_b_key = (
+            (config.brevo_api_key or "").strip()
+            or getattr(settings, "BREVO_API_KEY", "")
+            or os.environ.get("BREVO_API_KEY", "")
+        ).strip()
+        masked_b_key = ""
+        if effective_b_key:
+            masked_b_key = effective_b_key[:6] + "..." + effective_b_key[-4:] if len(effective_b_key) > 10 else "***"
+
         return Response({
             "open_enabled": config.open_enabled,
             "in_progress_enabled": config.in_progress_enabled,
@@ -618,6 +628,8 @@ class AIEmailAutomationConfigView(APIView):
             "from_email": config.from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "SupportPilot <onboarding@resend.dev>"),
             "has_resend_api_key": bool(effective_key),
             "masked_resend_api_key": masked_key,
+            "has_brevo_api_key": bool(effective_b_key),
+            "masked_brevo_api_key": masked_b_key,
             "updated_at": config.updated_at.isoformat() if config.updated_at else None,
         }, status=status.HTTP_200_OK)
 
