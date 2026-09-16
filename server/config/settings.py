@@ -224,7 +224,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # ==========================================
-# Email Configuration (SMTP & Gmail Support)
+# Email Configuration (SMTP & REST APIs)
 # ==========================================
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
@@ -235,4 +235,10 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=config('EMAIL_HOST_USER', default='supportpilot.ai@gmail.com') or 'supportpilot.ai@gmail.com')
 EMAIL_TIMEOUT = 10
+
+# Cloud HTTPS Email APIs (Works on Render / Vercel without SMTP port blocking)
+RESEND_API_KEY = config('RESEND_API_KEY', default='')
+RESEND_FROM_EMAIL = config('RESEND_FROM_EMAIL', default='')
+BREVO_API_KEY = config('BREVO_API_KEY', default='')
+SENDGRID_API_KEY = config('SENDGRID_API_KEY', default='')
 
