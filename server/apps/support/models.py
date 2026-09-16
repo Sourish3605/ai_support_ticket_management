@@ -372,9 +372,20 @@ class EmailLog(models.Model):
     """Audit log of automated email deliveries across the ticket lifecycle."""
     EMAIL_TYPES = [
         ("ticket_created", "Ticket Received"),
-        ("resolution", "AI Resolution Ready"),
-        ("escalation", "Escalation Notice"),
+        ("acknowledgement", "Ticket Acknowledgement"),
+        ("in_progress", "Progress Update"),
+        ("pending", "Pending Information"),
         ("resolved", "Ticket Resolved"),
+        ("resolution", "AI Resolution Ready"),
+        ("closed", "Ticket Closed"),
+        ("escalation", "Escalation Notice"),
+        ("agent_response", "Agent Response"),
+        ("ticket_assigned", "Ticket Assigned"),
+        ("ticket_reassigned", "Ticket Reassigned"),
+        ("ticket_reopened", "Ticket Reopened"),
+        ("sla_warning", "SLA Warning"),
+        ("sla_breached", "SLA Breached"),
+        ("ai_solution", "AI Solution"),
     ]
     STATUS_CHOICES = [
         ("SENT", "SENT"),
@@ -390,10 +401,14 @@ class EmailLog(models.Model):
     )
     recipient = models.CharField(max_length=255)
     subject = models.CharField(max_length=255)
-    email_type = models.CharField(max_length=50, choices=EMAIL_TYPES)
+    email_type = models.CharField(max_length=50, default="acknowledgement")
+    trigger_status = models.CharField(max_length=50, blank=True, default="")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="SENT")
     body = models.TextField(blank=True, default="")
+    html_body = models.TextField(blank=True, default="")
     failure_reason = models.TextField(blank=True, default="")
+    ai_generated = models.BooleanField(default=True)
+    metadata = models.JSONField(default=dict, blank=True)
     sent_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -401,6 +416,24 @@ class EmailLog(models.Model):
 
     def __str__(self):
         return f"{self.email_type} -> {self.recipient} ({self.status})"
+
+
+class AIEmailAutomationConfig(models.Model):
+    """Admin configuration for automatic AI email notifications per ticket status."""
+    config_key = models.CharField(max_length=50, default="default", unique=True)
+    open_enabled = models.BooleanField(default=True)
+    in_progress_enabled = models.BooleanField(default=True)
+    pending_enabled = models.BooleanField(default=True)
+    solved_enabled = models.BooleanField(default=True)
+    closed_enabled = models.BooleanField(default=True)
+    auto_send_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return (
+            f"AIEmailConfig(Open={self.open_enabled}, InProgress={self.in_progress_enabled}, "
+            f"Pending={self.pending_enabled}, Solved={self.solved_enabled}, Closed={self.closed_enabled})"
+        )
 
 
 class ActivityLog(models.Model):

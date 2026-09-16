@@ -40,6 +40,10 @@ from .views_m3 import (
     EmailLogsView,
     SendTicketEmailAPIView,
     ActivityLogsView,
+    AIEmailAutomationConfigView,
+    AIEmailRetryView,
+    AIEmailPreviewView,
+    AIEmailTriggerView,
 )
 from .views_m4 import (
     M4ReviewQueueView,
@@ -125,6 +129,15 @@ urlpatterns = [
     # =====================================================
     # Milestone 3 Email Automation Routes
     # =====================================================
+    path("email/automation-config", AIEmailAutomationConfigView.as_view(), name="email-automation-config-no-slash"),
+    path("email/automation-config/", AIEmailAutomationConfigView.as_view(), name="email-automation-config"),
+    path("email/retry", AIEmailRetryView.as_view(), name="email-retry-no-slash"),
+    path("email/retry/", AIEmailRetryView.as_view(), name="email-retry"),
+    re_path(r"^email/retry/(?P<email_id>[A-Za-z0-9_-]+)/?$", AIEmailRetryView.as_view(), name="email-retry-id"),
+    path("email/preview", AIEmailPreviewView.as_view(), name="email-preview-no-slash"),
+    path("email/preview/", AIEmailPreviewView.as_view(), name="email-preview"),
+    path("email/trigger-status", AIEmailTriggerView.as_view(), name="email-trigger-status-no-slash"),
+    path("email/trigger-status/", AIEmailTriggerView.as_view(), name="email-trigger-status"),
     path("email/ticket-created", EmailTicketCreatedView.as_view(), name="email-ticket-created-no-slash"),
     path("email/ticket-created/", EmailTicketCreatedView.as_view(), name="email-ticket-created"),
     path("email/resolution", EmailResolutionView.as_view(), name="email-resolution-no-slash"),

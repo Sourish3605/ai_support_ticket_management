@@ -19,6 +19,7 @@ import {
   FiClock,
   FiSun,
   FiMoon,
+  FiMail,
 } from "react-icons/fi";
 
 import { useEffect, useState } from "react";
@@ -138,6 +139,7 @@ const Sidebar = ({
       { to: "/tickets/ai-review", label: "AI Review Queue", icon: FiClipboard },
       { to: "/admin/knowledge", label: "Knowledge Base", icon: FiClipboard },
       { to: "/admin/ai-settings", label: "AI Configuration", icon: FiSettings },
+      { to: "/admin/email-automation", label: "Email Automation", icon: FiMail },
     ],
   };
 

@@ -247,6 +247,9 @@ button, a {
   padding: 14px 24px;
   border-bottom: 1px solid #e2e8f0;
   background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .sp-agent-topbar .sp-breadcrumb {
@@ -281,11 +284,16 @@ button, a {
 
 .sp-admin-sidebar {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
   flex-direction: column;
   background: #ffffff;
   border-right: 1px solid #e2e8f0;
   padding: 18px 0 0;
+  overflow: hidden;
+  z-index: 30;
 }
 
 .sp-admin-sidebar .sp-logo-mark {
@@ -313,6 +321,7 @@ button, a {
   padding: 0 18px 18px;
   border-bottom: 1px solid #f1f5f9;
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 .sp-admin-sidebar .sp-nav-heading {
@@ -322,6 +331,30 @@ button, a {
   font-weight: 700;
   letter-spacing: 1.2px;
   text-transform: uppercase;
+}
+
+.sp-admin-sidebar .sp-sidebar-nav {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sp-admin-sidebar .sp-sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sp-admin-sidebar .sp-sidebar-nav::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+.sp-admin-sidebar .sp-sidebar-nav::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.sp-admin-sidebar .sp-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .sp-admin-sidebar .sp-sidebar-nav a {
@@ -354,6 +387,7 @@ button, a {
   margin-top: auto;
   padding: 14px 18px 16px;
   border-top: 1px solid #f1f5f9;
+  flex-shrink: 0;
 }
 
 .sp-admin-topbar {
@@ -364,6 +398,9 @@ button, a {
   padding: 14px 24px;
   border-bottom: 1px solid #e2e8f0;
   background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .sp-admin-topbar .sp-breadcrumb {
@@ -399,11 +436,16 @@ button, a {
 
 .sp-manager-sidebar {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
   flex-direction: column;
   background: #ffffff;
   border-right: 1px solid #e2e8f0;
   padding: 18px 0 0;
+  overflow: hidden;
+  z-index: 30;
 }
 
 .sp-manager-sidebar .sp-logo-mark {
@@ -431,6 +473,7 @@ button, a {
   padding: 0 18px 18px;
   border-bottom: 1px solid #f1f5f9;
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 .sp-manager-sidebar .sp-nav-heading {
@@ -440,6 +483,30 @@ button, a {
   font-weight: 700;
   letter-spacing: 1.2px;
   text-transform: uppercase;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.sp-manager-sidebar .sp-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .sp-manager-sidebar .sp-sidebar-nav a {
@@ -487,6 +554,7 @@ button, a {
   margin-top: auto;
   padding: 14px 18px 16px;
   border-top: 1px solid #f1f5f9;
+  flex-shrink: 0;
 }
 
 .sp-manager-topbar {
@@ -497,6 +565,9 @@ button, a {
   padding: 14px 24px;
   border-bottom: 1px solid #e2e8f0;
   background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
 .sp-manager-topbar .sp-breadcrumb {

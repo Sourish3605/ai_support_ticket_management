@@ -136,6 +136,23 @@ class M4ValidateAgentActionView(APIView):
         ticket.status = new_status
         ticket.save()
 
+        # Automatic AI Email Dispatch on Status Transition
+        if new_status != old_status:
+            try:
+                from .email_service import dispatch_status_ai_email
+                dispatch_status_ai_email(
+                    ticket=ticket,
+                    target_status=new_status,
+                    old_status=old_status,
+                    trigger_source=f"Agent Validation ({action})",
+                    extra_context={
+                        "resolution_notes": payload.get("response") or payload.get("remarks") or ticket.resolution_notes,
+                        "info_needed": payload.get("infoNeeded") or payload.get("reason"),
+                    }
+                )
+            except Exception as mail_err:
+                print(f"[M4 Status Email Dispatch Notice] {mail_err}")
+
         # Record Status History
         TicketStatusHistory.objects.create(
             history_id=f"HST-{uuid.uuid4().hex[:8].upper()}",
