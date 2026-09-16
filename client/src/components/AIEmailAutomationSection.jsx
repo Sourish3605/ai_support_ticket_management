@@ -100,9 +100,8 @@ export default function AIEmailAutomationSection() {
   const [deliveryFilter, setDeliveryFilter] = useState("ALL");
   const [activeTab, setActiveTab] = useState("matrix"); // matrix | history | tester
 
-  // API Credentials State
+  // Resend API Credentials State
   const [resendApiKeyInput, setResendApiKeyInput] = useState("");
-  const [brevoApiKeyInput, setBrevoApiKeyInput] = useState("");
   const [fromEmailInput, setFromEmailInput] = useState("SupportPilot <onboarding@resend.dev>");
   const [showApiConfig, setShowApiConfig] = useState(false);
 
@@ -169,9 +168,6 @@ export default function AIEmailAutomationSection() {
       if (resendApiKeyInput.trim()) {
         payload.resend_api_key = resendApiKeyInput.trim();
       }
-      if (brevoApiKeyInput.trim()) {
-        payload.brevo_api_key = brevoApiKeyInput.trim();
-      }
       if (fromEmailInput.trim()) {
         payload.from_email = fromEmailInput.trim();
       }
@@ -179,8 +175,7 @@ export default function AIEmailAutomationSection() {
       if (res) {
         setConfig((prev) => ({ ...prev, ...res }));
         setResendApiKeyInput("");
-        setBrevoApiKeyInput("");
-        triggerToast("Email Gateway Credentials saved successfully! Ready to dispatch over HTTPS.", "success");
+        triggerToast("Resend API Credentials saved successfully! Ready to dispatch over HTTPS.", "success");
       }
     } catch (err) {
       triggerToast(`Failed to save credentials: ${err.message}`, "error");
@@ -443,7 +438,7 @@ export default function AIEmailAutomationSection() {
                   )}
                 </h3>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Render blocks outbound SMTP port 587. Resend API delivers emails over HTTPS (Port 443) to guarantee 100% cloud email delivery.
+                  Resend API delivers transactional emails over secure HTTPS (Port 443) bypassing cloud firewall restrictions.
                 </p>
               </div>
             </div>
@@ -459,29 +454,12 @@ export default function AIEmailAutomationSection() {
             )}
           </div>
 
-          <form onSubmit={handleSaveApiCredentials} className="space-y-3">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
-              {/* Brevo API (No domain required - Send to ANY email worldwide) */}
-              <div className="sm:col-span-1 lg:col-span-4">
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-1 flex items-center justify-between">
-                  <span>Brevo API Key (Send to ANY email):</span>
-                  {config.has_brevo_api_key && <span className="text-[10px] text-emerald-300 font-mono font-normal">Active: {config.masked_brevo_api_key}</span>}
-                </label>
-                <input
-                  type="text"
-                  value={brevoApiKeyInput}
-                  onChange={(e) => setBrevoApiKeyInput(e.target.value)}
-                  placeholder={config.has_brevo_api_key ? `Configured (${config.masked_brevo_api_key}) - paste new to replace` : "xkeysib-xxxxxxxx..."}
-                  className="w-full rounded-xl border border-emerald-500/40 bg-slate-950/80 px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:border-emerald-400 focus:outline-none"
-                />
-              </div>
-
-              {/* Resend API Key */}
-              <div className="sm:col-span-1 lg:col-span-4">
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-blue-400 mb-1 flex items-center justify-between">
-                  <span>Resend API Key:</span>
-                  {config.has_resend_api_key && <span className="text-[10px] text-blue-300 font-mono font-normal">Active: {config.masked_resend_api_key}</span>}
-                </label>
+          <form onSubmit={handleSaveApiCredentials} className="grid sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            <div className="sm:col-span-1 lg:col-span-5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                Resend API Key:
+              </label>
+              <div className="relative">
                 <input
                   type="text"
                   value={resendApiKeyInput}
@@ -490,37 +468,35 @@ export default function AIEmailAutomationSection() {
                   className="w-full rounded-xl border border-slate-600 bg-slate-950/80 px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:border-blue-400 focus:outline-none"
                 />
               </div>
-
-              {/* Sender Email */}
-              <div className="sm:col-span-1 lg:col-span-4">
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
-                  Sender Email:
-                </label>
-                <input
-                  type="text"
-                  value={fromEmailInput}
-                  onChange={(e) => setFromEmailInput(e.target.value)}
-                  placeholder="SupportPilot <sourishnarendrula@gmail.com>"
-                  className="w-full rounded-xl border border-slate-600 bg-slate-950/80 px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:border-blue-400 focus:outline-none"
-                />
-              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-              <div className="text-[11px] text-slate-400 space-y-0.5">
-                <div>⚡ <strong>Brevo Key:</strong> Sends 300 emails/day to <em>ANY customer email address worldwide</em> without buying a domain.</div>
-                <div>🔒 <strong>Resend Key:</strong> Sends to your registered email (<code>sourishnarendrula@gmail.com</code>) or verified domains.</div>
-              </div>
+            <div className="sm:col-span-1 lg:col-span-4">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                From Sender Email:
+              </label>
+              <input
+                type="text"
+                value={fromEmailInput}
+                onChange={(e) => setFromEmailInput(e.target.value)}
+                placeholder="SupportPilot <onboarding@resend.dev>"
+                className="w-full rounded-xl border border-slate-600 bg-slate-950/80 px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:border-blue-400 focus:outline-none"
+              />
+            </div>
+
+            <div className="lg:col-span-3">
               <button
                 type="submit"
-                disabled={isSaving || (!resendApiKeyInput.trim() && !brevoApiKeyInput.trim() && fromEmailInput === config.from_email)}
-                className="w-full sm:w-auto rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-6 py-2.5 text-xs font-bold transition cursor-pointer shadow-md flex items-center justify-center gap-2"
+                disabled={isSaving || (!resendApiKeyInput.trim() && fromEmailInput === config.from_email)}
+                className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 text-xs font-bold transition cursor-pointer shadow-md flex items-center justify-center gap-2"
               >
                 <FiCheck className="w-3.5 h-3.5" />
                 <span>{isSaving ? "Saving..." : "Save Credentials"}</span>
               </button>
             </div>
           </form>
+          <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-2">
+            <span>💡 For testing with unverified domains, keep sender as <code className="text-blue-300 bg-black/40 px-1.5 py-0.5 rounded">SupportPilot &lt;onboarding@resend.dev&gt;</code> to deliver to your registered email.</span>
+          </div>
         </div>
       )}
 
