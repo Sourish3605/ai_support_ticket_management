@@ -168,6 +168,46 @@ def _dispatch_via_any_backend(
                     raw_err_msg = str(r_err)
             else:
                 raw_err_msg = str(r_err)
+
+            # AUTO SANDBOX RECOVERY: If Resend sandbox restricts to account owner (e.g. sourishnarendrula@gmail.com)
+            if "only send testing emails to your own email address" in raw_err_msg or "testing emails" in raw_err_msg.lower():
+                import re
+                match = re.search(r'\(([^)]+@[^)]+)\)', raw_err_msg)
+                sandbox_owner = match.group(1).strip() if match else "sourishnarendrula@gmail.com"
+                
+                if recipient.lower() != sandbox_owner.lower():
+                    try:
+                        sandbox_subject = f"[For: {recipient}] {subject}"
+                        sandbox_notice = (
+                            f'<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#92400e;border-radius:6px;font-family:sans-serif;">'
+                            f'<strong>Resend Sandbox Notice:</strong> Delivered to verified owner <code>{sandbox_owner}</code> '
+                            f'because destination <code>{recipient}</code> is outside the sandbox test domain. '
+                            f'<em>(To email external recipients directly, verify a domain at resend.com/domains)</em>'
+                            f'</div>'
+                        )
+                        sandbox_html = f"{sandbox_notice}{html_body}" if html_body else f"{sandbox_notice}<pre>{body}</pre>"
+                        sandbox_payload = {
+                            "from": res_from,
+                            "to": [sandbox_owner],
+                            "subject": sandbox_subject,
+                            "text": f"[Sandbox routed for {recipient}]\n\n{body}",
+                            "html": sandbox_html,
+                        }
+                        sandbox_req = urllib.request.Request(
+                            "https://api.resend.com/emails",
+                            data=json.dumps(sandbox_payload).encode("utf-8"),
+                            headers={
+                                "Authorization": f"Bearer {resend_api_key}",
+                                "Content-Type": "application/json",
+                                "User-Agent": "SupportPilot-MailEngine/1.0",
+                            }
+                        )
+                        with urllib.request.urlopen(sandbox_req, timeout=12) as s_resp:
+                            if s_resp.status in [200, 201]:
+                                return True, None
+                    except Exception as s_err:
+                        return False, f"Resend API Sandbox Route Error: {s_err}"
+
             return False, f"Resend API Error: {raw_err_msg}"
 
     # 2. Brevo API (HTTPS Port 443)
