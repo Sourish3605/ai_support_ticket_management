@@ -125,11 +125,33 @@ def _dispatch_via_any_backend(
         return False, "Recipient email address is invalid or missing."
 
     config = get_ai_email_config()
-    resend_api_key = (
+    raw_resend = (
         (config.resend_api_key or "").strip()
         or getattr(settings, "RESEND_API_KEY", "")
         or os.environ.get("RESEND_API_KEY", "")
     ).strip()
+    
+    raw_brevo = (
+        (config.brevo_api_key or "").strip()
+        or getattr(settings, "BREVO_API_KEY", "")
+        or os.environ.get("BREVO_API_KEY", "")
+    ).strip()
+
+    # Intelligent Key Auto-Detection:
+    # If a Brevo key (starts with xkeysib-) was entered anywhere, route to Brevo!
+    # If a Resend key (starts with re_) was entered anywhere, route to Resend!
+    resend_api_key = ""
+    brevo_api_key = ""
+
+    if raw_resend.startswith("xkeysib-"):
+        brevo_api_key = raw_resend
+    elif raw_resend.startswith("re_") or raw_resend:
+        resend_api_key = raw_resend
+
+    if raw_brevo.startswith("re_"):
+        resend_api_key = raw_brevo
+    elif raw_brevo.startswith("xkeysib-") or raw_brevo:
+        brevo_api_key = raw_brevo
     
     from_email = (
         (config.from_email or "").strip()
@@ -138,7 +160,50 @@ def _dispatch_via_any_backend(
         or "SupportPilot <onboarding@resend.dev>"
     ).strip()
 
-    # 1. Resend API (HTTPS Port 443 - Recommended for Render)
+    # 1. Brevo REST API (HTTPS Port 443 - PRIORITIZED: Delivers to ANY email worldwide without domain requirement)
+    if brevo_api_key:
+        try:
+            import urllib.request
+            import re
+            match = re.search(r'<([^>]+)>', from_email)
+            clean_sender = match.group(1).strip() if match else from_email.strip()
+            if "onboarding@resend.dev" in clean_sender or "example.com" in clean_sender:
+                clean_sender = "sourishnarendrula@gmail.com"
+
+            payload = {
+                "sender": {"name": "SupportPilot", "email": clean_sender},
+                "to": [{"email": recipient}],
+                "subject": subject,
+                "htmlContent": html_body or f"<pre>{body}</pre>",
+                "textContent": body,
+            }
+            req = urllib.request.Request(
+                "https://api.brevo.com/v3/smtp/email",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "api-key": brevo_api_key,
+                    "Content-Type": "application/json",
+                    "User-Agent": "SupportPilot-MailEngine/1.0",
+                }
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status in [200, 201, 202]:
+                    return True, None
+        except Exception as b_err:
+            raw_b = ""
+            if hasattr(b_err, "read"):
+                try:
+                    b_json = json.loads(b_err.read().decode("utf-8"))
+                    raw_b = b_json.get("message") or str(b_err)
+                except Exception:
+                    raw_b = str(b_err)
+            else:
+                raw_b = str(b_err)
+            # If Resend is also configured, let it fall through, otherwise return Brevo error
+            if not resend_api_key:
+                return False, f"Brevo API Error: {raw_b}"
+
+    # 2. Resend REST API (HTTPS Port 443)
     if resend_api_key:
         try:
             import urllib.request
@@ -196,7 +261,7 @@ def _dispatch_via_any_backend(
                             f'<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#92400e;border-radius:6px;font-family:sans-serif;">'
                             f'<strong>Resend Sandbox Notice:</strong> Delivered to verified owner <code>{sandbox_owner}</code> '
                             f'because destination <code>{recipient}</code> is outside the sandbox test domain. '
-                            f'<em>(To email external recipients directly, verify a domain at resend.com/domains)</em>'
+                            f'<em>(To email external recipients directly, configure your Brevo API key above or verify a domain at resend.com/domains)</em>'
                             f'</div>'
                         )
                         sandbox_html = f"{sandbox_notice}{html_body}" if html_body else f"{sandbox_notice}<pre>{body}</pre>"
@@ -223,53 +288,6 @@ def _dispatch_via_any_backend(
                         return False, f"Resend API Sandbox Route Error: {s_err}"
 
             return False, f"Resend API Error: {raw_err_msg}"
-
-    # 2. Brevo REST API (HTTPS Port 443 - Can send to ANY email worldwide without domain requirement)
-    brevo_api_key = (
-        (config.brevo_api_key or "").strip()
-        or getattr(settings, "BREVO_API_KEY", "")
-        or os.environ.get("BREVO_API_KEY", "")
-    ).strip()
-    if brevo_api_key:
-        try:
-            import urllib.request
-            # Extract clean sender email
-            import re
-            match = re.search(r'<([^>]+)>', from_email)
-            clean_sender = match.group(1).strip() if match else from_email.strip()
-            if "onboarding@resend.dev" in clean_sender:
-                clean_sender = "sourishnarendrula@gmail.com"
-
-            payload = {
-                "sender": {"name": "SupportPilot", "email": clean_sender},
-                "to": [{"email": recipient}],
-                "subject": subject,
-                "htmlContent": html_body or f"<pre>{body}</pre>",
-                "textContent": body,
-            }
-            req = urllib.request.Request(
-                "https://api.brevo.com/v3/smtp/email",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "api-key": brevo_api_key,
-                    "Content-Type": "application/json",
-                    "User-Agent": "SupportPilot-MailEngine/1.0",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                if resp.status in [200, 201, 202]:
-                    return True, None
-        except Exception as b_err:
-            raw_b = ""
-            if hasattr(b_err, "read"):
-                try:
-                    b_json = json.loads(b_err.read().decode("utf-8"))
-                    raw_b = b_json.get("message") or str(b_err)
-                except Exception:
-                    raw_b = str(b_err)
-            else:
-                raw_b = str(b_err)
-            return False, f"Brevo API Error: {raw_b}"
 
     # 3. Standard SMTP (Local server fallback)
     try:
