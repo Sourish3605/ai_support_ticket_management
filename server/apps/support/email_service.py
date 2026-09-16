@@ -42,13 +42,15 @@ def get_ai_email_config() -> AIEmailAutomationConfig:
             "solved_enabled": True,
             "closed_enabled": True,
             "auto_send_enabled": True,
+            "resend_api_key": "",
+            "from_email": "SupportPilot <onboarding@resend.dev>",
         }
     )
     return config
 
 
 def update_ai_email_config(data: dict) -> dict:
-    """Update AI email automation configuration toggles."""
+    """Update AI email automation configuration toggles and API credentials."""
     config = get_ai_email_config()
     
     if "open_enabled" in data:
@@ -63,9 +65,22 @@ def update_ai_email_config(data: dict) -> dict:
         config.closed_enabled = bool(data["closed_enabled"])
     if "auto_send_enabled" in data:
         config.auto_send_enabled = bool(data["auto_send_enabled"])
+    if "resend_api_key" in data:
+        config.resend_api_key = str(data["resend_api_key"]).strip()
+    if "from_email" in data and str(data["from_email"]).strip():
+        config.from_email = str(data["from_email"]).strip()
         
     config.save()
     
+    effective_key = (
+        (config.resend_api_key or "").strip()
+        or getattr(settings, "RESEND_API_KEY", "")
+        or os.environ.get("RESEND_API_KEY", "")
+    ).strip()
+    masked_key = ""
+    if effective_key:
+        masked_key = effective_key[:6] + "..." + effective_key[-4:] if len(effective_key) > 10 else "***"
+
     return {
         "open_enabled": config.open_enabled,
         "in_progress_enabled": config.in_progress_enabled,
@@ -73,8 +88,141 @@ def update_ai_email_config(data: dict) -> dict:
         "solved_enabled": config.solved_enabled,
         "closed_enabled": config.closed_enabled,
         "auto_send_enabled": config.auto_send_enabled,
+        "from_email": config.from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "SupportPilot <onboarding@resend.dev>"),
+        "has_resend_api_key": bool(effective_key),
+        "masked_resend_api_key": masked_key,
         "updated_at": config.updated_at.isoformat() if config.updated_at else datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _dispatch_via_any_backend(
+    recipient: str,
+    subject: str,
+    body: str,
+    html_body: str | None = None,
+) -> tuple[bool, str | None]:
+    """
+    Unified email dispatcher with automatic multi-tier fallback:
+    1. Resend REST API over HTTPS (Port 443 - Bypasses cloud SMTP firewall restrictions)
+    2. Brevo REST API over HTTPS (Port 443)
+    3. Django SMTP Backend (Port 587 - Works on localhost / open ports)
+    """
+    if not recipient or "@" not in recipient or recipient == "Unknown":
+        return False, "Recipient email address is invalid or missing."
+
+    config = get_ai_email_config()
+    resend_api_key = (
+        (config.resend_api_key or "").strip()
+        or getattr(settings, "RESEND_API_KEY", "")
+        or os.environ.get("RESEND_API_KEY", "")
+    ).strip()
+    
+    from_email = (
+        (config.from_email or "").strip()
+        or getattr(settings, "RESEND_FROM_EMAIL", "")
+        or getattr(settings, "DEFAULT_FROM_EMAIL", "")
+        or "SupportPilot <onboarding@resend.dev>"
+    ).strip()
+
+    # 1. Resend API (HTTPS Port 443 - Recommended for Render)
+    if resend_api_key:
+        try:
+            import urllib.request
+            import urllib.error
+            
+            # Format sender email safely
+            res_from = from_email
+            if not res_from or "gmail.com" in res_from or "example.com" in res_from:
+                res_from = "SupportPilot <onboarding@resend.dev>"
+            elif "<" not in res_from and "@" in res_from:
+                res_from = f"SupportPilot <{res_from}>"
+
+            payload = {
+                "from": res_from,
+                "to": [recipient],
+                "subject": subject,
+                "text": body,
+            }
+            if html_body:
+                payload["html"] = html_body
+
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {resend_api_key}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "SupportPilot-MailEngine/1.0",
+                }
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status in [200, 201]:
+                    return True, None
+        except Exception as r_err:
+            raw_err_msg = ""
+            if hasattr(r_err, "read"):
+                try:
+                    err_json = json.loads(r_err.read().decode("utf-8"))
+                    raw_err_msg = err_json.get("message") or err_json.get("error") or str(r_err)
+                except Exception:
+                    raw_err_msg = str(r_err)
+            else:
+                raw_err_msg = str(r_err)
+            return False, f"Resend API Error: {raw_err_msg}"
+
+    # 2. Brevo API (HTTPS Port 443)
+    brevo_api_key = (getattr(settings, "BREVO_API_KEY", "") or os.environ.get("BREVO_API_KEY", "")).strip()
+    if brevo_api_key:
+        try:
+            import urllib.request
+            payload = {
+                "sender": {"name": "SupportPilot", "email": "onboarding@resend.dev"},
+                "to": [{"email": recipient}],
+                "subject": subject,
+                "htmlContent": html_body or body,
+                "textContent": body,
+            }
+            req = urllib.request.Request(
+                "https://api.brevo.com/v3/smtp/email",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "api-key": brevo_api_key,
+                    "Content-Type": "application/json",
+                }
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status in [200, 201, 202]:
+                    return True, None
+        except Exception as b_err:
+            return False, f"Brevo API Error: {b_err}"
+
+    # 3. Standard SMTP (Local server fallback)
+    try:
+        if html_body:
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=body,
+                from_email=from_email,
+                to=[recipient],
+            )
+            msg.attach_alternative(html_body, "text/html")
+            msg.send(fail_silently=False)
+        else:
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email=from_email,
+                recipient_list=[recipient],
+                fail_silently=False,
+            )
+        return True, None
+    except Exception as mail_err:
+        err_msg = str(mail_err)
+        if "101" in err_msg or "network is unreachable" in err_msg.lower():
+            return False, (
+                "Render cloud firewall blocks raw SMTP port 587. Please configure your Resend API Key in AI Email Automation settings to send over HTTPS."
+            )
+        return False, err_msg
 
 
 # =============================================================
@@ -763,100 +911,12 @@ def dispatch_status_ai_email(
     email_id = f"EML-{uuid.uuid4().hex[:8].upper()}"
 
     # Rule 5: Dispatch Email via Backend
-    dispatched = False
-    dispatch_error = None
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "supportpilot.ai@gmail.com") or "supportpilot.ai@gmail.com"
-
-    # A. Resend API (HTTPS Port 443 - Works on Render)
-    resend_api_key = getattr(settings, "RESEND_API_KEY", "") or ""
-    if resend_api_key and recipient and "@" in recipient and recipient != "Unknown":
-        try:
-            import urllib.request
-            res_from = getattr(settings, "RESEND_FROM_EMAIL", "") or ""
-            if not res_from:
-                if "gmail.com" in from_email or "example.com" in from_email:
-                    res_from = "SupportPilot <onboarding@resend.dev>"
-                else:
-                    res_from = f"SupportPilot <{from_email}>"
-            
-            payload = {
-                "from": res_from,
-                "to": [recipient],
-                "subject": subject,
-                "text": body,
-            }
-            if html_body:
-                payload["html"] = html_body
-            req = urllib.request.Request(
-                "https://api.resend.com/emails",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {resend_api_key}",
-                    "Content-Type": "application/json",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status in [200, 201]:
-                    dispatched = True
-                    dispatch_error = None
-        except Exception as r_err:
-            dispatch_error = f"Resend API: {r_err}"
-
-    # B. Brevo REST API (HTTPS Port 443 - Works on Render)
-    brevo_api_key = getattr(settings, "BREVO_API_KEY", "") or ""
-    if not dispatched and brevo_api_key and recipient and "@" in recipient and recipient != "Unknown":
-        try:
-            import urllib.request
-            payload = {
-                "sender": {"name": "SupportPilot", "email": from_email},
-                "to": [{"email": recipient}],
-                "subject": subject,
-                "htmlContent": html_body or body,
-                "textContent": body,
-            }
-            req = urllib.request.Request(
-                "https://api.brevo.com/v3/smtp/email",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "api-key": brevo_api_key,
-                    "Content-Type": "application/json",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status in [200, 201, 202]:
-                    dispatched = True
-                    dispatch_error = None
-        except Exception as b_err:
-            dispatch_error = f"Brevo API: {b_err}"
-
-    # C. Django SMTP Backend (For local server or hosting with open SMTP ports)
-    if not dispatched and recipient and "@" in recipient and recipient != "Unknown":
-        try:
-            if html_body:
-                msg = EmailMultiAlternatives(
-                    subject=subject,
-                    body=body,
-                    from_email=from_email,
-                    to=[recipient],
-                )
-                msg.attach_alternative(html_body, "text/html")
-                msg.send(fail_silently=False)
-            else:
-                send_mail(
-                    subject=subject,
-                    message=body,
-                    from_email=from_email,
-                    recipient_list=[recipient],
-                    fail_silently=False,
-                )
-            dispatched = True
-            dispatch_error = None
-        except Exception as mail_err:
-            err_msg = str(mail_err)
-            if "101" in err_msg or "network is unreachable" in err_msg.lower():
-                dispatch_error = "Render cloud firewall blocks raw SMTP port 587. Configure RESEND_API_KEY in Render environment variables for instant HTTPS delivery."
-            else:
-                dispatch_error = err_msg
+    dispatched, dispatch_error = _dispatch_via_any_backend(
+        recipient=recipient,
+        subject=subject,
+        body=body,
+        html_body=html_body,
+    )
 
     # Determine delivery status
     if not recipient or "@" not in recipient:
@@ -974,105 +1034,15 @@ def retry_failed_email_dispatch(email_id: str, custom_recipient: str | None = No
     html_body = email_log.html_body
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "supportpilot.ai@gmail.com") or "supportpilot.ai@gmail.com"
 
-    dispatched = False
-    dispatch_error = None
+    # Dispatch using multi-tier fallback (Resend HTTPS -> Brevo HTTPS -> SMTP)
+    dispatched, dispatch_error = _dispatch_via_any_backend(
+        recipient=recipient,
+        subject=subject,
+        body=body,
+        html_body=html_body,
+    )
 
-    # A. Resend API
-    resend_api_key = getattr(settings, "RESEND_API_KEY", "") or ""
-    if resend_api_key and recipient and "@" in recipient:
-        try:
-            import urllib.request
-            res_from = getattr(settings, "RESEND_FROM_EMAIL", "") or ""
-            if not res_from:
-                if "gmail.com" in from_email or "example.com" in from_email:
-                    res_from = "SupportPilot <onboarding@resend.dev>"
-                else:
-                    res_from = f"SupportPilot <{from_email}>"
-
-            payload = {
-                "from": res_from,
-                "to": [recipient],
-                "subject": subject,
-                "text": body,
-            }
-            if html_body:
-                payload["html"] = html_body
-            req = urllib.request.Request(
-                "https://api.resend.com/emails",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {resend_api_key}",
-                    "Content-Type": "application/json",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status in [200, 201]:
-                    dispatched = True
-                    dispatch_error = None
-        except Exception as r_err:
-            dispatch_error = f"Resend API: {r_err}"
-
-    # B. Brevo REST API
-    brevo_api_key = getattr(settings, "BREVO_API_KEY", "") or ""
-    if not dispatched and brevo_api_key and recipient and "@" in recipient:
-        try:
-            import urllib.request
-            payload = {
-                "sender": {"name": "SupportPilot", "email": from_email},
-                "to": [{"email": recipient}],
-                "subject": subject,
-                "htmlContent": html_body or body,
-                "textContent": body,
-            }
-            req = urllib.request.Request(
-                "https://api.brevo.com/v3/smtp/email",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "api-key": brevo_api_key,
-                    "Content-Type": "application/json",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status in [200, 201, 202]:
-                    dispatched = True
-                    dispatch_error = None
-        except Exception as b_err:
-            dispatch_error = f"Brevo API: {b_err}"
-
-    # C. Django SMTP
-    if not dispatched and recipient and "@" in recipient:
-        try:
-            if html_body:
-                msg = EmailMultiAlternatives(
-                    subject=subject,
-                    body=body,
-                    from_email=from_email,
-                    to=[recipient],
-                )
-                msg.attach_alternative(html_body, "text/html")
-                msg.send(fail_silently=False)
-            else:
-                send_mail(
-                    subject=subject,
-                    message=body,
-                    from_email=from_email,
-                    recipient_list=[recipient],
-                    fail_silently=False,
-                )
-            dispatched = True
-            dispatch_error = None
-        except Exception as mail_err:
-            err_msg = str(mail_err)
-            if "101" in err_msg or "network is unreachable" in err_msg.lower():
-                dispatch_error = "Render cloud firewall blocks raw SMTP port 587. Configure RESEND_API_KEY in Render environment variables for instant HTTPS delivery."
-            else:
-                dispatch_error = err_msg
-            # In testing/dev environment without active SMTP credentials, simulate success on valid address
-            if not getattr(settings, "EMAIL_HOST_USER", None) or "connection refused" in (dispatch_error or "").lower():
-                dispatched = True
-                dispatch_error = None
-
-    if dispatched or (recipient and "@" in recipient and not dispatch_error):
+    if dispatched and not dispatch_error:
         email_log.status = "SENT"
         email_log.failure_reason = ""
         email_log.save(update_fields=["status", "failure_reason"])
@@ -1091,6 +1061,7 @@ def retry_failed_email_dispatch(email_id: str, custom_recipient: str | None = No
         return {
             "success": True,
             "email_id": email_log.email_id,
+            "recipient": recipient,
             "status": "SENT",
             "message": f"Email successfully dispatched to {recipient}.",
         }

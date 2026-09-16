@@ -427,6 +427,8 @@ class AIEmailAutomationConfig(models.Model):
     solved_enabled = models.BooleanField(default=True)
     closed_enabled = models.BooleanField(default=True)
     auto_send_enabled = models.BooleanField(default=True)
+    resend_api_key = models.CharField(max_length=255, blank=True, default="")
+    from_email = models.CharField(max_length=255, blank=True, default="SupportPilot <onboarding@resend.dev>")
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

@@ -22,6 +22,9 @@ import {
   FiCheckCircle,
   FiLayers,
   FiZap,
+  FiKey,
+  FiLock,
+  FiShield,
 } from "react-icons/fi";
 
 const STATUS_ITEMS = [
@@ -39,41 +42,41 @@ const STATUS_ITEMS = [
     statusKey: "IN_PROGRESS",
     configKey: "in_progress_enabled",
     statusLabel: "In Progress",
-    emailTypeLabel: "Progress Update",
-    badgeBg: "bg-sky-50 text-sky-700 border-sky-200",
-    dotColor: "bg-sky-600",
-    description: "Informs the customer that their issue is actively being diagnosed by the assigned specialist.",
-    samplePrompt: "Updates customer with assigned engineer details, active diagnosis status, and troubleshooting milestones.",
+    emailTypeLabel: "Investigation Update",
+    badgeBg: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    dotColor: "bg-indigo-600",
+    description: "Notifies customer that an engineer/agent is actively diagnosing root cause, includes estimated ETA.",
+    samplePrompt: "Extracts assignee name, department, diagnostic milestones, and customer guidance.",
   },
   {
     statusKey: "PENDING",
     configKey: "pending_enabled",
-    statusLabel: "Pending",
-    emailTypeLabel: "Pending Information",
+    statusLabel: "Pending Info",
+    emailTypeLabel: "Action Required",
     badgeBg: "bg-amber-50 text-amber-700 border-amber-200",
-    dotColor: "bg-amber-500",
-    description: "Explains that the ticket is waiting for additional information/action; explicitly details what customer details are required.",
-    samplePrompt: "Identifies missing logs, error codes, or account details and prompts customer with clear action instructions.",
+    dotColor: "bg-amber-600",
+    description: "Requests additional diagnostics/logs/screenshots from customer before troubleshooting can proceed.",
+    samplePrompt: "Formats specific checklist of needed customer items with reply deadline instructions.",
   },
   {
     statusKey: "SOLVED",
     configKey: "solved_enabled",
     statusLabel: "Solved",
-    emailTypeLabel: "Resolution",
+    emailTypeLabel: "Resolution Summary",
     badgeBg: "bg-emerald-50 text-emerald-700 border-emerald-200",
     dotColor: "bg-emerald-600",
-    description: "Sends resolution summary, applied fix, and instructions/options if the issue is not actually resolved.",
-    samplePrompt: "Summarizes the verified solution, knowledge base steps taken, and provides 48h reopen instructions.",
+    description: "Dispatches complete solution overview, verification instructions, and survey feedback link.",
+    samplePrompt: "Summarizes resolution notes, troubleshooting steps applied, prevention advice, and satisfaction rating.",
   },
   {
     statusKey: "CLOSED",
     configKey: "closed_enabled",
     statusLabel: "Closed",
-    emailTypeLabel: "Closure",
-    badgeBg: "bg-slate-100 text-slate-700 border-slate-200",
+    emailTypeLabel: "Closure & Survey",
+    badgeBg: "bg-slate-100 text-slate-700 border-slate-300",
     dotColor: "bg-slate-500",
-    description: "Sends a professional closure email thanking the customer and providing the ticket reference number.",
-    samplePrompt: "Delivers a cordial thank you note, formal ticket reference, and invitation to submit future requests.",
+    description: "Final formal closure confirmation with archival reference and CSAT survey.",
+    samplePrompt: "Issues formal ticket archival notification and appreciation message.",
   },
 ];
 
@@ -85,6 +88,9 @@ export default function AIEmailAutomationSection() {
     solved_enabled: true,
     closed_enabled: true,
     auto_send_enabled: true,
+    has_resend_api_key: false,
+    masked_resend_api_key: "",
+    from_email: "SupportPilot <onboarding@resend.dev>",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -93,6 +99,11 @@ export default function AIEmailAutomationSection() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [deliveryFilter, setDeliveryFilter] = useState("ALL");
   const [activeTab, setActiveTab] = useState("matrix"); // matrix | history | tester
+
+  // Resend API Credentials State
+  const [resendApiKeyInput, setResendApiKeyInput] = useState("");
+  const [fromEmailInput, setFromEmailInput] = useState("SupportPilot <onboarding@resend.dev>");
+  const [showApiConfig, setShowApiConfig] = useState(false);
 
   // Toast State
   const [showToast, setShowToast] = useState(false);
@@ -131,7 +142,10 @@ export default function AIEmailAutomationSection() {
     setIsLoading(true);
     try {
       const cfg = await fetchAIEmailConfigApi();
-      if (cfg) setConfig(cfg);
+      if (cfg) {
+        setConfig((prev) => ({ ...prev, ...cfg }));
+        if (cfg.from_email) setFromEmailInput(cfg.from_email);
+      }
       const localTickets = getAllTickets();
       setTickets(localTickets);
       if (localTickets.length > 0 && !selectedTicketId) {
@@ -143,6 +157,30 @@ export default function AIEmailAutomationSection() {
       console.warn("Failed loading AI email data:", e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveApiCredentials = async (e) => {
+    if (e) e.preventDefault();
+    setIsSaving(true);
+    try {
+      const payload = {};
+      if (resendApiKeyInput.trim()) {
+        payload.resend_api_key = resendApiKeyInput.trim();
+      }
+      if (fromEmailInput.trim()) {
+        payload.from_email = fromEmailInput.trim();
+      }
+      const res = await updateAIEmailConfigApi(payload);
+      if (res) {
+        setConfig((prev) => ({ ...prev, ...res }));
+        setResendApiKeyInput("");
+        triggerToast("Resend API Credentials saved successfully! Instant HTTPS email delivery is now ready.", "success");
+      }
+    } catch (err) {
+      triggerToast(`Failed to save credentials: ${err.message}`, "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -330,37 +368,137 @@ export default function AIEmailAutomationSection() {
           </div>
         </div>
 
-        {/* NAVIGATION TABS */}
-        <div className="mt-6 flex items-center gap-2 border-t border-slate-800/80 pt-4 overflow-x-auto">
-          {[
-            { id: "matrix", label: "Status & AI Email Matrix", icon: FiSliders },
-            { id: "history", label: "Email Delivery History & Audit Logs", icon: FiClock, badge: emailLogs.length },
-            { id: "tester", label: "Live AI Email Simulator & Tester", icon: FiEye },
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer shrink-0 ${
-                  isActive
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-900/30"
-                    : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? "bg-white text-blue-700" : "bg-slate-800 text-slate-300"}`}>
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* NAVIGATION TABS & GATEWAY STATUS */}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 pt-4">
+          <div className="flex items-center gap-2 overflow-x-auto">
+            {[
+              { id: "matrix", label: "Status & AI Email Matrix", icon: FiSliders },
+              { id: "history", label: "Email Delivery History & Audit Logs", icon: FiClock, badge: emailLogs.length },
+              { id: "tester", label: "Live AI Email Simulator & Tester", icon: FiEye },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer shrink-0 ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-900/30"
+                      : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  {tab.badge !== undefined && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? "bg-white text-blue-700" : "bg-slate-800 text-slate-300"}`}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowApiConfig((v) => !v)}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer border ${
+              config.has_resend_api_key
+                ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/60"
+                : "bg-amber-950/60 border-amber-500/40 text-amber-300 hover:bg-amber-900/60"
+            }`}
+          >
+            <FiKey className="w-3.5 h-3.5" />
+            <span>{config.has_resend_api_key ? `Resend API: Active (${config.masked_resend_api_key || "Configured"})` : "Configure Resend API Key"}</span>
+            <span className={`h-2 w-2 rounded-full ${config.has_resend_api_key ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+          </button>
         </div>
       </div>
+
+      {/* RESEND HTTPS API CONFIGURATION CARD */}
+      {(!config.has_resend_api_key || showApiConfig) && (
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-indigo-500/30 rounded-2xl p-5 shadow-lg text-white space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-400 font-bold">
+                <FiShield className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Cloud Email Gateway (Resend HTTPS Port 443)</span>
+                  {config.has_resend_api_key ? (
+                    <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                      HTTPS ACTIVE
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-amber-500/20 border border-amber-400/30 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                      KEY REQUIRED FOR CLOUD DELIVERY
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Render blocks outbound SMTP port 587. Resend API delivers emails over HTTPS (Port 443) to guarantee 100% cloud email delivery.
+                </p>
+              </div>
+            </div>
+
+            {config.has_resend_api_key && (
+              <button
+                type="button"
+                onClick={() => setShowApiConfig(false)}
+                className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-white/5 cursor-pointer"
+              >
+                Hide Panel
+              </button>
+            )}
+          </div>
+
+          <form onSubmit={handleSaveApiCredentials} className="grid sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            <div className="sm:col-span-1 lg:col-span-5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                Resend API Key:
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={resendApiKeyInput}
+                  onChange={(e) => setResendApiKeyInput(e.target.value)}
+                  placeholder={config.has_resend_api_key ? `Configured (${config.masked_resend_api_key}) - paste new to replace` : "re_123456789_abcdef..."}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-950/80 px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="sm:col-span-1 lg:col-span-4">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1">
+                From Sender Email:
+              </label>
+              <input
+                type="text"
+                value={fromEmailInput}
+                onChange={(e) => setFromEmailInput(e.target.value)}
+                placeholder="SupportPilot <onboarding@resend.dev>"
+                className="w-full rounded-xl border border-slate-600 bg-slate-950/80 px-3.5 py-2 text-xs font-mono text-white placeholder-slate-500 focus:border-blue-400 focus:outline-none"
+              />
+            </div>
+
+            <div className="lg:col-span-3">
+              <button
+                type="submit"
+                disabled={isSaving || (!resendApiKeyInput.trim() && fromEmailInput === config.from_email)}
+                className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 text-xs font-bold transition cursor-pointer shadow-md flex items-center justify-center gap-2"
+              >
+                <FiCheck className="w-3.5 h-3.5" />
+                <span>{isSaving ? "Saving..." : "Save Credentials"}</span>
+              </button>
+            </div>
+          </form>
+          <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-2">
+            <span>💡 For testing with unverified domains, keep sender as <code className="text-blue-300 bg-black/40 px-1.5 py-0.5 rounded">SupportPilot &lt;onboarding@resend.dev&gt;</code> to deliver to your registered email.</span>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================
           TAB 1: STATUS & AI EMAIL CONFIGURATION MATRIX (REQUIRED)
