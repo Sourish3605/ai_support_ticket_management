@@ -112,6 +112,12 @@ export default function AIEmailAutomationSection() {
 
   // Email Detail View Modal
   const [viewEmailModal, setViewEmailModal] = useState(null);
+  const [modalRecipientInput, setModalRecipientInput] = useState("");
+
+  const handleOpenEmailModal = (log) => {
+    setViewEmailModal(log);
+    setModalRecipientInput(log.recipient || "");
+  };
 
   const triggerToast = (msg, type = "success") => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -194,18 +200,21 @@ export default function AIEmailAutomationSection() {
     }
   };
 
-  const handleRetryEmail = async (emailId) => {
+  const handleResendEmail = async (emailId, customRecipient = null) => {
     setRetryingEmailId(emailId);
     try {
-      const res = await retryFailedEmailApi(emailId);
+      const res = await retryFailedEmailApi(emailId, customRecipient);
       if (res?.success) {
-        triggerToast(`Email '${emailId}' retried successfully! Marked as SENT.`, "success");
-        loadData();
+        triggerToast(`Email '${emailId}' resent successfully to ${customRecipient || res?.recipient || "recipient"}!`, "success");
+        await loadData();
+        if (viewEmailModal && (viewEmailModal.email_id === emailId || String(viewEmailModal.id) === String(emailId))) {
+          setViewEmailModal((prev) => prev ? { ...prev, status: "SENT", failure_reason: "", recipient: customRecipient || prev.recipient } : null);
+        }
       } else {
-        triggerToast(`Retry failed: ${res?.error || "Unknown error"}`, "error");
+        triggerToast(`Resend failed: ${res?.error || res?.failure_reason || "Unknown error"}`, "error");
       }
     } catch (e) {
-      triggerToast(`Retry exception: ${e.message}`, "error");
+      triggerToast(`Resend exception: ${e.message}`, "error");
     } finally {
       setRetryingEmailId(null);
     }
@@ -622,22 +631,22 @@ export default function AIEmailAutomationSection() {
                         <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-2">
                           <button
                             type="button"
-                            onClick={() => setViewEmailModal(log)}
+                            onClick={() => handleOpenEmailModal(log)}
                             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                           >
                             View
                           </button>
 
-                          {isFailed && (
-                            <button
-                              type="button"
-                              onClick={() => handleRetryEmail(log.email_id || log.id)}
-                              disabled={retryingEmailId === (log.email_id || log.id)}
-                              className="rounded-lg bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 text-xs font-bold transition cursor-pointer shadow-xs"
-                            >
-                              {retryingEmailId === (log.email_id || log.id) ? "Retrying..." : "Retry"}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleResendEmail(log.email_id || log.id, log.recipient)}
+                            disabled={retryingEmailId === (log.email_id || log.id)}
+                            className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50 inline-flex items-center gap-1.5"
+                            title={`Resend email to ${log.recipient}`}
+                          >
+                            <FiSend className="w-3 h-3" />
+                            <span>{retryingEmailId === (log.email_id || log.id) ? "Resending..." : "Resend Mail"}</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -820,9 +829,18 @@ export default function AIEmailAutomationSection() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-1.5">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-2">
                 <div><span className="font-bold text-slate-600">Ticket:</span> <span className="font-bold text-blue-600">{viewEmailModal.ticket_number || `TKT-${viewEmailModal.ticket}`}</span></div>
-                <div><span className="font-bold text-slate-600">Recipient:</span> <span className="text-slate-900 font-medium">{viewEmailModal.recipient}</span></div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="font-bold text-slate-600 min-w-[70px]">Recipient:</span>
+                  <input
+                    type="email"
+                    value={modalRecipientInput}
+                    onChange={(e) => setModalRecipientInput(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-900 bg-white focus:border-blue-500 focus:outline-none"
+                    placeholder="recipient@example.com"
+                  />
+                </div>
                 <div><span className="font-bold text-slate-600">Subject:</span> <span className="text-slate-900 font-bold">{viewEmailModal.subject}</span></div>
                 <div><span className="font-bold text-slate-600">Status Trigger:</span> <span className="text-slate-900 font-semibold">{viewEmailModal.trigger_status || viewEmailModal.email_type}</span></div>
                 <div><span className="font-bold text-slate-600">Delivery Status:</span> <span className={`font-bold ${viewEmailModal.status === "SENT" ? "text-emerald-700" : "text-rose-700"}`}>{viewEmailModal.status}</span></div>
@@ -842,15 +860,26 @@ export default function AIEmailAutomationSection() {
               )}
             </div>
 
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+            <div className="p-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
               <span className="text-xs text-slate-400 font-mono">ID: {viewEmailModal.email_id}</span>
-              <button
-                type="button"
-                onClick={() => setViewEmailModal(null)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewEmailModal(null)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleResendEmail(viewEmailModal.email_id || viewEmailModal.id, modalRecipientInput || viewEmailModal.recipient)}
+                  disabled={retryingEmailId === (viewEmailModal.email_id || viewEmailModal.id)}
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition cursor-pointer shadow-sm disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  <FiSend className="w-3.5 h-3.5" />
+                  <span>{retryingEmailId === (viewEmailModal.email_id || viewEmailModal.id) ? "Resending..." : "Resend Mail"}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

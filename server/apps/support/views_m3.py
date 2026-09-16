@@ -631,7 +631,8 @@ class AIEmailRetryView(APIView):
         if not lookup_id:
             return Response({"error": "email_id is required for retry."}, status=status.HTTP_400_BAD_REQUEST)
         
-        res = retry_failed_email_dispatch(str(lookup_id))
+        custom_recipient = request.data.get("recipient") or request.data.get("recipient_email") or request.data.get("to")
+        res = retry_failed_email_dispatch(str(lookup_id), custom_recipient=custom_recipient)
         http_status = status.HTTP_200_OK if res.get("success") else status.HTTP_400_BAD_REQUEST
         return Response(res, status=http_status)
 

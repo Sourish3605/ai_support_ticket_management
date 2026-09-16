@@ -953,8 +953,8 @@ def dispatch_status_ai_email(
 # ADMIN RETRY MECHANISM FOR FAILED EMAILS
 # =============================================================
 
-def retry_failed_email_dispatch(email_id: str) -> dict:
-    """Retry sending a previously failed or pending email log."""
+def retry_failed_email_dispatch(email_id: str, custom_recipient: str | None = None) -> dict:
+    """Retry or resend a previously sent, failed, or pending email log."""
     email_log = EmailLog.objects.filter(email_id=email_id).first()
     if not email_log and email_id.isdigit():
         email_log = EmailLog.objects.filter(id=int(email_id)).first()
@@ -965,7 +965,10 @@ def retry_failed_email_dispatch(email_id: str) -> dict:
             "error": f"Email with ID '{email_id}' not found.",
         }
 
-    recipient = email_log.recipient
+    recipient = custom_recipient or email_log.recipient
+    if custom_recipient and custom_recipient != email_log.recipient:
+        email_log.recipient = custom_recipient
+        email_log.save(update_fields=["recipient"])
     subject = email_log.subject
     body = email_log.body
     html_body = email_log.html_body

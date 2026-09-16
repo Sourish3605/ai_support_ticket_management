@@ -338,9 +338,10 @@ export const updateAIEmailConfigApi = async (data = {}) => {
   };
 };
 
-export const retryFailedEmailApi = async (emailId) => {
+export const retryFailedEmailApi = async (emailId, customRecipient = null) => {
   try {
-    const res = await api.post(`/support/email/retry/${emailId}/`);
+    const payload = customRecipient ? { recipient: customRecipient } : {};
+    const res = await api.post(`/support/email/retry/${emailId}/`, payload);
     if (res?.data) return res.data;
   } catch (err) {
     console.warn("[m3AgentService] retryFailedEmailApi notice:", err.message);
