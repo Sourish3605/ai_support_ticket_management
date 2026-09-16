@@ -127,9 +127,13 @@ class EmailLogSerializer(serializers.ModelSerializer):
             "recipient",
             "subject",
             "email_type",
+            "trigger_status",
             "status",
             "body",
+            "html_body",
             "failure_reason",
+            "ai_generated",
+            "metadata",
             "sent_at",
         ]
 
@@ -597,20 +601,33 @@ class TicketListSerializer(serializers.ModelSerializer):
 class TicketStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=[
+            "OPEN",
+            "Open",
             "NEW",
+            "DRAFT",
             "CLASSIFIED",
+            "Classified",
+            "AI_ANALYZING",
             "AI_PROCESSING",
+            "AI_RESPONDED",
             "AI_RESOLUTION_READY",
             "AI_RESOLVED",
+            "ASSIGNED",
             "IN_PROGRESS",
+            "In Progress",
+            "WAITING_FOR_CUSTOMER",
+            "AWAITING_CUSTOMER_INFO",
+            "ON_HOLD",
+            "PENDING_AGENT_REVIEW",
+            "PENDING_CONFIRMATION",
+            "PENDING",
+            "Pending",
             "ESCALATED",
             "RESOLVED",
-            "CLOSED",
-            "Open",
-            "Classified",
-            "In Progress",
             "Resolved",
+            "CLOSED",
             "Closed",
+            "REOPENED",
         ]
     )
 

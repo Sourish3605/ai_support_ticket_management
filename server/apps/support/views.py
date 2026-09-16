@@ -324,13 +324,24 @@ class TicketListCreateView(generics.ListCreateAPIView):
         except Exception:
             pass
 
-        # 5. Automatic Ticket Assignment to Available Department Agent
+        # 5. Automatic AI Email Notification on Ticket Open / Creation
+        try:
+            from .email_service import dispatch_status_ai_email
+            dispatch_status_ai_email(
+                ticket=ticket,
+                target_status="OPEN",
+                trigger_source="Ticket Creation",
+            )
+        except Exception as mail_err:
+            print(f"[Open Email Dispatch Notice] {mail_err}")
+
+        # 6. Automatic Ticket Assignment to Available Department Agent
         try:
             auto_assign_ticket_to_department_agent(ticket, update_status_if_open=True)
         except Exception as assign_err:
             print(f"[Auto-Assign Notice] {assign_err}")
 
-        # 6. Run Milestone 2 & Milestone 3 End-to-End Multi-Agent AI Workflow
+        # 7. Run Milestone 2 & Milestone 3 End-to-End Multi-Agent AI Workflow
         try:
             run_multi_agent_workflow(ticket)
         except Exception as e:
@@ -555,7 +566,21 @@ class TicketDetailView(
                     }
                 )
 
+        old_status = ticket.status
         serializer.save()
+        ticket.refresh_from_db()
+
+        if new_status and new_status != old_status:
+            try:
+                from .email_service import dispatch_status_ai_email
+                dispatch_status_ai_email(
+                    ticket=ticket,
+                    target_status=new_status,
+                    old_status=old_status,
+                    trigger_source="Ticket Detail Update",
+                )
+            except Exception as mail_err:
+                print(f"[Status Email Dispatch Notice] {mail_err}")
 
 
 # =========================================================
@@ -636,6 +661,7 @@ class TicketStatusUpdateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        old_status = ticket.status
         ticket.status = new_status
 
         ticket.save(
@@ -644,6 +670,23 @@ class TicketStatusUpdateView(APIView):
                 "updated_at",
             ]
         )
+
+        # Automatic AI Email Notification on Status Transition
+        try:
+            from .email_service import dispatch_status_ai_email
+            dispatch_status_ai_email(
+                ticket=ticket,
+                target_status=new_status,
+                old_status=old_status,
+                trigger_source=f"Status update by {request.user.username if request.user.is_authenticated else 'User'}",
+                extra_context={
+                    "resolution_notes": ticket.resolution_notes or ticket.suggested_resolution,
+                    "reason": request.data.get("reason", ""),
+                    "info_needed": request.data.get("info_needed", ""),
+                }
+            )
+        except Exception as mail_err:
+            print(f"[Status Email Dispatch Notice] {mail_err}")
 
         return Response(
             TicketSerializer(ticket).data,
@@ -845,9 +888,21 @@ class ConfirmResolutionView(APIView):
             return Response({"detail": f"Ticket '{lookup}' not found."}, status=status.HTTP_404_NOT_FOUND)
         self.check_object_permissions(request, ticket)
 
+        old_status = ticket.status
         ticket.status = "CLOSED"
         ticket.closed_at = datetime.now(timezone.utc)
         ticket.save(update_fields=["status", "closed_at", "updated_at"])
+
+        try:
+            from .email_service import dispatch_status_ai_email
+            dispatch_status_ai_email(
+                ticket=ticket,
+                target_status="CLOSED",
+                old_status=old_status,
+                trigger_source="Customer Confirmation",
+            )
+        except Exception as mail_err:
+            print(f"[Closure Email Notice] {mail_err}")
 
         try:
             from .agent_orchestrator import _log_activity

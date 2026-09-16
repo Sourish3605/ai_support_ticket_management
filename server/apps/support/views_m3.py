@@ -588,10 +588,124 @@ class SendTicketEmailAPIView(APIView):
         return Response(res, status=status.HTTP_200_OK)
 
 
+class AIEmailAutomationConfigView(APIView):
+    """
+    GET /api/email/automation-config/ - Get current AI email automation configuration.
+    POST /api/email/automation-config/ - Update AI email automation toggles.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from .email_service import get_ai_email_config
+        config = get_ai_email_config()
+        return Response({
+            "open_enabled": config.open_enabled,
+            "in_progress_enabled": config.in_progress_enabled,
+            "pending_enabled": config.pending_enabled,
+            "solved_enabled": config.solved_enabled,
+            "closed_enabled": config.closed_enabled,
+            "auto_send_enabled": config.auto_send_enabled,
+            "updated_at": config.updated_at.isoformat() if config.updated_at else None,
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        from .email_service import update_ai_email_config
+        res = update_ai_email_config(request.data if isinstance(request.data, dict) else {})
+        return Response(res, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        from .email_service import update_ai_email_config
+        res = update_ai_email_config(request.data if isinstance(request.data, dict) else {})
+        return Response(res, status=status.HTTP_200_OK)
+
+
+class AIEmailRetryView(APIView):
+    """
+    POST /api/email/retry/<email_id>/ - Admin retry for a failed email.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, email_id=None):
+        from .email_service import retry_failed_email_dispatch
+        lookup_id = email_id or request.data.get("email_id") or request.data.get("id")
+        if not lookup_id:
+            return Response({"error": "email_id is required for retry."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        res = retry_failed_email_dispatch(str(lookup_id))
+        http_status = status.HTTP_200_OK if res.get("success") else status.HTTP_400_BAD_REQUEST
+        return Response(res, status=http_status)
+
+
+class AIEmailPreviewView(APIView):
+    """
+    POST /api/email/preview/ - Generate dynamic AI email preview for any ticket and status without sending.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from .email_service import generate_ai_status_email
+        ticket_id = request.data.get("ticket_id") or request.data.get("id")
+        status_name = request.data.get("status") or request.data.get("status_name") or "OPEN"
+        extra_ctx = request.data.get("extra_context") or {}
+
+        ticket = get_ticket_by_id_or_number(ticket_id) if ticket_id else None
+        if not ticket:
+            # Create a mock ticket for preview if ticket_id not found
+            mock_ticket = Ticket(
+                id=9999,
+                ticket_number="TKT-PREVIEW",
+                title=request.data.get("title", "VPN connection failing during morning logon"),
+                description=request.data.get("description", "User unable to connect to corporate gateway from home office."),
+                category=request.data.get("category", "Network"),
+                sub_category=request.data.get("sub_category", "VPN"),
+                department=request.data.get("department", "IT Department"),
+                priority=request.data.get("priority", "High"),
+                status=status_name,
+            )
+            ticket = mock_ticket
+
+        preview = generate_ai_status_email(ticket, status_name, extra_ctx)
+        return Response({
+            "success": True,
+            "preview": preview,
+            "recipient": request.data.get("recipient") or "customer@company.com",
+            "ticket_number": ticket.ticket_number or f"TKT-{ticket.id}",
+        }, status=status.HTTP_200_OK)
+
+
+class AIEmailTriggerView(APIView):
+    """
+    POST /api/email/trigger-status/ - Trigger status-based AI email dispatch.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from .email_service import dispatch_status_ai_email
+        ticket_id = request.data.get("ticket_id") or request.data.get("id")
+        target_status = request.data.get("status") or request.data.get("target_status") or "OPEN"
+        old_status = request.data.get("old_status")
+        force = bool(request.data.get("force", False))
+        extra_ctx = request.data.get("extra_context") or {}
+
+        ticket = get_ticket_by_id_or_number(ticket_id)
+        if not ticket:
+            return Response({"error": f"Ticket '{ticket_id}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        res = dispatch_status_ai_email(
+            ticket=ticket,
+            target_status=target_status,
+            old_status=old_status,
+            trigger_source=request.data.get("trigger_source", "Admin Test Trigger"),
+            force=force,
+            extra_context=extra_ctx,
+        )
+        return Response(res, status=status.HTTP_200_OK)
+
+
 class EmailLogsView(APIView):
     """
     GET /api/email/logs/:ticketId - Get email logs for a ticket.
-    GET /api/email/logs - Get all email logs across system.
+    GET /api/email/logs - Get all email logs across system (with optional query filtering).
     """
     permission_classes = [permissions.AllowAny]
 
@@ -603,7 +717,14 @@ class EmailLogsView(APIView):
                 return Response({"error": f"Ticket '{lookup}' not found."}, status=status.HTTP_404_NOT_FOUND)
             logs = ticket.email_logs.all().order_by("-sent_at")
         else:
-            logs = EmailLog.objects.all().order_by("-sent_at")[:100]
+            queryset = EmailLog.objects.all().order_by("-sent_at")
+            status_param = request.query_params.get("status")
+            if status_param and status_param != "ALL":
+                queryset = queryset.filter(status__iexact=status_param)
+            trigger_param = request.query_params.get("trigger_status")
+            if trigger_param and trigger_param != "ALL":
+                queryset = queryset.filter(trigger_status__iexact=trigger_param)
+            logs = queryset[:150]
 
         serializer = EmailLogSerializer(logs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

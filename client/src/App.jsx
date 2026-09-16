@@ -37,6 +37,7 @@ import AdminConfigPage from "./pages/admin/AdminConfigPage";
 import KnowledgeBasePage from "./pages/admin/KnowledgeBasePage";
 import MasterDataPage from "./pages/admin/MasterDataPage";
 import IntegrationsPage from "./pages/admin/IntegrationsPage";
+import AIEmailAutomationPage from "./pages/admin/AIEmailAutomationPage";
 import AiAgentWorkbench from "./pages/agent/AiAgentWorkbench";
 import JiraCloudPortal from "./pages/jira/JiraCloudPortal";
 
@@ -70,6 +71,7 @@ import {
   FiSearch,
   FiExternalLink,
   FiArrowLeft,
+  FiMail,
 } from "react-icons/fi";
 
 function initials(name) {
@@ -743,6 +745,7 @@ function AdminLayout({ children }) {
     { to: "/admin/routing", icon: FiGitPullRequest, label: "Routing Rules" },
     { to: "/admin/sla", icon: FiClock, label: "SLA Policies" },
     { to: "/admin/ai-settings", icon: FiSliders, label: "AI Settings" },
+    { to: "/admin/email-automation", icon: FiMail, label: "AI Email Automation" },
     { to: "/knowledge", icon: FiBookOpen, label: "Knowledge Base" },
     { to: "/integrations", icon: FiShare2, label: "Integrations" },
     { to: "/analytics", icon: FiBarChart2, label: "Analytics" },
@@ -1551,6 +1554,21 @@ export default function App() {
             }
           />
 
+
+          <Route
+            path="/admin/email-automation"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "agent", "manager"]}>
+                <AdminLayout>
+                  <AIEmailAutomationPage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/email"
+            element={<Navigate to="/admin/email-automation" replace />}
+          />
 
           <Route
             path="/integrations"

@@ -7,6 +7,7 @@ import {
 } from "../../services/m3AgentService";
 import { getAllTickets, updateTicket } from "../../services/ticketService";
 import GmailComposeButton from "../../components/GmailComposeButton";
+import AIEmailAutomationSection from "../../components/AIEmailAutomationSection";
 import {
   FiExternalLink,
   FiMail,
@@ -377,6 +378,8 @@ export default function IntegrationsPage() {
       ===================================================== */}
       {activeTab === "email" && (
         <div className="space-y-6">
+          <AIEmailAutomationSection />
+
           {/* Email Service Status Card */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

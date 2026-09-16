@@ -277,15 +277,99 @@ export const sendEmailApi = async (emailType, ticketId, payload = {}) => {
   return null;
 };
 
-export const fetchEmailLogsApi = async (ticketId = null) => {
+export const fetchEmailLogsApi = async (ticketId = null, filterStatus = null, filterTrigger = null) => {
   try {
-    const url = ticketId ? `/support/email/logs/${ticketId}/` : "/support/email/logs/";
+    let url = ticketId ? `/support/email/logs/${ticketId}/` : "/support/email/logs/";
+    const params = new URLSearchParams();
+    if (filterStatus && filterStatus !== "ALL") params.append("status", filterStatus);
+    if (filterTrigger && filterTrigger !== "ALL") params.append("trigger_status", filterTrigger);
+    const queryString = params.toString();
+    if (queryString) {
+      url += (url.includes("?") ? "&" : "?") + queryString;
+    }
     const res = await api.get(url);
     if (res?.data && Array.isArray(res.data)) return res.data;
   } catch (err) {
     console.warn("[m3AgentService] fetchEmailLogsApi notice:", err.message);
   }
   return [];
+};
+
+export const fetchAIEmailConfigApi = async () => {
+  try {
+    const res = await api.get("/support/email/automation-config/");
+    if (res?.data) {
+      localStorage.setItem("supportpilot_ai_email_config", JSON.stringify(res.data));
+      return res.data;
+    }
+  } catch (err) {
+    console.warn("[m3AgentService] fetchAIEmailConfigApi notice:", err.message);
+  }
+  const saved = localStorage.getItem("supportpilot_ai_email_config");
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {}
+  }
+  return {
+    open_enabled: true,
+    in_progress_enabled: true,
+    pending_enabled: true,
+    solved_enabled: true,
+    closed_enabled: true,
+    auto_send_enabled: true,
+  };
+};
+
+export const updateAIEmailConfigApi = async (data = {}) => {
+  try {
+    const res = await api.post("/support/email/automation-config/", data);
+    if (res?.data) {
+      localStorage.setItem("supportpilot_ai_email_config", JSON.stringify(res.data));
+      return res.data;
+    }
+  } catch (err) {
+    console.warn("[m3AgentService] updateAIEmailConfigApi notice:", err.message);
+  }
+  localStorage.setItem("supportpilot_ai_email_config", JSON.stringify(data));
+  return {
+    ...data,
+    updated_at: new Date().toISOString(),
+  };
+};
+
+export const retryFailedEmailApi = async (emailId) => {
+  try {
+    const res = await api.post(`/support/email/retry/${emailId}/`);
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.warn("[m3AgentService] retryFailedEmailApi notice:", err.message);
+    return {
+      success: false,
+      error: err.response?.data?.error || err.message,
+    };
+  }
+  return { success: false, error: "Network or server error during email retry." };
+};
+
+export const previewAIEmailApi = async (params = {}) => {
+  try {
+    const res = await api.post("/support/email/preview/", params);
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.warn("[m3AgentService] previewAIEmailApi notice:", err.message);
+  }
+  return null;
+};
+
+export const triggerAIEmailStatusApi = async (params = {}) => {
+  try {
+    const res = await api.post("/support/email/trigger-status/", params);
+    if (res?.data) return res.data;
+  } catch (err) {
+    console.warn("[m3AgentService] triggerAIEmailStatusApi notice:", err.message);
+  }
+  return null;
 };
 
 export const fetchActivityLogsApi = async (ticketId) => {
