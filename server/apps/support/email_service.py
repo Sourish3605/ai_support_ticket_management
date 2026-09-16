@@ -211,7 +211,7 @@ def _summarize_text(text: str, max_words: int = 35) -> str:
     """Helper to produce concise, customer-safe summaries without technical artifacts."""
     if not text:
         return "No additional description provided."
-    clean = " ".join(str(text).split())
+    clean = " ".join(text.split())
     words = clean.split()
     if len(words) <= max_words:
         return clean
@@ -222,7 +222,7 @@ def _normalize_status_key(status_val: str) -> str:
     """Normalize any ticket status into standard canonical key: OPEN, IN_PROGRESS, ESCALATED, PENDING, SOLVED, CLOSED."""
     if not status_val:
         return "OPEN"
-    s = str(status_val).strip().upper()
+    s = status_val.strip().upper()
     if s in ["OPEN", "NEW", "DRAFT", "CLASSIFIED", "AI_ANALYZING"]:
         return "OPEN"
     if s in ["ESCALATED", "ESCALATE", "ESCALATED_TO_AGENT", "TRANSFERRED", "REOPENED"]:
@@ -956,7 +956,7 @@ def dispatch_status_ai_email(
 def retry_failed_email_dispatch(email_id: str) -> dict:
     """Retry sending a previously failed or pending email log."""
     email_log = EmailLog.objects.filter(email_id=email_id).first()
-    if not email_log and str(email_id).isdigit():
+    if not email_log and email_id.isdigit():
         email_log = EmailLog.objects.filter(id=int(email_id)).first()
         
     if not email_log:
@@ -1065,7 +1065,7 @@ def retry_failed_email_dispatch(email_id: str) -> dict:
             else:
                 dispatch_error = err_msg
             # In testing/dev environment without active SMTP credentials, simulate success on valid address
-            if not getattr(settings, "EMAIL_HOST_USER", None) or "connection refused" in str(dispatch_error).lower():
+            if not getattr(settings, "EMAIL_HOST_USER", None) or "connection refused" in (dispatch_error or "").lower():
                 dispatched = True
                 dispatch_error = None
 
