@@ -597,7 +597,17 @@ class AIEmailAutomationConfigView(APIView):
 
     def get(self, request):
         from .email_service import get_ai_email_config
+        from django.conf import settings
+        import os
         config = get_ai_email_config()
+        effective_key = (
+            (config.resend_api_key or "").strip()
+            or getattr(settings, "RESEND_API_KEY", "")
+            or os.environ.get("RESEND_API_KEY", "")
+        ).strip()
+        masked_key = ""
+        if effective_key:
+            masked_key = effective_key[:6] + "..." + effective_key[-4:] if len(effective_key) > 10 else "***"
         return Response({
             "open_enabled": config.open_enabled,
             "in_progress_enabled": config.in_progress_enabled,
@@ -605,6 +615,9 @@ class AIEmailAutomationConfigView(APIView):
             "solved_enabled": config.solved_enabled,
             "closed_enabled": config.closed_enabled,
             "auto_send_enabled": config.auto_send_enabled,
+            "from_email": config.from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "SupportPilot <onboarding@resend.dev>"),
+            "has_resend_api_key": bool(effective_key),
+            "masked_resend_api_key": masked_key,
             "updated_at": config.updated_at.isoformat() if config.updated_at else None,
         }, status=status.HTTP_200_OK)
 
