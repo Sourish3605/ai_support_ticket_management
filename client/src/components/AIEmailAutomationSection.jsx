@@ -8,24 +8,7 @@ import {
   triggerAIEmailStatusApi,
 } from "../services/m3AgentService";
 import { getAllTickets } from "../services/ticketService";
-import {
-  FiMail,
-  FiCheck,
-  FiX,
-  FiRefreshCw,
-  FiEye,
-  FiSend,
-  FiInfo,
-  FiSliders,
-  FiClock,
-  FiAlertTriangle,
-  FiCheckCircle,
-  FiLayers,
-  FiZap,
-  FiKey,
-  FiLock,
-  FiShield,
-} from "react-icons/fi";
+
 
 const STATUS_ITEMS = [
   {
@@ -295,18 +278,13 @@ export default function AIEmailAutomationSection() {
               ? "bg-slate-900/95 text-white border-rose-500/40 shadow-rose-950/40"
               : "bg-slate-900/95 text-white border-blue-500/40 shadow-blue-950/40"
           }`}>
-            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl font-bold text-sm ${
-              toastType === "success" ? "bg-emerald-500/20 text-emerald-400" : toastType === "error" ? "bg-rose-500/20 text-rose-400" : "bg-blue-500/20 text-blue-400"
-            }`}>
-              {toastType === "success" ? <FiCheck className="w-4 h-4" /> : toastType === "error" ? <FiAlertTriangle className="w-4 h-4" /> : <FiInfo className="w-4 h-4" />}
-            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">
                   {toastType === "success" ? "Operation Successful" : toastType === "error" ? "Action Notice" : "Information"}
                 </h4>
-                <button type="button" onClick={() => setShowToast(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
-                  <FiX className="w-3.5 h-3.5" />
+                <button type="button" onClick={() => setShowToast(false)} className="text-slate-400 hover:text-white text-xs font-bold px-1.5 cursor-pointer">
+                  ✕
                 </button>
               </div>
               <p className="text-xs text-slate-300 mt-1 leading-relaxed">{toastMessage}</p>
@@ -319,9 +297,8 @@ export default function AIEmailAutomationSection() {
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white rounded-2xl p-6 sm:p-7 shadow-lg border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400 mb-1.5">
-              <FiZap className="w-3.5 h-3.5 text-blue-400" />
-              <span>AI-Based Automatic Email Notification System</span>
+            <div className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-1.5">
+              AI-Based Automatic Email Notification System
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
               AI Email Automation
@@ -340,8 +317,7 @@ export default function AIEmailAutomationSection() {
               className="flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 text-xs font-semibold transition cursor-pointer border border-white/10"
               title="Refresh configuration and delivery logs"
             >
-              <FiRefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              <span>Sync</span>
+              <span>{isLoading ? "Syncing..." : "Sync"}</span>
             </button>
 
             <div className="flex items-center gap-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2">
@@ -372,12 +348,11 @@ export default function AIEmailAutomationSection() {
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 pt-4">
           <div className="flex items-center gap-2 overflow-x-auto">
             {[
-              { id: "matrix", label: "Status & AI Email Matrix", icon: FiSliders },
-              { id: "history", label: "Email Delivery History & Audit Logs", icon: FiClock, badge: emailLogs.length },
-              { id: "tester", label: "Live AI Email Simulator & Tester", icon: FiEye },
+              { id: "matrix", label: "Status & AI Email Matrix" },
+              { id: "history", label: "Email Delivery History & Audit Logs", badge: emailLogs.length },
+              { id: "tester", label: "Live AI Email Simulator & Tester" },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
-              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
@@ -388,7 +363,6 @@ export default function AIEmailAutomationSection() {
                       : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
                   {tab.badge !== undefined && (
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isActive ? "bg-white text-blue-700" : "bg-slate-800 text-slate-300"}`}>
@@ -409,7 +383,6 @@ export default function AIEmailAutomationSection() {
                 : "bg-amber-950/60 border-amber-500/40 text-amber-300 hover:bg-amber-900/60"
             }`}
           >
-            <FiKey className="w-3.5 h-3.5" />
             <span>{config.has_resend_api_key ? `Resend API: Active (${config.masked_resend_api_key || "Configured"})` : "Configure Resend API Key"}</span>
             <span className={`h-2 w-2 rounded-full ${config.has_resend_api_key ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
           </button>
@@ -420,27 +393,22 @@ export default function AIEmailAutomationSection() {
       {(!config.has_resend_api_key || showApiConfig) && (
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-indigo-500/30 rounded-2xl p-5 shadow-lg text-white space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-400 font-bold">
-                <FiShield className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Cloud Email Gateway (Resend HTTPS Port 443)</span>
-                  {config.has_resend_api_key ? (
-                    <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                      HTTPS ACTIVE
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-500/20 border border-amber-400/30 px-2 py-0.5 text-[10px] font-bold text-amber-300">
-                      KEY REQUIRED FOR CLOUD DELIVERY
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  Resend API delivers transactional emails over secure HTTPS (Port 443) bypassing cloud firewall restrictions.
-                </p>
-              </div>
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>Cloud Email Gateway (Resend HTTPS Port 443)</span>
+                {config.has_resend_api_key ? (
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                    HTTPS ACTIVE
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-amber-500/20 border border-amber-400/30 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                    KEY REQUIRED FOR CLOUD DELIVERY
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Resend API delivers transactional emails over secure HTTPS (Port 443) bypassing cloud firewall restrictions.
+              </p>
             </div>
 
             {config.has_resend_api_key && (
@@ -487,15 +455,14 @@ export default function AIEmailAutomationSection() {
               <button
                 type="submit"
                 disabled={isSaving || (!resendApiKeyInput.trim() && fromEmailInput === config.from_email)}
-                className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 text-xs font-bold transition cursor-pointer shadow-md flex items-center justify-center gap-2"
+                className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 text-xs font-bold transition cursor-pointer shadow-md flex items-center justify-center"
               >
-                <FiCheck className="w-3.5 h-3.5" />
                 <span>{isSaving ? "Saving..." : "Save Credentials"}</span>
               </button>
             </div>
           </form>
-          <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-2">
-            <span>💡 For testing with unverified domains, keep sender as <code className="text-blue-300 bg-black/40 px-1.5 py-0.5 rounded">SupportPilot &lt;onboarding@resend.dev&gt;</code> to deliver to your registered email.</span>
+          <div className="text-[11px] text-slate-400">
+            For testing with unverified domains, keep sender as <code className="text-blue-300 bg-black/40 px-1.5 py-0.5 rounded">SupportPilot &lt;onboarding@resend.dev&gt;</code> to deliver to your registered email.
           </div>
         </div>
       )}
@@ -509,9 +476,8 @@ export default function AIEmailAutomationSection() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
               <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <FiSliders className="text-blue-600 w-4 h-4" />
-                  <span>AI Email Automation Matrix</span>
+                <h2 className="text-base font-bold text-slate-900">
+                  AI Email Automation Matrix
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Configure automatic AI email dispatch per ticket lifecycle status.
@@ -588,9 +554,8 @@ export default function AIEmailAutomationSection() {
                           <button
                             type="button"
                             onClick={() => handleOpenPreview(item.statusKey)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition cursor-pointer shadow-2xs"
+                            className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition cursor-pointer shadow-2xs"
                           >
-                            <FiEye className="w-3.5 h-3.5 text-blue-600" />
                             <span>Preview</span>
                           </button>
                         </td>
@@ -605,9 +570,8 @@ export default function AIEmailAutomationSection() {
           {/* AI Email Generation Principles Card */}
           <div className="grid md:grid-cols-3 gap-5">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center gap-2 text-blue-700 font-bold text-xs uppercase tracking-wider">
-                <FiZap className="w-4 h-4" />
-                <span>Dynamic Context Synthesis</span>
+              <div className="text-blue-700 font-bold text-xs uppercase tracking-wider">
+                Dynamic Context Synthesis
               </div>
               <h3 className="font-bold text-sm text-slate-900">No Generic Email Templates</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
@@ -616,9 +580,8 @@ export default function AIEmailAutomationSection() {
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs uppercase tracking-wider">
-                <FiCheckCircle className="w-4 h-4" />
-                <span>Deduplication &amp; State Guard</span>
+              <div className="text-emerald-700 font-bold text-xs uppercase tracking-wider">
+                Deduplication &amp; State Guard
               </div>
               <h3 className="font-bold text-sm text-slate-900">Transition-Only Trigger</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
@@ -627,9 +590,8 @@ export default function AIEmailAutomationSection() {
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-              <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs uppercase tracking-wider">
-                <FiLayers className="w-4 h-4" />
-                <span>Privacy &amp; Leak Prevention</span>
+              <div className="text-indigo-700 font-bold text-xs uppercase tracking-wider">
+                Privacy &amp; Leak Prevention
               </div>
               <h3 className="font-bold text-sm text-slate-900">Zero Internal Leakage</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
@@ -647,9 +609,8 @@ export default function AIEmailAutomationSection() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-4">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
             <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FiClock className="text-blue-600 w-4 h-4" />
-                <span>Email Delivery History &amp; Audit Logs</span>
+              <h2 className="text-base font-bold text-slate-900">
+                Email Delivery History &amp; Audit Logs
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Complete audit trail of all automated AI email notifications sent to customers.
@@ -700,7 +661,6 @@ export default function AIEmailAutomationSection() {
           <div className="overflow-x-auto px-4 pb-4">
             {emailLogs.length === 0 ? (
               <div className="p-12 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
-                <FiMail className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                 <p className="font-bold text-sm text-slate-700">No email delivery logs recorded yet</p>
                 <p className="text-xs text-slate-500 mt-1">Create a support ticket or update a ticket status to see automatic AI emails recorded here.</p>
               </div>
@@ -753,14 +713,12 @@ export default function AIEmailAutomationSection() {
                         {/* Delivery Status */}
                         <td className="py-3.5 px-4 text-center">
                           {isFailed ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-[11px] font-bold text-rose-700" title={log.failure_reason}>
-                              <FiAlertTriangle className="w-3 h-3 text-rose-600" />
-                              <span>FAILED</span>
+                            <span className="inline-block rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-[11px] font-bold text-rose-700" title={log.failure_reason}>
+                              FAILED
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                              <FiCheck className="w-3 h-3 text-emerald-600" />
-                              <span>SENT</span>
+                            <span className="inline-block rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                              SENT
                             </span>
                           )}
                         </td>
@@ -779,10 +737,9 @@ export default function AIEmailAutomationSection() {
                             type="button"
                             onClick={() => handleResendEmail(log.email_id || log.id, log.recipient)}
                             disabled={retryingEmailId === (log.email_id || log.id)}
-                            className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50 inline-flex items-center gap-1.5"
+                            className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50"
                             title={`Resend email to ${log.recipient}`}
                           >
-                            <FiSend className="w-3 h-3" />
                             <span>{retryingEmailId === (log.email_id || log.id) ? "Resending..." : "Resend Mail"}</span>
                           </button>
                         </td>
@@ -802,9 +759,8 @@ export default function AIEmailAutomationSection() {
       {activeTab === "tester" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
           <div className="border-b border-slate-100 pb-4">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FiEye className="text-blue-600 w-4 h-4" />
-              <span>Live AI Email Generation Simulator</span>
+            <h2 className="text-base font-bold text-slate-900">
+              Live AI Email Generation Simulator
             </h2>
             <p className="text-xs text-slate-500 mt-1">
               Select any ticket and simulate how AI crafts personalized email content across each of the 5 statuses.
@@ -874,7 +830,6 @@ export default function AIEmailAutomationSection() {
                     className="flex items-center justify-between rounded-xl bg-slate-800 hover:bg-blue-600 px-3.5 py-2.5 text-xs font-bold text-white transition cursor-pointer border border-slate-700"
                   >
                     <span>Test {st.statusLabel}</span>
-                    <FiSend className="w-3.5 h-3.5 opacity-80" />
                   </button>
                 ))}
               </div>
@@ -902,17 +857,16 @@ export default function AIEmailAutomationSection() {
               <button
                 type="button"
                 onClick={() => setPreviewModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer"
+                className="px-2 py-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 font-bold text-sm cursor-pointer"
               >
-                <FiX className="w-4 h-4" />
+                ✕
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
               {previewLoading ? (
                 <div className="py-16 text-center text-slate-500">
-                  <FiRefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-2" />
-                  <p className="text-xs font-bold">Synthesizing personalized AI email...</p>
+                  <p className="text-xs font-bold animate-pulse">Synthesizing personalized AI email...</p>
                 </div>
               ) : previewData ? (
                 <div className="space-y-4">
@@ -960,9 +914,9 @@ export default function AIEmailAutomationSection() {
               <button
                 type="button"
                 onClick={() => setViewEmailModal(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer"
+                className="px-2 py-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 font-bold text-sm cursor-pointer"
               >
-                <FiX className="w-4 h-4" />
+                ✕
               </button>
             </div>
 
@@ -1012,9 +966,8 @@ export default function AIEmailAutomationSection() {
                   type="button"
                   onClick={() => handleResendEmail(viewEmailModal.email_id || viewEmailModal.id, modalRecipientInput || viewEmailModal.recipient)}
                   disabled={retryingEmailId === (viewEmailModal.email_id || viewEmailModal.id)}
-                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition cursor-pointer shadow-sm disabled:opacity-50 inline-flex items-center gap-1.5"
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition cursor-pointer shadow-sm disabled:opacity-50"
                 >
-                  <FiSend className="w-3.5 h-3.5" />
                   <span>{retryingEmailId === (viewEmailModal.email_id || viewEmailModal.id) ? "Resending..." : "Resend Mail"}</span>
                 </button>
               </div>
