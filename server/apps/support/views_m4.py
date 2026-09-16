@@ -146,8 +146,11 @@ class M4ValidateAgentActionView(APIView):
                     old_status=old_status,
                     trigger_source=f"Agent Validation ({action})",
                     extra_context={
-                        "resolution_notes": payload.get("response") or payload.get("remarks") or ticket.resolution_notes,
+                        "resolution_notes": payload.get("resolutionNotes") or payload.get("notes") or payload.get("response") or payload.get("remarks") or ticket.resolution_notes,
+                        "reason": payload.get("escalationReason") or payload.get("reason"),
                         "info_needed": payload.get("infoNeeded") or payload.get("reason"),
+                        "assigned_specialist": payload.get("assignedSpecialist"),
+                        "to_team": payload.get("toTeam"),
                     }
                 )
             except Exception as mail_err:

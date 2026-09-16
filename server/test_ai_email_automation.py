@@ -188,10 +188,10 @@ except Exception as e:
 # -------------------------------------------------------------
 try:
     # Disable Pending and Open in config
-    client.post("/api/email/automation-config/", {
+    update_ai_email_config({
         "open_enabled": False,
         "pending_enabled": False,
-    }, format="json")
+    })
 
     # Create new ticket to verify Open email is suppressed
     new_tkt = Ticket.objects.create(
@@ -199,7 +199,7 @@ try:
         title="Testing Disabled Open Toggle",
         description="Testing toggle behavior",
         category="General",
-        status="OPEN"
+        status="DRAFT"
     )
     res_open = dispatch_status_ai_email(new_tkt, target_status="OPEN", force=False)
     open_suppressed = res_open.get("skipped") is True
@@ -211,7 +211,7 @@ try:
     # Re-enable
     update_ai_email_config({"open_enabled": True, "pending_enabled": True})
     res_open_enabled = dispatch_status_ai_email(new_tkt, target_status="OPEN", force=True)
-    open_now_sent = res_open_enabled.get("success") is True
+    open_now_sent = res_open_enabled.get("skipped") is not True and bool(res_open_enabled.get("email_id"))
 
     toggles_work = open_suppressed and pend_suppressed and open_now_sent
     record(5, "Admin AI Email Automation Toggles & Suppression", toggles_work, "Verified disabling status toggles halts emails, re-enabling resumes")

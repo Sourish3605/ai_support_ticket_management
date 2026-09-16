@@ -364,8 +364,14 @@ export async function executeAgentAction(ticketId, action, payload = {}, current
       ticket_id: ticket.id,
       action,
       payload,
-    }).catch(() => {});
-  } catch (e) {}
+    }).catch(async () => {
+      await updateTicketStatusApi(ticket.id, newStatus);
+    });
+  } catch (e) {
+    try {
+      await updateTicketStatusApi(ticket.id, newStatus);
+    } catch (_) {}
+  }
 
   window.dispatchEvent(new CustomEvent("supportpilot_tickets_changed", { detail: ticket }));
   window.dispatchEvent(new Event("storage"));
