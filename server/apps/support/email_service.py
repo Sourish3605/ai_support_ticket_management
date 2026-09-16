@@ -219,13 +219,15 @@ def _summarize_text(text: str, max_words: int = 35) -> str:
 
 
 def _normalize_status_key(status_val: str) -> str:
-    """Normalize any ticket status into standard canonical key: OPEN, IN_PROGRESS, PENDING, SOLVED, CLOSED."""
+    """Normalize any ticket status into standard canonical key: OPEN, IN_PROGRESS, ESCALATED, PENDING, SOLVED, CLOSED."""
     if not status_val:
         return "OPEN"
     s = str(status_val).strip().upper()
     if s in ["OPEN", "NEW", "DRAFT", "CLASSIFIED", "AI_ANALYZING"]:
         return "OPEN"
-    if s in ["IN_PROGRESS", "ASSIGNED", "AI_PROCESSING", "IN PROGRESS"]:
+    if s in ["ESCALATED", "ESCALATE", "ESCALATED_TO_AGENT", "TRANSFERRED", "REOPENED"]:
+        return "ESCALATED"
+    if s in ["IN_PROGRESS", "ASSIGNED", "AI_PROCESSING", "IN PROGRESS", "INVESTIGATING"]:
         return "IN_PROGRESS"
     if s in ["PENDING", "WAITING_FOR_CUSTOMER", "AWAITING_CUSTOMER_INFO", "ON_HOLD", "PENDING_AGENT_REVIEW", "PENDING_CONFIRMATION"]:
         return "PENDING"
@@ -522,7 +524,73 @@ def generate_ai_status_email(
             "html_body": html_body,
         }
 
-    # 5. TICKET CLOSED -> AI Closure Email
+    # 5. TICKET ESCALATED -> AI Escalation & Specialist Handoff Email
+    elif norm_status == "ESCALATED":
+        subject = f"[SupportPilot] Ticket #{t_num} Escalated: Assigned to Specialist ({title})"
+        badge = "Escalated to Agent"
+        accent_color = "#e11d48"
+        
+        reason = (
+            ctx.get("reason")
+            or ctx.get("escalation_reason")
+            or getattr(ticket, "escalation_reason", "")
+            or "Issue complexity requires specialized human agent investigation."
+        )
+        specialist_name = ctx.get("assigned_specialist") or agent_name
+        target_team = ctx.get("to_team") or department or "Specialist Support"
+
+        paragraphs = [
+            f"Your support ticket <strong>#{t_num}</strong> (<em>{title}</em>) has been escalated for hands-on specialist investigation.",
+            f"The case has been transferred to <strong>{specialist_name}</strong> in the <strong>{target_team}</strong> team.",
+            "Our support specialist is actively reviewing the diagnostics and will take direct action to resolve your issue.",
+        ]
+        
+        callout = f"<strong>Escalation Reason:</strong><br>{reason}"
+        
+        details = {
+            "Ticket ID": f"#{t_num}",
+            "Subject": title,
+            "Assigned Specialist": specialist_name,
+            "Department / Team": target_team,
+            "Current Status": "Escalated to Agent",
+            "Priority": priority,
+            "Next Step": "Direct Specialist Review & Follow-up",
+        }
+        
+        plain_body = (
+            f"Hello {user_name},\n\n"
+            f"Your support ticket #{t_num} ({title}) has been escalated and passed to a support agent.\n\n"
+            f"Ticket ID: #{t_num}\n"
+            f"Subject: {title}\n"
+            f"Assigned Specialist: {specialist_name}\n"
+            f"Department / Team: {target_team}\n"
+            f"Current Status: Escalated to Agent\n\n"
+            f"ESCALATION REASON:\n{reason}\n\n"
+            f"Our specialist is actively working on your request and will follow up with you directly.\n\n"
+            f"Regards,\nSupport Operations Team"
+        )
+        
+        html_body = _build_enterprise_html_email(
+            title=f"Ticket #{t_num} Escalated to Agent",
+            badge=badge,
+            greeting=f"Hello {user_name}",
+            paragraphs=paragraphs,
+            details=details,
+            accent_color=accent_color,
+            callout_box=callout,
+            footer_note="SupportPilot IT Helpdesk &bull; Escalation Notice",
+        )
+        
+        return {
+            "subject": subject,
+            "email_type": "escalation",
+            "trigger_status": "ESCALATED",
+            "badge": badge,
+            "body": plain_body,
+            "html_body": html_body,
+        }
+
+    # 6. TICKET CLOSED -> AI Closure Email
     elif norm_status == "CLOSED":
         subject = f"[SupportPilot] Ticket #{t_num} has been Closed"
         badge = "Closed"
@@ -592,7 +660,7 @@ def dispatch_status_ai_email(
 
     Key Rules:
     1. Sends email ONLY when the ticket actually transitions to that status (or force=True).
-    2. Respects Admin AI Email Automation toggles (Open, In Progress, Pending, Solved, Closed).
+    2. Respects Admin AI Email Automation toggles (Open, In Progress, Pending, Solved, Closed, Escalated).
     3. Prevents duplicate emails for the same ticket status transition within 2 minutes.
     4. Dynamically generates email content via AI generator.
     5. Records EmailLog (SENT / FAILED) with failure reason for Admin retry.
@@ -621,6 +689,7 @@ def dispatch_status_ai_email(
     status_toggle_map = {
         "OPEN": config.open_enabled,
         "IN_PROGRESS": config.in_progress_enabled,
+        "ESCALATED": config.in_progress_enabled,
         "PENDING": config.pending_enabled,
         "SOLVED": config.solved_enabled,
         "CLOSED": config.closed_enabled,
@@ -638,6 +707,7 @@ def dispatch_status_ai_email(
     email_type_map = {
         "OPEN": "acknowledgement",
         "IN_PROGRESS": "in_progress",
+        "ESCALATED": "escalation",
         "PENDING": "pending",
         "SOLVED": "resolved",
         "CLOSED": "closed",
@@ -662,11 +732,29 @@ def dispatch_status_ai_email(
 
     # Rule 4: Dynamic AI Generation
     generated = generate_ai_status_email(ticket, norm_status, extra_context)
-    try:
-        created_by = getattr(ticket, "created_by", None)
-        recipient = _get_user_email(created_by) if created_by else "customer@example.com"
-    except Exception:
-        recipient = "customer@example.com"
+    
+    ctx = extra_context or {}
+    recipient = None
+    if ctx.get("recipient") and "@" in str(ctx["recipient"]):
+        recipient = str(ctx["recipient"])
+    if not recipient:
+        try:
+            created_by = getattr(ticket, "created_by", None)
+            if created_by and getattr(created_by, "email", None) and "@" in str(created_by.email):
+                recipient = str(created_by.email)
+            elif created_by:
+                recipient = _get_user_email(created_by)
+        except Exception:
+            pass
+    if not recipient:
+        meta = getattr(ticket, "metadata", {}) or {}
+        if isinstance(meta, dict):
+            for k in ["customer_email", "user_email", "email", "created_by_email"]:
+                if meta.get(k) and "@" in str(meta[k]):
+                    recipient = str(meta[k])
+                    break
+    if not recipient:
+        recipient = "sourishnarendrula@gmail.com"
 
     subject = generated["subject"]
     body = generated["body"]
@@ -732,12 +820,13 @@ def dispatch_status_ai_email(
             dispatch_error = str(mail_err)
 
     # Determine delivery status
-    delivery_status = "SENT"
-    if dispatch_error and "authentication" in str(dispatch_error).lower():
-        delivery_status = "FAILED"
-    elif not recipient or "@" not in recipient:
+    if not recipient or "@" not in recipient:
         delivery_status = "FAILED"
         dispatch_error = "Invalid recipient email address"
+    elif not dispatched or dispatch_error:
+        delivery_status = "FAILED"
+    else:
+        delivery_status = "SENT"
 
     # Persist in DB
     email_log = EmailLog.objects.create(
@@ -764,6 +853,7 @@ def dispatch_status_ai_email(
     action_labels = {
         "OPEN": "EMAIL_OPEN_SENT",
         "IN_PROGRESS": "EMAIL_IN_PROGRESS_SENT",
+        "ESCALATED": "EMAIL_ESCALATION_SENT",
         "PENDING": "EMAIL_PENDING_SENT",
         "SOLVED": "EMAIL_SOLVED_SENT",
         "CLOSED": "EMAIL_CLOSED_SENT",
@@ -1080,10 +1170,13 @@ def _persist_and_dispatch_email(
         except Exception as mail_err:
             dispatch_error = str(mail_err)
 
-    delivery_status = "SENT"
     if not recipient or "@" not in recipient:
         delivery_status = "FAILED"
         dispatch_error = "Invalid recipient email"
+    elif not dispatched or dispatch_error:
+        delivery_status = "FAILED"
+    else:
+        delivery_status = "SENT"
 
     email_log = EmailLog.objects.create(
         email_id=email_id,
