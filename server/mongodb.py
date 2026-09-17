@@ -9,9 +9,9 @@ try:
 except ImportError:
     CA_FILE = None
 
-DEFAULT_MONGO_URI = "mongodb+srv://support_admin:Support12345@cluster0.kzld13c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-raw_uri = config("MONGO_URI", default=os.environ.get("MONGO_URI", DEFAULT_MONGO_URI))
-MONGO_URI = raw_uri.strip().strip("'\"") if raw_uri else DEFAULT_MONGO_URI
+DEFAULT_MONGO_URI = os.environ.get("MONGO_URI", "")
+raw_uri = config("MONGO_URI", default=DEFAULT_MONGO_URI)
+MONGO_URI = raw_uri.strip().strip("'\"") if raw_uri else ""
 MONGO_TIMEOUT_MS = int(config("MONGO_TIMEOUT_MS", default="1500"))
 print(f"[MongoDB] MONGO_TIMEOUT_MS = {MONGO_TIMEOUT_MS}")
 
